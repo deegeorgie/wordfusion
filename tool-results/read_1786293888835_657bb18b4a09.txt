@@ -1,0 +1,863 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useMemo } from 'react';
+     4→import { motion, AnimatePresence } from 'framer-motion';
+     5→import { toast } from 'sonner';
+     6→import {
+     7→  ArrowLeft,
+     8→  Clock,
+     9→  CheckCircle2,
+    10→  Eye,
+    11→  Trash2,
+    12→  Trophy,
+    13→  Star,
+    14→  Grid3X3,
+    15→  Play,
+    16→  Lightbulb,
+    17→} from 'lucide-react';
+    18→
+    19→import CrosswordGrid from '@/components/crossword/CrosswordGrid';
+    20→import ClueList from '@/components/crossword/ClueList';
+    21→import { Button } from '@/components/ui/button';
+    22→import {
+    23→  Card,
+    24→  CardHeader,
+    25→  CardTitle,
+    26→  CardDescription,
+    27→  CardContent,
+    28→  CardAction,
+    29→} from '@/components/ui/card';
+    30→import { Badge } from '@/components/ui/badge';
+    31→import { Skeleton } from '@/components/ui/skeleton';
+    32→import { Separator } from '@/components/ui/separator';
+    33→
+    34→import type {
+    35→  CrosswordPuzzleData,
+    36→  WordPlacement,
+    37→  Clue,
+    38→} from '@/lib/crossword/types';
+    39→
+    40→// ── Types ───────────────────────────────────────────────────────────────
+    41→
+    42→interface PuzzleSummary {
+    43→  id: string;
+    44→  title: string;
+    45→  difficulty: number;
+    46→  description?: string;
+    47→  rows: number;
+    48→  cols: number;
+    49→  publishDate: string;
+    50→  completed?: boolean;
+    51→  timeSpent?: number;
+    52→}
+    53→
+    54→// ── Helpers ─────────────────────────────────────────────────────────────
+    55→
+    56→function toCellKey(row: number, col: number): string {
+    57→  return `${row},${col}`;
+    58→}
+    59→
+    60→function clueKey(number: number, direction: 'across' | 'down'): string {
+    61→  return `${number}-${direction}`;
+    62→}
+    63→
+    64→function formatFrenchDate(): string {
+    65→  return new Date().toLocaleDateString('fr-FR', {
+    66→    weekday: 'long',
+    67→    year: 'numeric',
+    68→    month: 'long',
+    69→    day: 'numeric',
+    70→  });
+    71→}
+    72→
+    73→function formatTimer(seconds: number): string {
+    74→  const m = Math.floor(seconds / 60);
+    75→  const s = seconds % 60;
+    76→  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    77→}
+    78→
+    79→function difficultyLabel(d: number): string {
+    80→  if (d <= 1) return 'Facile';
+    81→  if (d <= 2) return 'Moyen';
+    82→  if (d <= 3) return 'Difficile';
+    83→  return 'Expert';
+    84→}
+    85→
+    86→function difficultyColor(d: number): string {
+    87→  if (d <= 1) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+    88→  if (d <= 2) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+    89→  if (d <= 3) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400';
+    90→  return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+    91→}
+    92→
+    93→// ── Animation variants ──────────────────────────────────────────────────
+    94→
+    95→const fadeIn = {
+    96→  initial: { opacity: 0, y: 16 },
+    97→  animate: { opacity: 1, y: 0 },
+    98→  exit: { opacity: 0, y: -8 },
+    99→  transition: { duration: 0.35, ease: 'easeOut' as const },
+   100→};
+   101→
+   102→const staggerContainer = {
+   103→  animate: { transition: { staggerChildren: 0.07 } },
+   104→};
+   105→
+   106→const staggerItem = {
+   107→  initial: { opacity: 0, y: 20 },
+   108→  animate: { opacity: 1, y: 0 },
+   109→};
+   110→
+   111→// ── Confetti overlay ────────────────────────────────────────────────────
+   112→
+   113→function ConfettiOverlay() {
+   114→  const particles = useMemo(() => {
+   115→    const colors = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+   116→    return Array.from({ length: 50 }, (_, i) => ({
+   117→      id: i,
+   118→      x: Math.random() * 100,
+   119→      y: Math.random() * -50 - 10,
+   120→      color: colors[i % colors.length],
+   121→      size: Math.random() * 8 + 4,
+   122→      delay: Math.random() * 1.2,
+   123→      duration: Math.random() * 2 + 2.5,
+   124→    }));
+   125→  }, []);
+   126→
+   127→  return (
+   128→    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+   129→      {particles.map((p) => (
+   130→        <motion.div
+   131→          key={p.id}
+   132→          initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 1, scale: 1 }}
+   133→          animate={{ y: '110vh', opacity: 0, rotate: 540 }}
+   134→          transition={{ duration: p.duration, delay: p.delay, ease: 'easeIn' }}
+   135→          className="absolute rounded-sm"
+   136→          style={{ width: p.size, height: p.size, backgroundColor: p.color }}
+   137→        />
+   138→      ))}
+   139→    </div>
+   140→  );
+   141→}
+   142→
+   143→// ── Puzzle card skeleton ────────────────────────────────────────────────
+   144→
+   145→function PuzzleCardSkeleton() {
+   146→  return (
+   147→    <Card className="py-5">
+   148→      <CardHeader className="gap-1.5 px-5">
+   149→        <Skeleton className="h-5 w-3/4" />
+   150→        <Skeleton className="h-4 w-1/2" />
+   151→      </CardHeader>
+   152→      <CardContent className="px-5">
+   153→        <div className="flex items-center justify-between">
+   154→          <Skeleton className="h-6 w-16 rounded-full" />
+   155→          <Skeleton className="h-8 w-20 rounded-md" />
+   156→        </div>
+   157→      </CardContent>
+   158→    </Card>
+   159→  );
+   160→}
+   161→
+   162→// ════════════════════════════════════════════════════════════════════════
+   163→// MAIN PAGE
+   164→// ════════════════════════════════════════════════════════════════════════
+   165→
+   166→export default function Home() {
+   167→  // ── View state ──────────────────────────────────────────────────────
+   168→  const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
+   169→  const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
+   170→  const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
+   171→
+   172→  // ── Puzzle data ─────────────────────────────────────────────────────
+   173→  const [selectedPuzzle, setSelectedPuzzle] = useState<CrosswordPuzzleData | null>(null);
+   174→  const [puzzleId, setPuzzleId] = useState<string | null>(null);
+   175→  const [userInputs, setUserInputs] = useState<(string | null)[][]>([]);
+   176→  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+   177→  const [direction, setDirection] = useState<'across' | 'down'>('across');
+   178→  const [activeClueNumber, setActiveClueNumber] = useState<number | null>(null);
+   179→  const [activeClueDirection, setActiveClueDirection] = useState<'across' | 'down'>('across');
+   180→
+   181→  // ── Cell status ─────────────────────────────────────────────────────
+   182→  const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
+   183→  const [correctCells, setCorrectCells] = useState<Set<string>>(new Set());
+   184→  const [incorrectCells, setIncorrectCells] = useState<Set<string>>(new Set());
+   185→  const [completedClues, setCompletedClues] = useState<Set<string>>(new Set());
+   186→
+   187→  // ── Timer / completion ──────────────────────────────────────────────
+   188→  const [timer, setTimer] = useState(0);
+   189→  const [isTimerRunning, setIsTimerRunning] = useState(false);
+   190→  const [isCompleted, setIsCompleted] = useState(false);
+   191→  const [isChecking, setIsChecking] = useState(false);
+   192→  const [isLoadingPuzzle, setIsLoadingPuzzle] = useState(false);
+   193→
+   194→  // ── Timer interval ──────────────────────────────────────────────────
+   195→  useEffect(() => {
+   196→    if (!isTimerRunning) return;
+   197→    const id = setInterval(() => setTimer((t) => t + 1), 1000);
+   198→    return () => clearInterval(id);
+   199→  }, [isTimerRunning]);
+   200→
+   201→  // ── Load daily puzzles on mount ─────────────────────────────────────
+   202→  useEffect(() => {
+   203→    let cancelled = false;
+   204→    (async () => {
+   205→      setIsLoadingPuzzles(true);
+   206→      try {
+   207→        const res = await fetch('/api/puzzles/daily');
+   208→        if (!res.ok) throw new Error();
+   209→        const data = await res.json();
+   210→        if (!cancelled) setDailyPuzzles(data.puzzles ?? []);
+   211→      } catch {
+   212→        if (!cancelled) toast.error('Impossible de charger les puzzles du jour');
+   213→      } finally {
+   214→        if (!cancelled) setIsLoadingPuzzles(false);
+   215→      }
+   216→    })();
+   217→    return () => { cancelled = true; };
+   218→  }, []);
+   219→
+   220→  // ── Fetch a specific puzzle ─────────────────────────────────────────
+   221→  const fetchPuzzle = useCallback(async (id: string) => {
+   222→    setIsLoadingPuzzle(true);
+   223→    setCurrentView('playing');
+   224→    try {
+   225→      const res = await fetch(`/api/puzzles/${id}`);
+   226→      if (!res.ok) throw new Error();
+   227→      const data = await res.json();
+   228→      const puzzle: CrosswordPuzzleData = data.puzzle;
+   229→
+   230→      const inputs: (string | null)[][] = Array.from({ length: puzzle.rows }, () =>
+   231→        Array.from<null>({ length: puzzle.cols }).fill(null),
+   232→      );
+   233→
+   234→      // Restore saved progress
+   235→      if (data.progress?.cells) {
+   236→        for (const cell of data.progress.cells) {
+   237→          const { row, col, letter } = cell as { row: number; col: number; letter: string };
+   238→          if (row >= 0 && row < puzzle.rows && col >= 0 && col < puzzle.cols) {
+   239→            inputs[row][col] = letter;
+   240→          }
+   241→        }
+   242→      }
+   243→
+   244→      setSelectedPuzzle(puzzle);
+   245→      setPuzzleId(id);
+   246→      setUserInputs(inputs);
+   247→      setSelectedCell(null);
+   248→      setDirection('across');
+   249→      setActiveClueNumber(null);
+   250→      setActiveClueDirection('across');
+   251→      setRevealedCells(new Set());
+   252→      setCorrectCells(new Set());
+   253→      setIncorrectCells(new Set());
+   254→      setCompletedClues(new Set());
+   255→      setTimer(0);
+   256→      setIsTimerRunning(false);
+   257→      setIsCompleted(false);
+   258→      setIsChecking(false);
+   259→    } catch {
+   260→      toast.error('Impossible de charger le puzzle');
+   261→      setCurrentView('selection');
+   262→    } finally {
+   263→      setIsLoadingPuzzle(false);
+   264→    }
+   265→  }, []);
+   266→
+   267→  // ── Get active word cells for highlighting ──────────────────────────
+   268→  const getActiveWordCells = useCallback(
+   269→    (row: number, col: number, dir: 'across' | 'down') => {
+   270→      if (!selectedPuzzle) return [];
+   271→      const word = selectedPuzzle.words.find((w: WordPlacement) => {
+   272→        if (w.direction !== dir) return false;
+   273→        return dir === 'across'
+   274→          ? w.row === row && col >= w.col && col < w.col + w.length
+   275→          : w.col === col && row >= w.row && row < w.row + w.length;
+   276→      });
+   277→      if (!word) return [];
+   278→      return Array.from({ length: word.length }, (_, i) => ({
+   279→        row: dir === 'across' ? word.row : word.row + i,
+   280→        col: dir === 'across' ? word.col + i : word.col,
+   281→      }));
+   282→    },
+   283→    [selectedPuzzle],
+   284→  );
+   285→
+   286→  // ── Resolve which clue is active for a cell ────────────────────────
+   287→  const resolveActiveClue = useCallback(
+   288→    (row: number, col: number, dir: 'across' | 'down') => {
+   289→      if (!selectedPuzzle) return;
+   290→      const otherDir: 'across' | 'down' = dir === 'across' ? 'down' : 'across';
+   291→
+   292→      let found = selectedPuzzle.words.find((w: WordPlacement) => {
+   293→        if (w.direction !== dir) return false;
+   294→        return dir === 'across'
+   295→          ? w.row === row && col >= w.col && col < w.col + w.length
+   296→          : w.col === col && row >= w.row && row < w.row + w.length;
+   297→      });
+   298→
+   299→      if (!found) {
+   300→        found = selectedPuzzle.words.find((w: WordPlacement) => {
+   301→          if (w.direction !== otherDir) return false;
+   302→          return otherDir === 'across'
+   303→            ? w.row === row && col >= w.col && col < w.col + w.length
+   304→            : w.col === col && row >= w.row && row < w.row + w.length;
+   305→        });
+   306→        if (found) {
+   307→          setDirection(otherDir);
+   308→          setActiveClueDirection(otherDir);
+   309→        }
+   310→      } else {
+   311→        setActiveClueDirection(dir);
+   312→      }
+   313→
+   314→      if (found) setActiveClueNumber(found.clueNumber);
+   315→    },
+   316→    [selectedPuzzle],
+   317→  );
+   318→
+   319→  // ── Handlers ─────────────────────────────────────────────────────────
+   320→
+   321→  const handleCellChange = useCallback(
+   322→    (row: number, col: number, value: string) => {
+   323→      if (isCompleted) return;
+   324→      setUserInputs((prev) => {
+   325→        const next = prev.map((r) => [...r]);
+   326→        next[row][col] = value || null;
+   327→        return next;
+   328→      });
+   329→      if (!isTimerRunning && value) setIsTimerRunning(true);
+   330→      // Clear check highlighting on new input
+   331→      setCorrectCells(new Set());
+   332→      setIncorrectCells(new Set());
+   333→    },
+   334→    [isCompleted, isTimerRunning],
+   335→  );
+   336→
+   337→  const handleSelectCell = useCallback(
+   338→    (row: number, col: number) => {
+   339→      if (isCompleted) return;
+   340→      setSelectedCell({ row, col });
+   341→      resolveActiveClue(row, col, direction);
+   342→    },
+   343→    [isCompleted, direction, resolveActiveClue],
+   344→  );
+   345→
+   346→  const handleToggleDirection = useCallback(() => {
+   347→    setDirection((prev) => {
+   348→      const next: 'across' | 'down' = prev === 'across' ? 'down' : 'across';
+   349→      setActiveClueDirection(next);
+   350→      if (selectedCell) resolveActiveClue(selectedCell.row, selectedCell.col, next);
+   351→      return next;
+   352→    });
+   353→  }, [selectedCell, resolveActiveClue]);
+   354→
+   355→  const handleSelectClue = useCallback(
+   356→    (number: number, dir: 'across' | 'down') => {
+   357→      if (!selectedPuzzle) return;
+   358→      const word = selectedPuzzle.words.find(
+   359→        (w: WordPlacement) => w.clueNumber === number && w.direction === dir,
+   360→      );
+   361→      if (!word) return;
+   362→      setDirection(dir);
+   363→      setActiveClueNumber(number);
+   364→      setActiveClueDirection(dir);
+   365→      setSelectedCell({ row: word.row, col: word.col });
+   366→    },
+   367→    [selectedPuzzle],
+   368→  );
+   369→
+   370→  const handleCheck = useCallback(async () => {
+   371→    if (!puzzleId || !selectedPuzzle || isCompleted) return;
+   372→    setIsChecking(true);
+   373→    try {
+   374→      const res = await fetch('/api/puzzles/check', {
+   375→        method: 'POST',
+   376→        headers: { 'Content-Type': 'application/json' },
+   377→        body: JSON.stringify({ puzzleId, userInputs }),
+   378→      });
+   379→      if (!res.ok) throw new Error();
+   380→      const data = await res.json();
+   381→
+   382→      const incorrect = new Set<string>(
+   383→        (data.incorrectCells ?? []).map((c: { row: number; col: number }) => toCellKey(c.row, c.col)),
+   384→      );
+   385→      setIncorrectCells(incorrect);
+   386→
+   387→      const correct = new Set<string>();
+   388→      for (let r = 0; r < selectedPuzzle.rows; r++) {
+   389→        for (let c = 0; c < selectedPuzzle.cols; c++) {
+   390→          if (userInputs[r][c] && !incorrect.has(toCellKey(r, c))) correct.add(toCellKey(r, c));
+   391→        }
+   392→      }
+   393→      setCorrectCells(correct);
+   394→
+   395→      // Update completed clues
+   396→      const newCompleted = new Set<string>(completedClues);
+   397→      for (const word of selectedPuzzle.words) {
+   398→        const ok = Array.from({ length: word.length }, (_, i) => {
+   399→          const r = word.direction === 'across' ? word.row : word.row + i;
+   400→          const c = word.direction === 'across' ? word.col + i : word.col;
+   401→          return !!userInputs[r]?.[c] && !incorrect.has(toCellKey(r, c));
+   402→        }).every(Boolean);
+   403→        if (ok) newCompleted.add(clueKey(word.clueNumber, word.direction));
+   404→      }
+   405→      setCompletedClues(newCompleted);
+   406→
+   407→      if (data.completionPercent === 100 && data.correct) {
+   408→        setIsCompleted(true);
+   409→        setIsTimerRunning(false);
+   410→        toast.success('Bravo ! Puzzle complété !', { duration: 6000 });
+   411→      } else if (incorrect.size === 0) {
+   412→        toast.success('Tout est correct pour le moment !');
+   413→      } else {
+   414→        toast.error(`${incorrect.size} lettre${incorrect.size > 1 ? 's' : ''} incorrecte${incorrect.size > 1 ? 's' : ''}`);
+   415→      }
+   416→    } catch {
+   417→      toast.error('Erreur lors de la vérification');
+   418→    } finally {
+   419→      setIsChecking(false);
+   420→    }
+   421→  }, [puzzleId, selectedPuzzle, userInputs, isCompleted, completedClues]);
+   422→
+   423→  const handleHint = useCallback(async () => {
+   424→    if (!puzzleId || !selectedCell || !selectedPuzzle || isCompleted) return;
+   425→    try {
+   426→      const res = await fetch('/api/puzzles/hint', {
+   427→        method: 'POST',
+   428→        headers: { 'Content-Type': 'application/json' },
+   429→        body: JSON.stringify({ puzzleId, row: selectedCell.row, col: selectedCell.col }),
+   430→      });
+   431→      if (!res.ok) {
+   432→        const err = await res.json().catch(() => ({}));
+   433→        toast.error((err as { error?: string }).error || 'Indice indisponible');
+   434→        return;
+   435→      }
+   436→      const data = await res.json();
+   437→      const { row, col } = selectedCell;
+   438→      setUserInputs((prev) => {
+   439→        const next = prev.map((r) => [...r]);
+   440→        next[row][col] = data.letter;
+   441→        return next;
+   442→      });
+   443→      setRevealedCells((prev) => {
+   444→        const next = new Set(prev);
+   445→        next.add(toCellKey(row, col));
+   446→        return next;
+   447→      });
+   448→      toast.success(`Lettre révélée : ${data.letter}`);
+   449→    } catch {
+   450→      toast.error('Erreur lors de la révélation');
+   451→    }
+   452→  }, [puzzleId, selectedCell, selectedPuzzle, isCompleted]);
+   453→
+   454→  const handleClear = useCallback(() => {
+   455→    if (!selectedPuzzle || isCompleted) return;
+   456→    setUserInputs(
+   457→      Array.from({ length: selectedPuzzle.rows }, () =>
+   458→        Array.from<null>({ length: selectedPuzzle.cols }).fill(null),
+   459→      ),
+   460→    );
+   461→    setCorrectCells(new Set());
+   462→    setIncorrectCells(new Set());
+   463→    setRevealedCells(new Set());
+   464→    setCompletedClues(new Set());
+   465→    toast.info('Grille effacée');
+   466→  }, [selectedPuzzle, isCompleted]);
+   467→
+   468→  const handleBack = useCallback(() => {
+   469→    setIsTimerRunning(false);
+   470→    setSelectedPuzzle(null);
+   471→    setPuzzleId(null);
+   472→    setCurrentView('selection');
+   473→  }, []);
+   474→
+   475→  // ── Derived values ───────────────────────────────────────────────────
+   476→
+   477→  const activeWordCells = useMemo(() => {
+   478→    if (!selectedCell || !selectedPuzzle) return [];
+   479→    return getActiveWordCells(selectedCell.row, selectedCell.col, direction);
+   480→  }, [selectedCell, selectedPuzzle, direction, getActiveWordCells]);
+   481→
+   482→  const activeClueText = useMemo(() => {
+   483→    if (!selectedPuzzle || activeClueNumber === null) return null;
+   484→    return selectedPuzzle.clues.find(
+   485→      (c: Clue) => c.number === activeClueNumber && c.direction === activeClueDirection,
+   486→    ) ?? null;
+   487→  }, [selectedPuzzle, activeClueNumber, activeClueDirection]);
+   488→
+   489→  // ══════════════════════════════════════════════════════════════════════
+   490→  // RENDER
+   491→  // ══════════════════════════════════════════════════════════════════════
+   492→
+   493→  return (
+   494→    <div className="min-h-screen flex flex-col bg-background">
+   495→      <AnimatePresence mode="wait">
+   496→        {/* ═════════════════ PUZZLE SELECTION VIEW ═════════════════ */}
+   497→        {currentView === 'selection' && (
+   498→          <motion.div
+   499→            key="selection"
+   500→            {...fadeIn}
+   501→            className="flex flex-1 flex-col"
+   502→          >
+   503→            {/* Subtle crossword grid background */}
+   504→            <div
+   505→              className="pointer-events-none fixed inset-0 -z-10 opacity-[0.025]"
+   506→              style={{
+   507→                backgroundImage:
+   508→                  'linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(180deg, hsl(var(--foreground)) 1px, transparent 1px)',
+   509→                backgroundSize: '28px 28px',
+   510→              }}
+   511→            />
+   512→
+   513→            {/* ── Header ─────────────────────────────────────────── */}
+   514→            <header className="border-b bg-background/95 backdrop-blur-sm">
+   515→              <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
+   516→                <div className="flex items-center gap-3">
+   517→                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+   518→                    <Grid3X3 className="size-6" />
+   519→                  </div>
+   520→                  <div>
+   521→                    <h1
+   522→                      className="text-3xl font-bold tracking-tight sm:text-4xl"
+   523→                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+   524→                    >
+   525→                      Mots Croisés
+   526→                    </h1>
+   527→                    <p className="text-sm text-muted-foreground mt-0.5">
+   528→                      Gratuits &bull; Uniques &bull; Quotidiens
+   529→                    </p>
+   530→                  </div>
+   531→                </div>
+   532→                <a
+   533→                  href="#admin"
+   534→                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+   535→                >
+   536→                  Administration
+   537→                </a>
+   538→              </div>
+   539→            </header>
+   540→
+   541→            {/* ── Main Content ───────────────────────────────────── */}
+   542→            <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+   543→              {/* Date display */}
+   544→              <div className="mb-8">
+   545→                <p className="text-sm text-muted-foreground capitalize">
+   546→                  📅 {formatFrenchDate()}
+   547→                </p>
+   548→                <h2
+   549→                  className="mt-2 text-xl font-semibold sm:text-2xl"
+   550→                  style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+   551→                >
+   552→                  Puzzles du jour
+   553→                </h2>
+   554→              </div>
+   555→
+   556→              {/* Loading state */}
+   557→              {isLoadingPuzzles && (
+   558→                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+   559→                  {Array.from({ length: 3 }).map((_, i) => (
+   560→                    <PuzzleCardSkeleton key={i} />
+   561→                  ))}
+   562→                </div>
+   563→              )}
+   564→
+   565→              {/* Empty state */}
+   566→              {!isLoadingPuzzles && dailyPuzzles.length === 0 && (
+   567→                <motion.div {...staggerItem} className="text-center py-16">
+   568→                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+   569→                    <Grid3X3 className="size-8 text-muted-foreground" />
+   570→                  </div>
+   571→                  <h3 className="text-lg font-medium">Aucun puzzle disponible</h3>
+   572→                  <p className="mt-1 text-sm text-muted-foreground">
+   573→                    Revenez demain pour de nouveaux puzzles !
+   574→                  </p>
+   575→                </motion.div>
+   576→              )}
+   577→
+   578→              {/* Puzzle cards grid */}
+   579→              {!isLoadingPuzzles && dailyPuzzles.length > 0 && (
+   580→                <motion.div
+   581→                  className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+   582→                  variants={staggerContainer}
+   583→                  initial="initial"
+   584→                  animate="animate"
+   585→                >
+   586→                  {dailyPuzzles.map((puzzle) => (
+   587→                    <motion.div key={puzzle.id} variants={staggerItem}>
+   588→                      <Card className="group relative overflow-hidden py-0 transition-shadow hover:shadow-md">
+   589→                        {/* Difficulty accent bar */}
+   590→                        <div
+   591→                          className={`h-1 w-full ${
+   592→                            puzzle.difficulty <= 1
+   593→                              ? 'bg-emerald-500'
+   594→                              : puzzle.difficulty <= 2
+   595→                                ? 'bg-amber-500'
+   596→                                : puzzle.difficulty <= 3
+   597→                                  ? 'bg-orange-500'
+   598→                                  : 'bg-red-500'
+   599→                          }`}
+   600→                        />
+   601→                        <CardHeader className="gap-1.5 px-5 pt-5 pb-0">
+   602→                          <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
+   603→                          <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+   604→                            {puzzle.description || 'Un puzzle de mots croisés en français'}
+   605→                          </CardDescription>
+   606→                        </CardHeader>
+   607→                        <CardContent className="flex items-center justify-between px-5 pb-5 pt-4">
+   608→                          <div className="flex items-center gap-2">
+   609→                            <Badge className={difficultyColor(puzzle.difficulty)} variant="secondary">
+   610→                              <Star className="size-3 mr-0.5" />
+   611→                              {difficultyLabel(puzzle.difficulty)}
+   612→                            </Badge>
+   613→                            <span className="text-xs text-muted-foreground">
+   614→                              {puzzle.rows}×{puzzle.cols}
+   615→                            </span>
+   616→                          </div>
+   617→                          <Button
+   618→                            size="sm"
+   619→                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+   620→                            onClick={() => fetchPuzzle(puzzle.id)}
+   621→                          >
+   622→                            <Play className="size-3.5" />
+   623→                            Jouer
+   624→                          </Button>
+   625→                        </CardContent>
+   626→                        {puzzle.completed && (
+   627→                          <div className="absolute top-3 right-3">
+   628→                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1">
+   629→                              <Trophy className="size-3" />
+   630→                              Terminé
+   631→                            </Badge>
+   632→                          </div>
+   633→                        )}
+   634→                      </Card>
+   635→                    </motion.div>
+   636→                  ))}
+   637→                </motion.div>
+   638→              )}
+   639→            </main>
+   640→
+   641→            {/* ── Footer ─────────────────────────────────────────── */}
+   642→            <footer className="mt-auto border-t py-4">
+   643→              <p className="text-center text-xs text-muted-foreground">
+   644→                Mots Croisés &mdash; Un puzzle unique chaque jour
+   645→              </p>
+   646→            </footer>
+   647→          </motion.div>
+   648→        )}
+   649→
+   650→        {/* ═════════════════ PUZZLE SOLVING VIEW ═══════════════════ */}
+   651→        {currentView === 'playing' && (
+   652→          <motion.div
+   653→            key="playing"
+   654→            {...fadeIn}
+   655→            className="flex flex-1 flex-col"
+   656→          >
+   657→            {/* ── Top bar ───────────────────────────────────────── */}
+   658→            <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-sm">
+   659→              <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:px-4 sm:gap-3">
+   660→                <Button
+   661→                  variant="ghost"
+   662→                  size="sm"
+   663→                  onClick={handleBack}
+   664→                  className="shrink-0 -ml-1"
+   665→                >
+   666→                  <ArrowLeft className="size-4" />
+   667→                  <span className="hidden sm:inline">Retour</span>
+   668→                </Button>
+   669→
+   670→                <Separator orientation="vertical" className="h-5 mx-1 hidden sm:block" />
+   671→
+   672→                <h2 className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
+   673→                  {selectedPuzzle?.title ?? 'Chargement…'}
+   674→                </h2>
+   675→
+   676→                {selectedPuzzle && (
+   677→                  <Badge className={difficultyColor(selectedPuzzle.difficulty)} variant="secondary">
+   678→                    <Star className="size-3 mr-0.5" />
+   679→                    {difficultyLabel(selectedPuzzle.difficulty)}
+   680→                  </Badge>
+   681→                )}
+   682→
+   683→                {/* Timer */}
+   684→                <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-sm tabular-nums">
+   685→                  <Clock className="size-3.5 text-muted-foreground" />
+   686→                  <span className="font-medium">{formatTimer(timer)}</span>
+   687→                </div>
+   688→              </div>
+   689→            </header>
+   690→
+   691→            {/* ── Main area ──────────────────────────────────────── */}
+   692→            <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-4">
+   693→              {/* Loading state */}
+   694→              {isLoadingPuzzle && !selectedPuzzle && (
+   695→                <div className="flex flex-col items-center justify-center py-20 gap-4">
+   696→                  <Skeleton className="h-8 w-64" />
+   697→                  <Skeleton className="h-[320px] w-[320px] rounded-lg" />
+   698→                </div>
+   699→              )}
+   700→
+   701→              {selectedPuzzle && (
+   702→                <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
+   703→                  {/* ── Left: Grid + Controls ──────────────────── */}
+   704→                  <div className="flex flex-col items-center gap-3 lg:w-auto lg:min-w-0 lg:flex-1">
+   705→                    {/* Active clue banner */}
+   706→                    <AnimatePresence mode="wait">
+   707→                      {activeClueText && (
+   708→                        <motion.div
+   709→                          key={`${activeClueText.number}-${activeClueText.direction}`}
+   710→                          initial={{ opacity: 0, y: -4 }}
+   711→                          animate={{ opacity: 1, y: 0 }}
+   712→                          exit={{ opacity: 0, y: 4 }}
+   713→                          className="w-full rounded-lg border bg-card px-4 py-2.5 shadow-sm"
+   714→                        >
+   715→                          <div className="flex items-start gap-2">
+   716→                            <Badge
+   717→                              variant="outline"
+   718→                              className="mt-0.5 shrink-0 text-xs font-bold"
+   719→                            >
+   720→                              {activeClueText.number}
+   721→                              {activeClueText.direction === 'across' ? 'H' : 'V'}
+   722→                            </Badge>
+   723→                            <p className="text-sm leading-relaxed">
+   724→                              {activeClueText.text}
+   725→                            </p>
+   726→                          </div>
+   727→                        </motion.div>
+   728→                      )}
+   729→                    </AnimatePresence>
+   730→
+   731→                    {/* Action buttons row */}
+   732→                    <div className="flex flex-wrap items-center justify-center gap-2">
+   733→                      <Button
+   734→                        variant="outline"
+   735→                        size="sm"
+   736→                        onClick={handleCheck}
+   737→                        disabled={isChecking || isCompleted}
+   738→                      >
+   739→                        <CheckCircle2 className="size-4 text-emerald-600" />
+   740→                        Vérifier
+   741→                      </Button>
+   742→                      <Button
+   743→                        variant="outline"
+   744→                        size="sm"
+   745→                        onClick={handleHint}
+   746→                        disabled={!selectedCell || isCompleted}
+   747→                      >
+   748→                        <Lightbulb className="size-4 text-amber-500" />
+   749→                        Indice
+   750→                      </Button>
+   751→                      <Button
+   752→                        variant="outline"
+   753→                        size="sm"
+   754→                        onClick={handleClear}
+   755→                        disabled={isCompleted}
+   756→                      >
+   757→                        <Trash2 className="size-4 text-red-500" />
+   758→                        Effacer
+   759→                      </Button>
+   760→                    </div>
+   761→
+   762→                    {/* The crossword grid */}
+   763→                    <div className="overflow-x-auto w-full flex justify-center">
+   764→                      <CrosswordGrid
+   765→                        puzzle={selectedPuzzle}
+   766→                        userInputs={userInputs}
+   767→                        onCellChange={handleCellChange}
+   768→                        selectedCell={selectedCell}
+   769→                        onSelectCell={handleSelectCell}
+   770→                        direction={direction}
+   771→                        onToggleDirection={handleToggleDirection}
+   772→                        activeWordCells={activeWordCells}
+   773→                        revealedCells={revealedCells}
+   774→                        correctCells={correctCells}
+   775→                        incorrectCells={incorrectCells}
+   776→                      />
+   777→                    </div>
+   778→
+   779→                    {/* Keyboard shortcuts hint */}
+   780→                    <p className="text-center text-[11px] text-muted-foreground mt-1">
+   781→                      Tab pour changer de direction &bull; Flèches pour naviguer &bull; Backspace pour effacer
+   782→                    </p>
+   783→                  </div>
+   784→
+   785→                  {/* ── Right: Clue panel (desktop) ──────────── */}
+   786→                  <div className="w-full lg:w-[340px] xl:w-[380px] lg:shrink-0">
+   787→                    <div className="rounded-xl border bg-card shadow-sm">
+   788→                      <div className="border-b px-4 py-3">
+   789→                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+   790→                          Indications
+   791→                        </h3>
+   792→                      </div>
+   793→                      <div className="p-1.5">
+   794→                        <ClueList
+   795→                          clues={selectedPuzzle.clues}
+   796→                          activeClueNumber={activeClueNumber}
+   797→                          activeClueDirection={activeClueDirection}
+   798→                          onSelectClue={handleSelectClue}
+   799→                          completedClues={completedClues}
+   800→                        />
+   801→                      </div>
+   802→                    </div>
+   803→                  </div>
+   804→                </div>
+   805→              )}
+   806→            </main>
+   807→
+   808→            {/* ── Footer ─────────────────────────────────────────── */}
+   809→            <footer className="mt-auto border-t py-3">
+   810→              <p className="text-center text-[11px] text-muted-foreground">
+   811→                Mots Croisés &mdash; Un puzzle unique chaque jour
+   812→              </p>
+   813→            </footer>
+   814→
+   815→            {/* ── Completion celebration ─────────────────────────── */}
+   816→            <AnimatePresence>
+   817→              {isCompleted && (
+   818→                <>
+   819→                  <ConfettiOverlay />
+   820→                  <motion.div
+   821→                    initial={{ opacity: 0, scale: 0.8 }}
+   822→                    animate={{ opacity: 1, scale: 1 }}
+   823→                    exit={{ opacity: 0, scale: 0.9 }}
+   824→                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+   825→                    className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+   826→                  >
+   827→                    <motion.div
+   828→                      initial={{ y: 40, opacity: 0 }}
+   829→                      animate={{ y: 0, opacity: 1 }}
+   830→                      transition={{ delay: 0.2, duration: 0.4 }}
+   831→                      className="mx-4 rounded-2xl bg-card p-8 text-center shadow-2xl sm:p-12"
+   832→                    >
+   833→                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+   834→                        <Trophy className="size-8 text-emerald-600 dark:text-emerald-400" />
+   835→                      </div>
+   836→                      <h2
+   837→                        className="text-2xl font-bold sm:text-3xl"
+   838→                        style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+   839→                      >
+   840→                        Félicitations !
+   841→                      </h2>
+   842→                      <p className="mt-2 text-muted-foreground">
+   843→                        Vous avez résolu le puzzle en{' '}
+   844→                        <span className="font-semibold text-foreground">{formatTimer(timer)}</span>.
+   845→                      </p>
+   846→                      <div className="mt-6 flex items-center justify-center gap-3">
+   847→                        <Button variant="outline" onClick={handleBack}>
+   848→                          <ArrowLeft className="size-4" />
+   849→                          Retour
+   850→                        </Button>
+   851→                      </div>
+   852→                    </motion.div>
+   853→                  </motion.div>
+   854→                </>
+   855→              )}
+   856→            </AnimatePresence>
+   857→          </motion.div>
+   858→        )}
+   859→      </AnimatePresence>
+   860→    </div>
+   861→  );
+   862→}
+   863→

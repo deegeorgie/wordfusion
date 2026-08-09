@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CrosswordPuzzle {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  difficulty  Int      @default(1) // 1=Easy, 2=Medium, 3=Hard
+  gridData    String   // JSON string of the grid layout
+  wordsData   String   // JSON string of word placements
+  cluesData   String   // JSON string of clues
+  rows        Int
+  cols        Int
+  publishDate DateTime? // When this puzzle should be published
+  published   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UserProgress {
+  id          String   @id @default(cuid())
+  puzzleId    String
+  userId      String   @default("anonymous")
+  completed   Boolean  @default(false)
+  timeSpent   Int      @default(0) // seconds
+  hintsUsed   Int      @default(0)
+  progress    String   @default("{}") // JSON string of filled letters
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([puzzleId, userId])
+}
+
+model PublishingSchedule {
+  id          String   @id @default(cuid())
+  puzzlesPerDay Int    @default(1)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
