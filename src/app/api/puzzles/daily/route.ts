@@ -13,6 +13,29 @@ export async function GET(request: NextRequest) {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
+    // ── Auto-publish puzzles whose publishDate has arrived ──
+    // Any puzzle scheduled for today (or earlier) that is still unpublished
+    // gets automatically published, unless the publishing schedule is disabled.
+    const schedule = await db.publishingSchedule.findFirst({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const scheduleActive = schedule?.isActive ?? true;
+
+    if (scheduleActive) {
+      const result = await db.crosswordPuzzle.updateMany({
+        where: {
+          publishDate: { lte: endOfDay },
+          published: false,
+        },
+        data: { published: true },
+      });
+      if (result.count > 0) {
+        console.log(`📅 Auto-published ${result.count} puzzle(s) whose date has arrived`);
+      }
+    }
+
+    // ── Fetch today's published puzzles ──
     const puzzles = await db.crosswordPuzzle.findMany({
       where: {
         publishDate: {
