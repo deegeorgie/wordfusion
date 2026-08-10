@@ -14,6 +14,7 @@ import {
   Grid3X3,
   Play,
   Lightbulb,
+  Settings,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -31,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 
+import AdminPanel from '@/components/crossword/AdminPanel';
 import type {
   CrosswordPuzzleData,
   WordPlacement,
@@ -148,6 +150,7 @@ function PuzzleCardSkeleton() {
 export default function Home() {
   // ── View state ──────────────────────────────────────────────────────
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
+  const [adminOpen, setAdminOpen] = useState(false);
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
@@ -506,12 +509,15 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-              <a
-                href="#admin"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                onClick={() => setAdminOpen(true)}
               >
+                <Settings className="size-3.5" />
                 Administration
-              </a>
+              </Button>
             </div>
           </header>
 
@@ -806,6 +812,9 @@ export default function Home() {
           )}
         </div>
       )}
+
+      {/* ── Admin Panel Dialog ──────────────────────────────── */}
+      <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} />
     </div>
   );
 }
