@@ -325,8 +325,10 @@ export default function CrosswordGrid({
             // Status colours (highest priority)
             if (isIncorrect) {
               cellBg = 'bg-red-100 dark:bg-red-950';
+              cellText = 'text-red-700 dark:text-red-400';
             } else if (isCorrect) {
-              cellBg = 'bg-green-100 dark:bg-green-950';
+              cellBg = 'bg-emerald-50 dark:bg-emerald-950';
+              cellText = 'text-emerald-700 dark:text-emerald-400';
             } else if (isRevealed) {
               cellBg = 'bg-sky-50 dark:bg-sky-950';
             }

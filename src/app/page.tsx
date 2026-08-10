@@ -31,6 +31,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 import AdminPanel from '@/components/crossword/AdminPanel';
 import type {
@@ -165,9 +167,10 @@ export default function Home() {
 
   // ── Cell status ─────────────────────────────────────────────────────
   const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
-  const [correctCells, setCorrectCells] = useState<Set<string>>(new Set());
-  const [incorrectCells, setIncorrectCells] = useState<Set<string>>(new Set());
+  const [correctCellsManual, setCorrectCellsManual] = useState<Set<string>>(new Set());
+  const [incorrectCellsManual, setIncorrectCellsManual] = useState<Set<string>>(new Set());
   const [completedClues, setCompletedClues] = useState<Set<string>>(new Set());
+  const [autoCheck, setAutoCheck] = useState(true); // Real-time letter validation
 
   // ── Timer / completion ──────────────────────────────────────────────
   const [timer, setTimer] = useState(0);
@@ -234,8 +237,8 @@ export default function Home() {
       setActiveClueNumber(null);
       setActiveClueDirection('across');
       setRevealedCells(new Set());
-      setCorrectCells(new Set());
-      setIncorrectCells(new Set());
+      setCorrectCellsManual(new Set());
+      setIncorrectCellsManual(new Set());
       setCompletedClues(new Set());
       setTimer(0);
       setIsTimerRunning(false);
@@ -312,11 +315,13 @@ export default function Home() {
         return next;
       });
       if (!isTimerRunning && value) setIsTimerRunning(true);
-      // Clear check highlighting on new input
-      setCorrectCells(new Set());
-      setIncorrectCells(new Set());
+      // Only clear manual check highlights on new input (auto-check handles its own)
+      if (!autoCheck) {
+        setCorrectCellsManual(new Set());
+        setIncorrectCellsManual(new Set());
+      }
     },
-    [isCompleted, isTimerRunning],
+    [isCompleted, isTimerRunning, autoCheck],
   );
 
   const handleSelectCell = useCallback(
@@ -367,7 +372,7 @@ export default function Home() {
       const incorrect = new Set<string>(
         (data.incorrectCells ?? []).map((c: { row: number; col: number }) => toCellKey(c.row, c.col)),
       );
-      setIncorrectCells(incorrect);
+      setIncorrectCellsManual(incorrect);
 
       const correct = new Set<string>();
       for (let r = 0; r < selectedPuzzle.rows; r++) {
@@ -375,7 +380,7 @@ export default function Home() {
           if (userInputs[r][c] && !incorrect.has(toCellKey(r, c))) correct.add(toCellKey(r, c));
         }
       }
-      setCorrectCells(correct);
+      setCorrectCellsManual(correct);
 
       // Update completed clues
       const newCompleted = new Set<string>(completedClues);
@@ -443,8 +448,8 @@ export default function Home() {
         Array.from<null>({ length: selectedPuzzle.cols }).fill(null),
       ),
     );
-    setCorrectCells(new Set());
-    setIncorrectCells(new Set());
+    setCorrectCellsManual(new Set());
+    setIncorrectCellsManual(new Set());
     setRevealedCells(new Set());
     setCompletedClues(new Set());
     toast.info('Grille effacée');
@@ -458,6 +463,48 @@ export default function Home() {
   }, []);
 
   // ── Derived values ───────────────────────────────────────────────────
+
+  // Real-time auto-validation: compare each filled cell against the answer
+  const autoCorrectCells = useMemo(() => {
+    const s = new Set<string>();
+    if (!selectedPuzzle || !autoCheck) return s;
+    for (let r = 0; r < selectedPuzzle.rows; r++) {
+      for (let c = 0; c < selectedPuzzle.cols; c++) {
+        const answer = selectedPuzzle.grid[r]?.[c]?.letter;
+        const input = userInputs[r]?.[c];
+        if (answer && input && input.toUpperCase() === answer.toUpperCase()) {
+          s.add(toCellKey(r, c));
+        }
+      }
+    }
+    return s;
+  }, [selectedPuzzle, userInputs, autoCheck]);
+
+  const autoIncorrectCells = useMemo(() => {
+    const s = new Set<string>();
+    if (!selectedPuzzle || !autoCheck) return s;
+    for (let r = 0; r < selectedPuzzle.rows; r++) {
+      for (let c = 0; c < selectedPuzzle.cols; c++) {
+        const answer = selectedPuzzle.grid[r]?.[c]?.letter;
+        const input = userInputs[r]?.[c];
+        if (answer && input && input.toUpperCase() !== answer.toUpperCase()) {
+          s.add(toCellKey(r, c));
+        }
+      }
+    }
+    return s;
+  }, [selectedPuzzle, userInputs, autoCheck]);
+
+  // Merge auto-check + manual check sets (manual takes priority if conflicting)
+  const correctCells = useMemo(() => {
+    if (!autoCheck) return correctCellsManual;
+    return new Set([...autoCorrectCells, ...correctCellsManual]);
+  }, [autoCheck, autoCorrectCells, correctCellsManual]);
+
+  const incorrectCells = useMemo(() => {
+    if (!autoCheck) return incorrectCellsManual;
+    return new Set([...autoIncorrectCells, ...incorrectCellsManual]);
+  }, [autoCheck, autoIncorrectCells, incorrectCellsManual]);
 
   const activeWordCells = useMemo(() => {
     if (!selectedCell || !selectedPuzzle) return [];
@@ -699,6 +746,19 @@ export default function Home() {
 
                   {/* Action buttons row */}
                   <div className="flex flex-wrap items-center justify-center gap-2">
+                    {/* Auto-check toggle */}
+                    <div className="flex items-center gap-1.5 rounded-md border bg-muted/30 px-2.5 py-1">
+                      <Switch
+                        id="auto-check"
+                        checked={autoCheck}
+                        onCheckedChange={setAutoCheck}
+                        className="scale-90"
+                      />
+                      <Label htmlFor="auto-check" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+                        Validation auto
+                      </Label>
+                    </div>
+                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
                     <Button
                       variant="outline"
                       size="sm"
