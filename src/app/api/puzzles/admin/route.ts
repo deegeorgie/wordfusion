@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { createPuzzle, puzzleToDbFormat } from '@/lib/crossword/utils';
+import { puzzleToDbFormat } from '@/lib/crossword/utils';
 import type { CrosswordPuzzleData } from '@/lib/crossword/types';
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -9,6 +9,8 @@ interface PuzzleBody {
   title: string;
   description?: string;
   difficulty: number;
+  language?: string;
+  categoryId?: string | null;
   rows: number;
   cols: number;
   grid: CrosswordPuzzleData['grid'];
@@ -29,7 +31,7 @@ function validateBody(body: unknown): body is PuzzleBody {
   );
 }
 
-// ── GET: List all puzzles ──────────────────────────────────────────────
+// ── GET: List all puzzles + categories ──────────────────────────────────
 
 export async function GET() {
   try {
@@ -39,11 +41,16 @@ export async function GET() {
         id: true,
         title: true,
         difficulty: true,
+        language: true,
+        categoryId: true,
         rows: true,
         cols: true,
         publishDate: true,
         published: true,
         createdAt: true,
+        category: {
+          select: { id: true, name: true, slug: true },
+        },
       },
     });
 
@@ -51,6 +58,10 @@ export async function GET() {
       id: p.id,
       title: p.title,
       difficulty: p.difficulty,
+      language: p.language,
+      categoryId: p.categoryId,
+      categoryName: p.category?.name ?? null,
+      categorySlug: p.category?.slug ?? null,
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? null,
@@ -66,7 +77,16 @@ export async function GET() {
       ? { puzzlesPerDay: schedule.puzzlesPerDay, isActive: schedule.isActive }
       : { puzzlesPerDay: 1, isActive: true };
 
-    return NextResponse.json({ puzzles: puzzleList, schedule: scheduleSettings });
+    const categories = await db.category.findMany({
+      orderBy: [{ language: 'asc' }, { name: 'asc' }],
+      include: { _count: { select: { puzzles: true } } },
+    });
+
+    return NextResponse.json({
+      puzzles: puzzleList,
+      schedule: scheduleSettings,
+      categories,
+    });
   } catch (error) {
     console.error('Error fetching admin puzzles:', error);
     return NextResponse.json({ error: 'Failed to fetch puzzles' }, { status: 500 });
@@ -86,6 +106,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const language = ['fr', 'en'].includes(body.language) ? body.language : 'fr';
+    const categoryId = body.categoryId || null;
+
+    // Validate categoryId if provided
+    if (categoryId) {
+      const cat = await db.category.findUnique({ where: { id: categoryId } });
+      if (!cat) {
+        return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
+      }
+    }
+
     const dbFormat = puzzleToDbFormat({
       title: body.title,
       description: body.description,
@@ -102,6 +133,8 @@ export async function POST(request: NextRequest) {
         title: body.title.trim(),
         description: body.description?.trim() || null,
         difficulty: body.difficulty,
+        language,
+        categoryId,
         rows: body.rows,
         cols: body.cols,
         gridData: dbFormat.gridData,
@@ -126,10 +159,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
 
     if (!body.id || typeof body.id !== 'string') {
-      return NextResponse.json(
-        { error: 'ID du puzzle requis' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'ID du puzzle requis' }, { status: 400 });
     }
 
     const existing = await db.crosswordPuzzle.findUnique({ where: { id: body.id } });
@@ -157,12 +187,25 @@ export async function PUT(request: NextRequest) {
         clues: body.clues,
       });
 
+      const language = ['fr', 'en'].includes(body.language) ? body.language : existing.language;
+      const categoryId = body.categoryId !== undefined ? (body.categoryId || null) : existing.categoryId;
+
+      // Validate categoryId if provided
+      if (categoryId) {
+        const cat = await db.category.findUnique({ where: { id: categoryId } });
+        if (!cat) {
+          return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
+        }
+      }
+
       await db.crosswordPuzzle.update({
         where: { id: body.id },
         data: {
           title: body.title.trim(),
           description: body.description?.trim() || null,
           difficulty: body.difficulty,
+          language,
+          categoryId,
           rows: body.rows,
           cols: body.cols,
           gridData: dbFormat.gridData,
@@ -171,11 +214,23 @@ export async function PUT(request: NextRequest) {
         },
       });
     } else {
-      // Only metadata update (title, description, difficulty)
+      // Only metadata update (title, description, difficulty, language, categoryId)
       const updateData: Record<string, unknown> = {};
       if (body.title) updateData.title = body.title.trim();
       if (body.description !== undefined) updateData.description = body.description?.trim() || null;
       if (body.difficulty) updateData.difficulty = body.difficulty;
+      if (body.language && ['fr', 'en'].includes(body.language)) updateData.language = body.language;
+      if (body.categoryId !== undefined) {
+        if (body.categoryId) {
+          const cat = await db.category.findUnique({ where: { id: body.categoryId } });
+          if (!cat) {
+            return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
+          }
+          updateData.categoryId = body.categoryId;
+        } else {
+          updateData.categoryId = null;
+        }
+      }
 
       if (Object.keys(updateData).length === 0) {
         return NextResponse.json({ error: 'Aucune modification fournie' }, { status: 400 });

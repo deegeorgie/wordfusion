@@ -15,6 +15,9 @@ import {
   Play,
   Lightbulb,
   Settings,
+  Globe,
+  FolderOpen,
+  Layers,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -33,6 +36,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 import AdminPanel from '@/components/crossword/AdminPanel';
 import type {
@@ -43,6 +53,13 @@ import type {
 
 // ── Types ───────────────────────────────────────────────────────────────
 
+interface CategoryInfo {
+  id: string;
+  name: string;
+  slug: string;
+  language: string;
+}
+
 interface PuzzleSummary {
   id: string;
   title: string;
@@ -51,6 +68,9 @@ interface PuzzleSummary {
   rows: number;
   cols: number;
   publishDate: string;
+  language: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
   completed?: boolean;
   timeSpent?: number;
 }
@@ -92,6 +112,14 @@ function difficultyColor(d: number): string {
   if (d <= 2) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
   if (d <= 3) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400';
   return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+}
+
+function languageFlag(lang: string): string {
+  return lang === 'en' ? '🇬🇧' : '🇫🇷';
+}
+
+function languageName(lang: string): string {
+  return lang === 'en' ? 'English' : 'Français';
 }
 
 // ── Confetti overlay ────────────────────────────────────────────────────
@@ -156,6 +184,11 @@ export default function Home() {
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
+  // ── Language + Category filter state ────────────────────────────────
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [categories, setCategories] = useState<CategoryInfo[]>([]);
+
   // ── Puzzle data ─────────────────────────────────────────────────────
   const [selectedPuzzle, setSelectedPuzzle] = useState<CrosswordPuzzleData | null>(null);
   const [puzzleId, setPuzzleId] = useState<string | null>(null);
@@ -186,13 +219,26 @@ export default function Home() {
     return () => clearInterval(id);
   }, [isTimerRunning]);
 
-  // ── Load daily puzzles on mount ─────────────────────────────────────
+  // ── Load categories on mount ────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/categories')
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(data.categories ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Load daily puzzles on mount / filter change ────────────────────
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setIsLoadingPuzzles(true);
       try {
-        const res = await fetch('/api/puzzles/daily');
+        const params = new URLSearchParams();
+        if (selectedLanguage !== 'all') params.set('language', selectedLanguage);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(`/api/puzzles/daily${query}`);
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (!cancelled) setDailyPuzzles(data.puzzles ?? []);
@@ -203,7 +249,25 @@ export default function Home() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedLanguage]);
+
+  // ── Filter puzzles by category on client side ──────────────────────
+  const filteredPuzzles = useMemo(() => {
+    let puzzles = dailyPuzzles;
+    if (selectedCategory !== 'all') {
+      puzzles = puzzles.filter((p) => p.categoryId === selectedCategory);
+    }
+    return puzzles;
+  }, [dailyPuzzles, selectedCategory]);
+
+  // ── Available categories for filter (based on loaded puzzles) ────────
+  const activeCategoryIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const p of dailyPuzzles) {
+      if (p.categoryId) ids.add(p.categoryId);
+    }
+    return ids;
+  }, [dailyPuzzles]);
 
   // ── Fetch a specific puzzle ─────────────────────────────────────────
   const fetchPuzzle = useCallback(async (id: string) => {
@@ -571,7 +635,7 @@ export default function Home() {
           {/* ── Main Content ───────────────────────────────────── */}
           <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
             {/* Date display */}
-            <div className="mb-8">
+            <div className="mb-6">
               <p className="text-sm text-muted-foreground capitalize">
                 📅 {formatFrenchDate()}
               </p>
@@ -581,6 +645,75 @@ export default function Home() {
               >
                 Puzzles du jour
               </h2>
+            </div>
+
+            {/* ── Filters ──────────────────────────────────────── */}
+            <div className="flex flex-wrap items-center gap-3 mb-6">
+              {/* Language selector */}
+              <div className="flex items-center gap-2">
+                <Globe className="size-4 text-muted-foreground" />
+                <Select value={selectedLanguage} onValueChange={(v) => {
+                  setSelectedLanguage(v);
+                  setSelectedCategory('all');
+                }}>
+                  <SelectTrigger className="h-9 w-40 text-sm">
+                    <SelectValue placeholder="Langue" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      <span className="flex items-center gap-1.5">
+                        🌍 Toutes les langues
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="fr">
+                      <span className="flex items-center gap-1.5">
+                        🇫🇷 Français
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="en">
+                      <span className="flex items-center gap-1.5">
+                        🇬🇧 English
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category selector — only show if there are categories with puzzles */}
+              {activeCategoryIds.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="size-4 text-muted-foreground" />
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="h-9 w-44 text-sm">
+                      <SelectValue placeholder="Catégorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        <span className="flex items-center gap-1.5">
+                          📋 Toutes les catégories
+                        </span>
+                      </SelectItem>
+                      {categories
+                        .filter((c) => activeCategoryIds.has(c.id))
+                        .map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            <span className="flex items-center gap-1.5">
+                              {languageFlag(cat.language)} {cat.name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Puzzle count */}
+              <div className="ml-auto">
+                <Badge variant="secondary" className="text-xs">
+                  <Layers className="size-3 mr-1" />
+                  {filteredPuzzles.length} puzzle{filteredPuzzles.length !== 1 ? 's' : ''}
+                </Badge>
+              </div>
             </div>
 
             {/* Loading state */}
@@ -593,22 +726,24 @@ export default function Home() {
             )}
 
             {/* Empty state */}
-            {!isLoadingPuzzles && dailyPuzzles.length === 0 && (
+            {!isLoadingPuzzles && filteredPuzzles.length === 0 && (
               <div className="text-center py-16">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
                   <Grid3X3 className="size-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-medium">Aucun puzzle disponible</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Revenez demain pour de nouveaux puzzles !
+                  {selectedLanguage !== 'all' || selectedCategory !== 'all'
+                    ? 'Essayez de modifier vos filtres pour trouver des puzzles.'
+                    : 'Revenez demain pour de nouveaux puzzles !'}
                 </p>
               </div>
             )}
 
             {/* Puzzle cards grid */}
-            {!isLoadingPuzzles && dailyPuzzles.length > 0 && (
+            {!isLoadingPuzzles && filteredPuzzles.length > 0 && (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {dailyPuzzles.map((puzzle) => (
+                {filteredPuzzles.map((puzzle) => (
                   <div key={puzzle.id}>
                     <Card className="group relative overflow-hidden py-0 transition-shadow hover:shadow-md">
                       {/* Difficulty accent bar */}
@@ -624,10 +759,21 @@ export default function Home() {
                         }`}
                       />
                       <CardHeader className="gap-1.5 px-5 pt-5 pb-0">
-                        <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
+                          <Badge variant="outline" className="shrink-0 text-xs mt-0.5">
+                            {languageFlag(puzzle.language)} {languageName(puzzle.language)}
+                          </Badge>
+                        </div>
                         <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                          {puzzle.description || 'Un puzzle de mots croisés en français'}
+                          {puzzle.description || (puzzle.language === 'en' ? 'A crossword puzzle' : 'Un puzzle de mots croisés')}
                         </CardDescription>
+                        {puzzle.categoryName && (
+                          <Badge variant="secondary" className="text-xs mt-1 gap-1">
+                            <FolderOpen className="size-3" />
+                            {puzzle.categoryName}
+                          </Badge>
+                        )}
                       </CardHeader>
                       <CardContent className="flex items-center justify-between px-5 pb-5 pt-4">
                         <div className="flex items-center gap-2">

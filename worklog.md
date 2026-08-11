@@ -58,3 +58,41 @@ Stage Summary:
 - Create and edit modes supported via editPuzzleId prop
 - Responsive design with mobile-first approach
 - Zero existing files modified
+
+---
+Task ID: 3
+Agent: Main Coordinator
+Task: Add Categories system and multi-language support (FR/EN) to crossword app
+
+Work Log:
+- Updated Prisma schema: added `Category` model (name, slug, language) and `language`/`categoryId` fields to `CrosswordPuzzle` with onDelete: SetNull relation
+- Ran `prisma db push` and `prisma generate` to apply schema changes
+- Created `/api/categories/route.ts` with full CRUD (GET list, POST create, PUT update, DELETE)
+- Updated `/api/puzzles/admin/route.ts`: GET returns categories + language/category fields on puzzles; POST/PUT accept language + categoryId
+- Updated `/api/puzzles/daily/route.ts`: supports `?language=fr|en` filter; returns language + category info per puzzle
+- Updated `/api/puzzles/[id]/route.ts`: returns language and categoryId in response
+- Rewrote `AdminPanel.tsx` with 3-tab layout: Catégories, Puzzles, Programme
+  - Categories tab: create/edit/delete categories with inline editing
+  - Puzzles tab: filter by language and category, create/edit/delete puzzles
+  - Programme tab: publishing schedule settings
+- Updated `PuzzleEditor.tsx`: added Language selector (FR/EN) and Category dropdown
+  - Fetches categories from API on dialog open
+  - Language and category included in save payload
+  - Loads language/category from existing puzzle when editing
+- Rewrote `page.tsx`: category-based browsing with language filter
+  - Language selector (All/French/English) filters puzzles server-side
+  - Category selector appears dynamically when categories have puzzles
+  - Puzzle cards show language badge and category badge
+  - Maintained all existing functionality (auto-check green/red feedback, timer, hints, verification)
+- Seeded 8 initial categories (4 FR: Général, Nature, Sciences, Histoire + 4 EN: General Knowledge, Flora & Fauna, Science & Tech, World History)
+- Verified all APIs working via curl: /api/categories (200), /api/puzzles/daily (200), /api/puzzles/admin (200)
+- Verified UI elements via agent-browser snapshot: language filter, admin tabs, category management
+- Lint passes clean
+
+Stage Summary:
+- Category system fully implemented with CRUD
+- Multi-language support (FR/EN) across all components
+- Admin panel redesigned with tabbed interface
+- Puzzle editor extended with language/category fields
+- Main page shows category badges and language filters
+- All existing puzzle functionality preserved

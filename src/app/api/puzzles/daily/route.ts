@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get('date');
+    const languageParam = searchParams.get('language');
 
     // Parse date, default to today
     const now = dateParam ? new Date(dateParam + 'T00:00:00') : new Date();
@@ -14,8 +15,6 @@ export async function GET(request: NextRequest) {
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
     // ── Auto-publish puzzles whose publishDate has arrived ──
-    // Any puzzle scheduled for today (or earlier) that is still unpublished
-    // gets automatically published, unless the publishing schedule is disabled.
     const schedule = await db.publishingSchedule.findFirst({
       orderBy: { createdAt: 'desc' },
     });
@@ -35,15 +34,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Build where clause ──
+    const where: Record<string, unknown> = {
+      publishDate: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+      published: true,
+    };
+
+    if (languageParam && ['fr', 'en'].includes(languageParam)) {
+      where.language = languageParam;
+    }
+
     // ── Fetch today's published puzzles ──
     const puzzles = await db.crosswordPuzzle.findMany({
-      where: {
-        publishDate: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
-        published: true,
-      },
+      where,
       orderBy: {
         publishDate: 'asc',
       },
@@ -51,10 +57,15 @@ export async function GET(request: NextRequest) {
         id: true,
         title: true,
         difficulty: true,
+        language: true,
         description: true,
         rows: true,
         cols: true,
         publishDate: true,
+        categoryId: true,
+        category: {
+          select: { id: true, name: true, slug: true },
+        },
       },
     });
 
@@ -62,10 +73,14 @@ export async function GET(request: NextRequest) {
       id: p.id,
       title: p.title,
       difficulty: p.difficulty,
+      language: p.language,
       description: p.description,
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? '',
+      categoryId: p.categoryId,
+      categoryName: p.category?.name ?? null,
+      categorySlug: p.category?.slug ?? null,
     }));
 
     return NextResponse.json({ puzzles: summaries });

@@ -62,6 +62,8 @@ export async function GET(
     return NextResponse.json({
       puzzle: puzzleData,
       puzzleId: puzzle.id,
+      language: puzzle.language,
+      categoryId: puzzle.categoryId,
       progress: userProgress
         ? {
             id: userProgress.id,

@@ -1,0 +1,945 @@
+     1→"use client";
+     2→
+     3→import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→import { toast } from "sonner";
+     5→
+     6→import { Button } from "@/components/ui/button";
+     7→import {
+     8→  Dialog,
+     9→  DialogContent,
+    10→  DialogHeader,
+    11→  DialogTitle,
+    12→  DialogDescription,
+    13→} from "@/components/ui/dialog";
+    14→import { Input } from "@/components/ui/input";
+    15→import { Label } from "@/components/ui/label";
+    16→import { Textarea } from "@/components/ui/textarea";
+    17→import {
+    18→  Select,
+    19→  SelectContent,
+    20→  SelectItem,
+    21→  SelectTrigger,
+    22→  SelectValue,
+    23→} from "@/components/ui/select";
+    24→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    25→import { Skeleton } from "@/components/ui/skeleton";
+    26→import { ScrollArea } from "@/components/ui/scroll-area";
+    27→import { Separator } from "@/components/ui/separator";
+    28→import { Badge } from "@/components/ui/badge";
+    29→
+    30→import type {
+    31→  CrosswordCell,
+    32→  CrosswordPuzzleData,
+    33→  WordPlacement,
+    34→  Clue,
+    35→} from "@/lib/crossword/types";
+    36→
+    37→// ── Props ─────────────────────────────────────────────────────────────
+    38→
+    39→interface PuzzleEditorProps {
+    40→  open: boolean;
+    41→  onOpenChange: (open: boolean) => void;
+    42→  editPuzzleId?: string | null;
+    43→  onSaved?: () => void;
+    44→}
+    45→
+    46→// ── Types ─────────────────────────────────────────────────────────────
+    47→
+    48→interface EditorClue extends Clue {
+    49→  word: string;
+    50→  row: number;
+    51→  col: number;
+    52→}
+    53→
+    54→// ── Helpers ───────────────────────────────────────────────────────────
+    55→
+    56→/** Create an empty grid of all-black cells */
+    57→function createEmptyGrid(rows: number, cols: number): CrosswordCell[][] {
+    58→  const grid: CrosswordCell[][] = [];
+    59→  for (let r = 0; r < rows; r++) {
+    60→    grid[r] = [];
+    61→    for (let c = 0; c < cols; c++) {
+    62→      grid[r][c] = { letter: "", number: null, isBlack: true, row: r, col: c };
+    63→    }
+    64→  }
+    65→  return grid;
+    66→}
+    67→
+    68→/** Deep-clone a grid */
+    69→function cloneGrid(grid: CrosswordCell[][]): CrosswordCell[][] {
+    70→  return grid.map((row) => row.map((cell) => ({ ...cell })));
+    71→}
+    72→
+    73→/** Detect all words (2+ consecutive non-black cells with at least one letter) and assign numbers */
+    74→function detectWordsAndNumbers(
+    75→  grid: CrosswordCell[][]
+    76→): { words: WordPlacement[]; clues: EditorClue[] } {
+    77→  const rows = grid.length;
+    78→  const cols = grid[0]?.length ?? 0;
+    79→
+    80→  // First pass: assign numbers
+    81→  let clueNum = 1;
+    82→  const numberMap = new Map<string, number>();
+    83→
+    84→  for (let r = 0; r < rows; r++) {
+    85→    for (let c = 0; c < cols; c++) {
+    86→      if (grid[r][c].isBlack) continue;
+    87→      const key = `${r},${c}`;
+    88→      if (numberMap.has(key)) continue;
+    89→
+    90→      const startsAcross =
+    91→        (c === 0 || grid[r][c - 1].isBlack) &&
+    92→        c + 1 < cols &&
+    93→        !grid[r][c + 1].isBlack;
+    94→      const startsDown =
+    95→        (r === 0 || grid[r - 1][c].isBlack) &&
+    96→        r + 1 < rows &&
+    97→        !grid[r + 1][c].isBlack;
+    98→
+    99→      if (startsAcross || startsDown) {
+   100→        numberMap.set(key, clueNum);
+   101→        clueNum++;
+   102→      }
+   103→    }
+   104→  }
+   105→
+   106→  // Build number grid for quick lookup
+   107→  const numGrid: (number | null)[][] = [];
+   108→  for (let r = 0; r < rows; r++) {
+   109→    numGrid[r] = [];
+   110→    for (let c = 0; c < cols; c++) {
+   111→      numGrid[r][c] = grid[r][c].isBlack ? null : (numberMap.get(`${r},${c}`) ?? null);
+   112→    }
+   113→  }
+   114→
+   115→  const words: WordPlacement[] = [];
+   116→  const clues: EditorClue[] = [];
+   117→
+   118→  // Detect across words
+   119→  for (let r = 0; r < rows; r++) {
+   120→    let c = 0;
+   121→    while (c < cols) {
+   122→      if (grid[r][c].isBlack) {
+   123→        c++;
+   124→        continue;
+   125→      }
+   126→      // Start of a horizontal run
+   127→      const startC = c;
+   128→      let wordStr = "";
+   129→      while (c < cols && !grid[r][c].isBlack) {
+   130→        wordStr += grid[r][c].letter;
+   131→        c++;
+   132→      }
+   133→      if (wordStr.length >= 2) {
+   134→        const num = numGrid[r][startC];
+   135→        if (num !== null) {
+   136→          words.push({
+   137→            word: wordStr,
+   138→            clueNumber: num,
+   139→            direction: "across",
+   140→            row: r,
+   141→            col: startC,
+   142→            length: wordStr.length,
+   143→          });
+   144→          clues.push({
+   145→            number: num,
+   146→            direction: "across",
+   147→            text: "",
+   148→            word: wordStr,
+   149→            row: r,
+   150→            col: startC,
+   151→          });
+   152→        }
+   153→      }
+   154→    }
+   155→  }
+   156→
+   157→  // Detect down words
+   158→  for (let c = 0; c < cols; c++) {
+   159→    let r = 0;
+   160→    while (r < rows) {
+   161→      if (grid[r][c].isBlack) {
+   162→        r++;
+   163→        continue;
+   164→      }
+   165→      const startR = r;
+   166→      let wordStr = "";
+   167→      while (r < rows && !grid[r][c].isBlack) {
+   168→        wordStr += grid[r][c].letter;
+   169→        r++;
+   170→      }
+   171→      if (wordStr.length >= 2) {
+   172→        const num = numGrid[startR][c];
+   173→        if (num !== null) {
+   174→          words.push({
+   175→            word: wordStr,
+   176→            clueNumber: num,
+   177→            direction: "down",
+   178→            row: startR,
+   179→            col: c,
+   180→            length: wordStr.length,
+   181→          });
+   182→          clues.push({
+   183→            number: num,
+   184→            direction: "down",
+   185→            text: "",
+   186→            word: wordStr,
+   187→            row: startR,
+   188→            col: c,
+   189→          });
+   190→        }
+   191→      }
+   192→    }
+   193→  }
+   194→
+   195→  return { words, clues };
+   196→}
+   197→
+   198→/** Update grid numbers from numberMap */
+   199→function applyNumbersToGrid(
+   200→  grid: CrosswordCell[][],
+   201→  words: WordPlacement[]
+   202→): CrosswordCell[][] {
+   203→  const newGrid = cloneGrid(grid);
+   204→  // Clear all numbers
+   205→  for (let r = 0; r < newGrid.length; r++) {
+   206→    for (let c = 0; c < newGrid[0].length; c++) {
+   207→      newGrid[r][c].number = null;
+   208→    }
+   209→  }
+   210→  // Set numbers from word placements
+   211→  for (const w of words) {
+   212→    if (newGrid[w.row]?.[w.col]) {
+   213→      newGrid[w.row][w.col].number = w.clueNumber;
+   214→    }
+   215→  }
+   216→  return newGrid;
+   217→}
+   218→
+   219→// ── Component ──────────────────────────────────────────────────────────
+   220→
+   221→export default function PuzzleEditor({
+   222→  open,
+   223→  onOpenChange,
+   224→  editPuzzleId,
+   225→  onSaved,
+   226→}: PuzzleEditorProps) {
+   227→  // ── State ────────────────────────────────────────────────────────
+   228→  const [title, setTitle] = useState("");
+   229→  const [description, setDescription] = useState("");
+   230→  const [difficulty, setDifficulty] = useState<string>("2");
+   231→  const [rowsInput, setRowsInput] = useState(10);
+   232→  const [colsInput, setColsInput] = useState(10);
+   233→  const [grid, setGrid] = useState<CrosswordCell[][]>(createEmptyGrid(10, 10));
+   234→  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+   235→  const [words, setWords] = useState<WordPlacement[]>([]);
+   236→  const [clues, setClues] = useState<EditorClue[]>([]);
+   237→  const [loading, setLoading] = useState(false);
+   238→  const [saving, setSaving] = useState(false);
+   239→  const [activeClueTab, setActiveClueTab] = useState<string>("across");
+   240→
+   241→  const gridRef = useRef<HTMLDivElement>(null);
+   242→  const isEditing = !!editPuzzleId;
+   243→
+   244→  // ── Derived: number grid for display ─────────────────────────────
+   245→  const numberGrid = useMemo(() => {
+   246→    const ng: (number | null)[][] = [];
+   247→    for (let r = 0; r < grid.length; r++) {
+   248→      ng[r] = [];
+   249→      for (let c = 0; c < (grid[0]?.length ?? 0); c++) {
+   250→        ng[r][c] = grid[r][c].number;
+   251→      }
+   252→    }
+   253→    return ng;
+   254→  }, [grid]);
+   255→
+   256→  const acrossClues = useMemo(
+   257→    () => clues.filter((c) => c.direction === "across").sort((a, b) => a.number - b.number),
+   258→    [clues]
+   259→  );
+   260→  const downClues = useMemo(
+   261→    () => clues.filter((c) => c.direction === "down").sort((a, b) => a.number - b.number),
+   262→    [clues]
+   263→  );
+   264→
+   265→  // ── Recompute words/clues from grid ──────────────────────────────
+   266→  const recomputeWords = useCallback(
+   267→    (g: CrosswordCell[][], preserveClueTexts: boolean = true) => {
+   268→      const { words: newWords, clues: newClues } = detectWordsAndNumbers(g);
+   269→      setWords(newWords);
+   270→      if (preserveClueTexts) {
+   271→        // Merge existing clue texts into new clues
+   272→        const clueMap = new Map<string, string>();
+   273→        for (const c of clues) {
+   274→          clueMap.set(`${c.number}-${c.direction}`, c.text);
+   275→        }
+   276→        const merged = newClues.map((nc) => ({
+   277→          ...nc,
+   278→          text: clueMap.get(`${nc.number}-${nc.direction}`) ?? "",
+   279→        }));
+   280→        setClues(merged);
+   281→      } else {
+   282→        setClues(newClues);
+   283→      }
+   284→      // Update grid numbers
+   285→      const updatedGrid = applyNumbersToGrid(g, newWords);
+   286→      setGrid(updatedGrid);
+   287→    },
+   288→    [clues]
+   289→  );
+   290→
+   291→  // ── Load puzzle for editing ──────────────────────────────────────
+   292→  useEffect(() => {
+   293→    if (!open) return;
+   294→    if (!editPuzzleId) {
+   295→      // New puzzle: reset everything
+   296→      setTitle("");
+   297→      setDescription("");
+   298→      setDifficulty("2");
+   299→      setRowsInput(10);
+   300→      setColsInput(10);
+   301→      const emptyGrid = createEmptyGrid(10, 10);
+   302→      setGrid(emptyGrid);
+   303→      setSelectedCell(null);
+   304→      setWords([]);
+   305→      setClues([]);
+   306→      setLoading(false);
+   307→      return;
+   308→    }
+   309→
+   310→    // Fetch puzzle data
+   311→    let cancelled = false;
+   312→    setLoading(true);
+   313→    fetch(`/api/puzzles/${editPuzzleId}`)
+   314→      .then((res) => {
+   315→        if (!res.ok) throw new Error("Erreur de chargement");
+   316→        return res.json();
+   317→      })
+   318→      .then((data) => {
+   319→        if (cancelled) return;
+   320→        const p: CrosswordPuzzleData = data.puzzle;
+   321→        setTitle(p.title);
+   322→        setDescription(p.description ?? "");
+   323→        setDifficulty(String(p.difficulty));
+   324→        setRowsInput(p.rows);
+   325→        setColsInput(p.cols);
+   326→        setGrid(cloneGrid(p.grid));
+   327→        setSelectedCell(null);
+   328→        // Build words and clues from loaded data
+   329→        const editorClues: EditorClue[] = p.clues.map((cl) => {
+   330→          const w = p.words.find(
+   331→            (pw) => pw.clueNumber === cl.number && pw.direction === cl.direction
+   332→          );
+   333→          return {
+   334→            ...cl,
+   335→            word: w?.word ?? "",
+   336→            row: w?.row ?? 0,
+   337→            col: w?.col ?? 0,
+   338→          };
+   339→        });
+   340→        setWords(p.words);
+   341→        setClues(editorClues);
+   342→        setLoading(false);
+   343→      })
+   344→      .catch((err) => {
+   345→        if (cancelled) return;
+   346→        console.error(err);
+   347→        toast.error("Erreur lors du chargement du puzzle");
+   348→        setLoading(false);
+   349→      });
+   350→
+   351→    return () => {
+   352→      cancelled = true;
+   353→    };
+   354→  }, [open, editPuzzleId]);
+   355→
+   356→  // ── Grid cell click ──────────────────────────────────────────────
+   357→  const handleCellClick = useCallback(
+   358→    (r: number, c: number) => {
+   359→      const cell = grid[r]?.[c];
+   360→      if (!cell) return;
+   361→
+   362→      // If clicking the SAME selected cell again, toggle black/white
+   363→      if (
+   364→        selectedCell &&
+   365→        selectedCell.row === r &&
+   366→        selectedCell.col === c
+   367→      ) {
+   368→        if (!cell.isBlack && cell.letter === "") {
+   369→          // White empty cell → toggle to black
+   370→          const newGrid = cloneGrid(grid);
+   371→          newGrid[r][c] = { ...newGrid[r][c], isBlack: true, letter: "" };
+   372→          recomputeWords(newGrid);
+   373→          setSelectedCell(null);
+   374→          return;
+   375→        }
+   376→        if (cell.isBlack) {
+   377→          // Black cell → toggle to white
+   378→          const newGrid = cloneGrid(grid);
+   379→          newGrid[r][c] = { ...newGrid[r][c], isBlack: false, letter: "" };
+   380→          recomputeWords(newGrid);
+   381→          // Keep it selected so user can start typing
+   382→          return;
+   383→        }
+   384→        // Has a letter — just keep selected
+   385→        return;
+   386→      }
+   387→
+   388→      // Clicking an unselected BLACK cell → toggle to white and select (draw mode)
+   389→      if (cell.isBlack) {
+   390→        const newGrid = cloneGrid(grid);
+   391→        newGrid[r][c] = { ...newGrid[r][c], isBlack: false, letter: "" };
+   392→        recomputeWords(newGrid);
+   393→        setSelectedCell({ row: r, col: c });
+   394→        return;
+   395→      }
+   396→
+   397→      // Otherwise just select the cell
+   398→      setSelectedCell({ row: r, col: c });
+   399→    },
+   400→    [grid, selectedCell, recomputeWords]
+   401→  );
+   402→
+   403→  // ── Keyboard handler ─────────────────────────────────────────────
+   404→  useEffect(() => {
+   405→    if (!selectedCell) return;
+   406→
+   407→    const handleKeyDown = (e: KeyboardEvent) => {
+   408→      const { row, col } = selectedCell;
+   409→      const maxRow = grid.length - 1;
+   410→      const maxCol = (grid[0]?.length ?? 1) - 1;
+   411→
+   412→      // Prevent default for keys we handle
+   413→      if (
+   414→        e.key.startsWith("Arrow") ||
+   415→        e.key === "Backspace" ||
+   416→        e.key === "Delete" ||
+   417→        (/^[a-zA-ZéèêëàâùûîïôçÉÈÊËÀÂÙÛÎÏÔÇ]$/.test(e.key))
+   418→      ) {
+   419→        e.preventDefault();
+   420→      }
+   421→
+   422→      if (e.key === "ArrowUp") {
+   423→        setSelectedCell((prev) =>
+   424→          prev && prev.row > 0 ? { row: prev.row - 1, col: prev.col } : prev
+   425→        );
+   426→      } else if (e.key === "ArrowDown") {
+   427→        setSelectedCell((prev) =>
+   428→          prev && prev.row < maxRow ? { row: prev.row + 1, col: prev.col } : prev
+   429→        );
+   430→      } else if (e.key === "ArrowLeft") {
+   431→        setSelectedCell((prev) =>
+   432→          prev && prev.col > 0 ? { row: prev.row, col: prev.col - 1 } : prev
+   433→        );
+   434→      } else if (e.key === "ArrowRight") {
+   435→        setSelectedCell((prev) =>
+   436→          prev && prev.col < maxCol ? { row: prev.row, col: prev.col + 1 } : prev
+   437→        );
+   438→      } else if (e.key === "Backspace" || e.key === "Delete") {
+   439→        const cell = grid[row]?.[col];
+   440→        if (cell && !cell.isBlack && cell.letter !== "") {
+   441→          const newGrid = cloneGrid(grid);
+   442→          newGrid[row][col] = { ...newGrid[row][col], letter: "" };
+   443→          recomputeWords(newGrid);
+   444→        } else if (e.key === "Backspace") {
+   445→          // Move back
+   446→          if (col > 0) {
+   447→            setSelectedCell({ row, col: col - 1 });
+   448→          } else if (row > 0) {
+   449→            setSelectedCell({ row: row - 1, col: maxCol });
+   450→          }
+   451→        }
+   452→      } else if (/^[a-zA-Z]$/.test(e.key)) {
+   453→        const cell = grid[row]?.[col];
+   454→        if (cell && !cell.isBlack) {
+   455→          const newGrid = cloneGrid(grid);
+   456→          newGrid[row][col] = {
+   457→            ...newGrid[row][col],
+   458→            letter: e.key.toUpperCase(),
+   459→          };
+   460→          recomputeWords(newGrid);
+   461→          // Auto-advance
+   462→          if (col < maxCol && !newGrid[row][col + 1].isBlack) {
+   463→            setSelectedCell({ row, col: col + 1 });
+   464→          } else if (row < maxRow) {
+   465→            // Try to move to next row
+   466→            setSelectedCell({ row: row + 1, col: 0 });
+   467→          }
+   468→        }
+   469→      } else if (e.key === "Escape") {
+   470→        setSelectedCell(null);
+   471→      }
+   472→    };
+   473→
+   474→    window.addEventListener("keydown", handleKeyDown);
+   475→    return () => window.removeEventListener("keydown", handleKeyDown);
+   476→  }, [selectedCell, grid, recomputeWords]);
+   477→
+   478→  // ── Resize grid ──────────────────────────────────────────────────
+   479→  const handleResizeGrid = useCallback(() => {
+   480→    const r = Math.max(2, Math.min(20, rowsInput));
+   481→    const c = Math.max(2, Math.min(20, colsInput));
+   482→    const newGrid = createEmptyGrid(r, c);
+   483→    // Preserve existing data
+   484→    for (let row = 0; row < Math.min(r, grid.length); row++) {
+   485→      for (let col = 0; col < Math.min(c, (grid[0]?.length ?? 0)); col++) {
+   486→        newGrid[row][col] = { ...grid[row][col], row, col };
+   487→      }
+   488→    }
+   489→    setRowsInput(r);
+   490→    setColsInput(c);
+   491→    setGrid(newGrid);
+   492→    setSelectedCell(null);
+   493→    recomputeWords(newGrid);
+   494→  }, [rowsInput, colsInput, grid, recomputeWords]);
+   495→
+   496→  // ── Clear all ────────────────────────────────────────────────────
+   497→  const handleClearAll = useCallback(() => {
+   498→    const newGrid = createEmptyGrid(grid.length, grid[0]?.length ?? 0);
+   499→    setGrid(newGrid);
+   500→    setSelectedCell(null);
+   501→    setWords([]);
+   502→    setClues([]);
+   503→  }, [grid]);
+   504→
+   505→  // ── Clear letters only ───────────────────────────────────────────
+   506→  const handleClearLetters = useCallback(() => {
+   507→    const newGrid = cloneGrid(grid);
+   508→    for (let r = 0; r < newGrid.length; r++) {
+   509→      for (let c = 0; c < newGrid[0].length; c++) {
+   510→        newGrid[r][c].letter = "";
+   511→      }
+   512→    }
+   513→    setGrid(newGrid);
+   514→    recomputeWords(newGrid);
+   515→  }, [grid, recomputeWords]);
+   516→
+   517→  // ── Update clue text ─────────────────────────────────────────────
+   518→  const handleClueTextChange = useCallback(
+   519→    (number: number, direction: "across" | "down", text: string) => {
+   520→      setClues((prev) =>
+   521→        prev.map((c) =>
+   522→          c.number === number && c.direction === direction ? { ...c, text } : c
+   523→        )
+   524→      );
+   525→    },
+   526→    []
+   527→  );
+   528→
+   529→  // ── Update word text → update grid cells ─────────────────────────
+   530→  const handleWordChange = useCallback(
+   531→    (
+   532→      number: number,
+   533→      direction: "across" | "down",
+   534→      newWord: string,
+   535→      row: number,
+   536→      col: number
+   537→    ) => {
+   538→      const newGrid = cloneGrid(grid);
+   539→      const oldWord = words.find(
+   540→        (w) => w.clueNumber === number && w.direction === direction
+   541→      );
+   542→      const oldLen = oldWord?.length ?? newWord.length;
+   543→
+   544→      // Update grid cells
+   545→      for (let i = 0; i < Math.max(oldLen, newWord.length); i++) {
+   546→        const r = direction === "across" ? row : row + i;
+   547→        const c = direction === "across" ? col + i : col;
+   548→        if (r < newGrid.length && c < (newGrid[0]?.length ?? 0)) {
+   549→          if (i < newWord.length) {
+   550→            newGrid[r][c] = {
+   551→              ...newGrid[r][c],
+   552→              letter: newWord[i].toUpperCase(),
+   553→              isBlack: false,
+   554→            };
+   555→          } else if (i >= newWord.length && i < oldLen) {
+   556→            // Clear extra letters but keep cell white
+   557→            newGrid[r][c] = { ...newGrid[r][c], letter: "" };
+   558→          }
+   559→        }
+   560→      }
+   561→
+   562→      setGrid(newGrid);
+   563→      recomputeWords(newGrid);
+   564→    },
+   565→    [grid, words, recomputeWords]
+   566→  );
+   567→
+   568→  // ── Save ─────────────────────────────────────────────────────────
+   569→  const handleSave = useCallback(async () => {
+   570→    if (!title.trim()) {
+   571→      toast.error("Le titre est requis");
+   572→      return;
+   573→    }
+   574→
+   575→    const finalClues: Clue[] = clues.map(({ number, direction, text }) => ({
+   576→      number,
+   577→      direction,
+   578→      text,
+   579→    }));
+   580→
+   581→    setSaving(true);
+   582→    try {
+   583→      const body = {
+   584→        title: title.trim(),
+   585→        description: description.trim() || undefined,
+   586→        difficulty: Number(difficulty),
+   587→        rows: grid.length,
+   588→        cols: grid[0]?.length ?? 0,
+   589→        grid,
+   590→        words,
+   591→        clues: finalClues,
+   592→      };
+   593→
+   594→      const url = isEditing ? "/api/puzzles/admin" : "/api/puzzles/admin";
+   595→      const method = isEditing ? "PUT" : "POST";
+   596→      const payload = isEditing ? { ...body, id: editPuzzleId } : body;
+   597→
+   598→      const res = await fetch(url, {
+   599→        method,
+   600→        headers: { "Content-Type": "application/json" },
+   601→        body: JSON.stringify(payload),
+   602→      });
+   603→
+   604→      if (!res.ok) {
+   605→        const data = await res.json().catch(() => ({}));
+   606→        throw new Error(data.error ?? "Erreur lors de la sauvegarde");
+   607→      }
+   608→
+   609→      toast.success(
+   610→        isEditing ? "Puzzle mis à jour avec succès" : "Puzzle créé avec succès"
+   611→      );
+   612→
+   613→      onSaved?.();
+   614→
+   615→      if (isEditing) {
+   616→        onOpenChange(false);
+   617→      } else {
+   618→        // Reset for new puzzle
+   619→        setTitle("");
+   620→        setDescription("");
+   621→        setDifficulty("2");
+   622→        setRowsInput(10);
+   623→        setColsInput(10);
+   624→        setGrid(createEmptyGrid(10, 10));
+   625→        setSelectedCell(null);
+   626→        setWords([]);
+   627→        setClues([]);
+   628→      }
+   629→    } catch (err) {
+   630→      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+   631→    } finally {
+   632→      setSaving(false);
+   633→    }
+   634→  }, [title, description, difficulty, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+   635→
+   636→  // ── Render helpers ───────────────────────────────────────────────
+   637→  const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
+   638→
+   639→  const renderGrid = () => {
+   640→    if (loading) {
+   641→      return (
+   642→        <div className="flex flex-col items-center gap-1">
+   643→          {Array.from({ length: Math.min(rowsInput, 8) }).map((_, r) => (
+   644→            <div key={r} className="flex gap-1">
+   645→              {Array.from({ length: Math.min(colsInput, 8) }).map((_, c) => (
+   646→                <Skeleton key={c} className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm" />
+   647→              ))}
+   648→            </div>
+   649→          ))}
+   650→        </div>
+   651→      );
+   652→    }
+   653→
+   654→    return (
+   655→      <div
+   656→        ref={gridRef}
+   657→        className="inline-grid gap-px bg-border rounded-md overflow-hidden"
+   658→        style={{
+   659→          gridTemplateColumns: `repeat(${grid[0]?.length ?? 0}, minmax(0, 1fr))`,
+   660→        }}
+   661→        tabIndex={0}
+   662→        onClick={() => gridRef.current?.focus()}
+   663→      >
+   664→        {grid.map((row, r) =>
+   665→          row.map((cell, c) => {
+   666→            const isSelected =
+   667→              selectedCell?.row === r && selectedCell?.col === c;
+   668→            return (
+   669→              <div
+   670→                key={`${r}-${c}`}
+   671→                className={[
+   672→                  cellSize,
+   673→                  "relative flex items-center justify-center select-none cursor-pointer transition-colors",
+   674→                  cell.isBlack
+   675→                    ? "bg-black/90 hover:bg-black/80"
+   676→                    : "bg-white hover:bg-gray-50",
+   677→                  isSelected && !cell.isBlack && "ring-2 ring-blue-500 ring-inset z-10",
+   678→                  isSelected && cell.isBlack && "ring-2 ring-blue-500 ring-inset z-10",
+   679→                ].join(" ")}
+   680→                onClick={() => handleCellClick(r, c)}
+   681→                onMouseEnter={() => {
+   682→                  // Hover preview for future drag-to-paint
+   683→                }}
+   684→              >
+   685→                {cell.number !== null && (
+   686→                  <span className="absolute top-0 left-0.5 text-[9px] sm:text-[10px] font-bold text-gray-500 leading-none">
+   687→                    {cell.number}
+   688→                  </span>
+   689→                )}
+   690→                {cell.letter && (
+   691→                  <span className="font-bold text-black">{cell.letter}</span>
+   692→                )}
+   693→              </div>
+   694→            );
+   695→          })
+   696→        )}
+   697→      </div>
+   698→    );
+   699→  };
+   700→
+   701→  const renderClueList = (
+   702→    direction: "across" | "down",
+   703→    list: EditorClue[]
+   704→  ) => {
+   705→    if (list.length === 0) {
+   706→      return (
+   707→        <p className="text-sm text-muted-foreground italic py-4">
+   708→          Aucun mot détecté. Entrez des lettres sur la grille pour former des mots de 2+ lettres.
+   709→        </p>
+   710→      );
+   711→    }
+   712→    return (
+   713→      <div className="space-y-3">
+   714→        {list.map((clue) => (
+   715→          <div
+   716→            key={`${clue.number}-${clue.direction}`}
+   717→            className="space-y-1.5 p-3 rounded-lg border bg-card"
+   718→          >
+   719→            <div className="flex items-center gap-2">
+   720→              <Badge variant="outline" className="shrink-0 text-xs">
+   721→                {clue.number}
+   722→              </Badge>
+   723→              <span className="text-xs text-muted-foreground">
+   724→                ({clue.row + 1},{clue.col + 1})
+   725→              </span>
+   726→            </div>
+   727→            <div className="space-y-1">
+   728→              <Label className="text-xs text-muted-foreground">Mot</Label>
+   729→              <Input
+   730→                value={clue.word}
+   731→                onChange={(e) =>
+   732→                  handleWordChange(
+   733→                    clue.number,
+   734→                    clue.direction,
+   735→                    e.target.value,
+   736→                    clue.row,
+   737→                    clue.col
+   738→                  )
+   739→                }
+   740→                placeholder="Entrez le mot"
+   741→                className="h-8 text-sm font-mono uppercase"
+   742→                maxLength={20}
+   743→              />
+   744→            </div>
+   745→            <div className="space-y-1">
+   746→              <Label className="text-xs text-muted-foreground">Indice</Label>
+   747→              <Textarea
+   748→                value={clue.text}
+   749→                onChange={(e) =>
+   750→                  handleClueTextChange(clue.number, clue.direction, e.target.value)
+   751→                }
+   752→                placeholder="Entrez l'indice"
+   753→                className="text-sm min-h-[60px] resize-y"
+   754→                rows={2}
+   755→              />
+   756→            </div>
+   757→          </div>
+   758→        ))}
+   759→      </div>
+   760→    );
+   761→  };
+   762→
+   763→  // ── Main render ──────────────────────────────────────────────────
+   764→  return (
+   765→    <Dialog open={open} onOpenChange={onOpenChange}>
+   766→      <DialogContent
+   767→        className="
+   768→          max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] md:max-w-[95vw] lg:max-w-[90vw]
+   769→          h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)]
+   770→          flex flex-col p-0 gap-0 overflow-hidden
+   771→        "
+   772→        showCloseButton
+   773→      >
+   774→        <DialogHeader className="px-4 pt-4 pb-2 shrink-0">
+   775→          <DialogTitle>
+   776→            {isEditing ? "Modifier le puzzle" : "Nouveau puzzle"}
+   777→          </DialogTitle>
+   778→          <DialogDescription>
+   779→            {isEditing
+   780→              ? "Modifiez la grille, les mots et les indices du puzzle."
+   781→              : "Créez un nouveau mots croisés en dessinant la grille et en entrant les mots."}
+   782→          </DialogDescription>
+   783→        </DialogHeader>
+   784→
+   785→        {/* ── Puzzle settings ─────────────────────────────────────── */}
+   786→        <div className="px-4 pb-2 shrink-0 space-y-2">
+   787→          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+   788→            <div className="space-y-1">
+   789→              <Label htmlFor="puzzle-title" className="text-xs">
+   790→                Titre *
+   791→              </Label>
+   792→              <Input
+   793→                id="puzzle-title"
+   794→                value={title}
+   795→                onChange={(e) => setTitle(e.target.value)}
+   796→                placeholder="Titre du puzzle"
+   797→                className="h-8 text-sm"
+   798→              />
+   799→            </div>
+   800→            <div className="space-y-1">
+   801→              <Label htmlFor="puzzle-desc" className="text-xs">
+   802→                Description
+   803→              </Label>
+   804→              <Input
+   805→                id="puzzle-desc"
+   806→                value={description}
+   807→                onChange={(e) => setDescription(e.target.value)}
+   808→                placeholder="Description optionnelle"
+   809→                className="h-8 text-sm"
+   810→              />
+   811→            </div>
+   812→            <div className="space-y-1">
+   813→              <Label className="text-xs">Difficulté</Label>
+   814→              <Select value={difficulty} onValueChange={setDifficulty}>
+   815→                <SelectTrigger className="h-8 text-sm w-full">
+   816→                  <SelectValue />
+   817→                </SelectTrigger>
+   818→                <SelectContent>
+   819→                  <SelectItem value="1">Facile</SelectItem>
+   820→                  <SelectItem value="2">Moyen</SelectItem>
+   821→                  <SelectItem value="3">Difficile</SelectItem>
+   822→                </SelectContent>
+   823→              </Select>
+   824→            </div>
+   825→          </div>
+   826→        </div>
+   827→
+   828→        <Separator className="shrink-0" />
+   829→
+   830→        {/* ── Grid size + toolbar ────────────────────────────────── */}
+   831→        <div className="px-4 py-2 shrink-0 flex flex-wrap items-center gap-2">
+   832→          <div className="flex items-center gap-1.5">
+   833→            <Label className="text-xs whitespace-nowrap">Lignes</Label>
+   834→            <Input
+   835→              type="number"
+   836→              min={2}
+   837→              max={20}
+   838→              value={rowsInput}
+   839→              onChange={(e) => setRowsInput(Number(e.target.value))}
+   840→              className="h-7 w-14 text-sm text-center"
+   841→            />
+   842→          </div>
+   843→          <div className="flex items-center gap-1.5">
+   844→            <Label className="text-xs whitespace-nowrap">Colonnes</Label>
+   845→            <Input
+   846→              type="number"
+   847→              min={2}
+   848→              max={20}
+   849→              value={colsInput}
+   850→              onChange={(e) => setColsInput(Number(e.target.value))}
+   851→              className="h-7 w-14 text-sm text-center"
+   852→            />
+   853→          </div>
+   854→          <Button
+   855→            variant="outline"
+   856→            size="sm"
+   857→            className="h-7 text-xs"
+   858→            onClick={handleResizeGrid}
+   859→          >
+   860→            Appliquer la taille
+   861→          </Button>
+   862→
+   863→          <div className="ml-auto flex items-center gap-1.5">
+   864→            <Button
+   865→              variant="outline"
+   866→              size="sm"
+   867→              className="h-7 text-xs"
+   868→              onClick={handleClearLetters}
+   869→            >
+   870→              Grille vide
+   871→            </Button>
+   872→            <Button
+   873→              variant="outline"
+   874→              size="sm"
+   875→              className="h-7 text-xs text-destructive hover:text-destructive"
+   876→              onClick={handleClearAll}
+   877→            >
+   878→              Effacer tout
+   879→            </Button>
+   880→            <Button
+   881→              size="sm"
+   882→              className="h-7 text-xs"
+   883→              disabled={saving || !title.trim()}
+   884→              onClick={handleSave}
+   885→            >
+   886→              {saving ? "Sauvegarde…" : "Sauvegarder"}
+   887→            </Button>
+   888→          </div>
+   889→        </div>
+   890→
+   891→        <Separator className="shrink-0" />
+   892→
+   893→        {/* ── Main content: grid + clues ──────────────────────────── */}
+   894→        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row min-h-0">
+   895→          {/* Grid area */}
+   896→          <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
+   897→            <div className="shrink-0">
+   898→              {renderGrid()}
+   899→            </div>
+   900→          </div>
+   901→
+   902→          {/* Clue editor sidebar (right on desktop, below on mobile) */}
+   903→          <div className="lg:w-[360px] xl:w-[400px] border-t lg:border-t-0 lg:border-l overflow-hidden flex flex-col min-h-0">
+   904→            <Tabs
+   905→              value={activeClueTab}
+   906→              onValueChange={setActiveClueTab}
+   907→              className="flex flex-col h-full"
+   908→            >
+   909→              <div className="shrink-0 px-2 pt-2">
+   910→                <TabsList className="w-full">
+   911→                  <TabsTrigger value="across" className="flex-1 text-xs">
+   912→                    Horizontal ({acrossClues.length})
+   913→                  </TabsTrigger>
+   914→                  <TabsTrigger value="down" className="flex-1 text-xs">
+   915→                    Vertical ({downClues.length})
+   916→                  </TabsTrigger>
+   917→                </TabsList>
+   918→              </div>
+   919→              <TabsContent value="across" className="flex-1 overflow-auto mt-0 p-2">
+   920→                <ScrollArea className="h-full max-h-[calc(100vh-22rem)] lg:max-h-[calc(100vh-22rem)]">
+   921→                  {renderClueList("across", acrossClues)}
+   922→                </ScrollArea>
+   923→              </TabsContent>
+   924→              <TabsContent value="down" className="flex-1 overflow-auto mt-0 p-2">
+   925→                <ScrollArea className="h-full max-h-[calc(100vh-22rem)] lg:max-h-[calc(100vh-22rem)]">
+   926→                  {renderClueList("down", downClues)}
+   927→                </ScrollArea>
+   928→              </TabsContent>
+   929→            </Tabs>
+   930→          </div>
+   931→        </div>
+   932→
+   933→        {/* ── Help text ───────────────────────────────────────────── */}
+   934→        <div className="px-4 py-2 shrink-0 border-t">
+   935→          <p className="text-[10px] sm:text-xs text-muted-foreground">
+   936→            Cliquez sur une case noire pour la blanchir, ou sur une case blanche pour la sélectionner.
+   937→            Tapez une lettre pour la remplir. Recliquez sur la case sélectionnée pour la rendre noire.
+   938→            Utilisez les flèches pour naviguer, Retour pour effacer.
+   939→          </p>
+   940→        </div>
+   941→      </DialogContent>
+   942→    </Dialog>
+   943→  );
+   944→}
+   945→

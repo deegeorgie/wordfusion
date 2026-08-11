@@ -27,6 +27,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
+import { Languages, FolderOpen } from "lucide-react";
+
 import type {
   CrosswordCell,
   CrosswordPuzzleData,
@@ -50,6 +52,15 @@ interface EditorClue extends Clue {
   row: number;
   col: number;
 }
+
+interface CategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+  language: string;
+}
+
+const noneCategory = "__none__";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -228,6 +239,9 @@ export default function PuzzleEditor({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState<string>("2");
+  const [language, setLanguage] = useState<string>("fr");
+  const [categoryId, setCategoryId] = useState<string>(noneCategory);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [rowsInput, setRowsInput] = useState(10);
   const [colsInput, setColsInput] = useState(10);
   const [grid, setGrid] = useState<CrosswordCell[][]>(createEmptyGrid(10, 10));
@@ -240,6 +254,17 @@ export default function PuzzleEditor({
 
   const gridRef = useRef<HTMLDivElement>(null);
   const isEditing = !!editPuzzleId;
+
+  // ── Load categories ───────────────────────────────────────────
+  useEffect(() => {
+    if (!open) return;
+    fetch('/api/categories')
+      .then((res) => res.json())
+      .then((data) => {
+        setCategories(data.categories ?? []);
+      })
+      .catch(() => {});
+  }, [open]);
 
   // ── Derived: number grid for display ─────────────────────────────
   const numberGrid = useMemo(() => {
@@ -296,6 +321,8 @@ export default function PuzzleEditor({
       setTitle("");
       setDescription("");
       setDifficulty("2");
+      setLanguage("fr");
+      setCategoryId(noneCategory);
       setRowsInput(10);
       setColsInput(10);
       const emptyGrid = createEmptyGrid(10, 10);
@@ -321,6 +348,10 @@ export default function PuzzleEditor({
         setTitle(p.title);
         setDescription(p.description ?? "");
         setDifficulty(String(p.difficulty));
+        // Load language and category from puzzle metadata
+        if (data.language) setLanguage(data.language);
+        if (data.categoryId) setCategoryId(data.categoryId);
+        else setCategoryId(noneCategory);
         setRowsInput(p.rows);
         setColsInput(p.cols);
         setGrid(cloneGrid(p.grid));
@@ -584,6 +615,8 @@ export default function PuzzleEditor({
         title: title.trim(),
         description: description.trim() || undefined,
         difficulty: Number(difficulty),
+        language,
+        categoryId: categoryId === noneCategory ? null : categoryId,
         rows: grid.length,
         cols: grid[0]?.length ?? 0,
         grid,
@@ -619,6 +652,8 @@ export default function PuzzleEditor({
         setTitle("");
         setDescription("");
         setDifficulty("2");
+        setLanguage("fr");
+        setCategoryId(noneCategory);
         setRowsInput(10);
         setColsInput(10);
         setGrid(createEmptyGrid(10, 10));
@@ -631,7 +666,7 @@ export default function PuzzleEditor({
     } finally {
       setSaving(false);
     }
-  }, [title, description, difficulty, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+  }, [title, description, difficulty, language, categoryId, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
 
   // ── Render helpers ───────────────────────────────────────────────
   const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
@@ -784,7 +819,7 @@ export default function PuzzleEditor({
 
         {/* ── Puzzle settings ─────────────────────────────────────── */}
         <div className="px-4 pb-2 shrink-0 space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <div className="space-y-1">
               <Label htmlFor="puzzle-title" className="text-xs">
                 Titre *
@@ -808,6 +843,36 @@ export default function PuzzleEditor({
                 placeholder="Description optionnelle"
                 className="h-8 text-sm"
               />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Langue</Label>
+              <Select value={language} onValueChange={setLanguage}>
+                <SelectTrigger className="h-8 text-sm w-full">
+                  <Languages className="size-3 mr-1" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fr">🇫🇷 Français</SelectItem>
+                  <SelectItem value="en">🇬🇧 English</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Catégorie</Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger className="h-8 text-sm w-full">
+                  <FolderOpen className="size-3 mr-1" />
+                  <SelectValue placeholder="Sans catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={noneCategory}>Sans catégorie</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.language === "en" ? "🇬🇧" : "🇫🇷"} {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Difficulté</Label>
