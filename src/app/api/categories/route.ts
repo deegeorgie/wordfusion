@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, language = 'fr' } = body;
+    const { name, language = 'fr', icon = '🏷️' } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json({ error: 'Nom de catégorie requis' }, { status: 400 });
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         slug,
         language,
+        icon: icon.trim() || '🏷️',
       },
     });
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, name, language } = body;
+    const { id, name, language, icon } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'ID requis' }, { status: 400 });
@@ -92,6 +93,9 @@ export async function PUT(request: NextRequest) {
     }
     if (language !== undefined && ['fr', 'en'].includes(language)) {
       updateData.language = language;
+    }
+    if (icon !== undefined && typeof icon === 'string' && icon.trim().length > 0) {
+      updateData.icon = icon.trim().slice(0, 4); // Limit to 4 chars (emoji safety)
     }
 
     if (Object.keys(updateData).length === 0) {

@@ -10,6 +10,7 @@ import {
   Globe,
   Grid3X3,
   Loader2,
+  Package,
   Pencil,
   Plus,
   Save,
@@ -80,8 +81,18 @@ interface CategoryItem {
   id: string;
   name: string;
   slug: string;
+  icon: string;
   language: string;
   createdAt: string;
+  _count: { puzzles: number };
+}
+
+interface PackItem {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string;
+  language: string;
   _count: { puzzles: number };
 }
 
@@ -93,6 +104,10 @@ interface PuzzleSummary {
   categoryId: string | null;
   categoryName: string | null;
   categorySlug: string | null;
+  categoryIcon?: string | null;
+  packId?: string | null;
+  packName?: string | null;
+  packIcon?: string | null;
   rows: number;
   cols: number;
   published: boolean;
@@ -110,6 +125,7 @@ interface AdminData {
   puzzles: PuzzleSummary[];
   schedule: PublishingSchedule;
   categories: CategoryItem[];
+  packs: PackItem[];
 }
 
 interface AdminPanelProps {
@@ -192,12 +208,14 @@ function CategorySkeleton() {
 
 function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]; onRefresh: () => void }) {
   const [newName, setNewName] = useState('');
+  const [newIcon, setNewIcon] = useState('🏷️');
   const [newLanguage, setNewLanguage] = useState('fr');
   const [creating, setCreating] = useState(false);
 
   // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [editIcon, setEditIcon] = useState('');
   const [editLanguage, setEditLanguage] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -212,7 +230,7 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
       const res = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), language: newLanguage }),
+        body: JSON.stringify({ name: newName.trim(), icon: newIcon, language: newLanguage }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -220,6 +238,7 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
       }
       toast.success(`Catégorie « ${newName.trim()} » créée`);
       setNewName('');
+      setNewIcon('🏷️');
       onRefresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -231,6 +250,7 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
   const startEdit = (cat: CategoryItem) => {
     setEditingId(cat.id);
     setEditName(cat.name);
+    setEditIcon(cat.icon || '🏷️');
     setEditLanguage(cat.language);
   };
 
@@ -241,7 +261,7 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
       const res = await fetch('/api/categories', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, name: editName.trim(), language: editLanguage }),
+        body: JSON.stringify({ id: editingId, name: editName.trim(), icon: editIcon, language: editLanguage }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -277,6 +297,17 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
     <>
       {/* Create new category row */}
       <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2 mb-4">
+        <div className="w-16 sm:w-20 space-y-1">
+          <Label className="text-xs text-muted-foreground">Icône</Label>
+          <Input
+            placeholder="🏷️"
+            value={newIcon}
+            onChange={(e) => setNewIcon(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            className="h-8 text-sm text-center"
+            maxLength={4}
+          />
+        </div>
         <div className="flex-1 w-full sm:w-auto space-y-1">
           <Label className="text-xs text-muted-foreground">Nom de la catégorie</Label>
           <Input
@@ -326,16 +357,24 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
                 <TableRow key={cat.id}>
                   <TableCell className="font-medium pl-3">
                     {editingId === cat.id ? (
-                      <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
-                        className="h-7 text-sm w-full"
-                        autoFocus
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={editIcon}
+                          onChange={(e) => setEditIcon(e.target.value)}
+                          className="h-7 text-sm w-12 text-center"
+                          maxLength={4}
+                          autoFocus
+                        />
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+                          className="h-7 text-sm w-full"
+                        />
+                      </div>
                     ) : (
                       <span className="flex items-center gap-1.5">
-                        <Tag className="size-3 text-muted-foreground" />
+                        <span className="text-sm">{cat.icon || '🏷️'}</span>
                         {cat.name}
                       </span>
                     )}
@@ -427,6 +466,282 @@ function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]
   );
 }
 
+// --- Pack Management Sub-component ---
+
+function PackManager({ packs, onRefresh }: { packs: PackItem[]; onRefresh: () => void }) {
+  const [newName, setNewName] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newIcon, setNewIcon] = useState('📦');
+  const [newLanguage, setNewLanguage] = useState('fr');
+  const [creating, setCreating] = useState(false);
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editIcon, setEditIcon] = useState('');
+  const [editLanguage, setEditLanguage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState<PackItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/packs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim(), description: newDescription.trim() || null, icon: newIcon, language: newLanguage }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || 'Erreur');
+      }
+      toast.success(`Collection « ${newName.trim()} » créée`);
+      setNewName('');
+      setNewDescription('');
+      setNewIcon('📦');
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const startEdit = (pack: PackItem) => {
+    setEditingId(pack.id);
+    setEditName(pack.name);
+    setEditDescription(pack.description || '');
+    setEditIcon(pack.icon || '📦');
+    setEditLanguage(pack.language);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editName.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/packs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, name: editName.trim(), description: editDescription.trim() || null, icon: editIcon, language: editLanguage }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error || 'Erreur');
+      }
+      toast.success('Collection mise à jour');
+      setEditingId(null);
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/packs?id=${deleteTarget.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Erreur lors de la suppression');
+      toast.success(`Collection « ${deleteTarget.name} » supprimée`);
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Create new pack row */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2 mb-4">
+        <div className="w-16 sm:w-20 space-y-1">
+          <Label className="text-xs text-muted-foreground">Icône</Label>
+          <Input
+            placeholder="📦"
+            value={newIcon}
+            onChange={(e) => setNewIcon(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            className="h-8 text-sm text-center"
+            maxLength={4}
+          />
+        </div>
+        <div className="flex-1 w-full sm:w-auto space-y-1">
+          <Label className="text-xs text-muted-foreground">Nom de la collection</Label>
+          <Input
+            placeholder="Ex: Pack Débutant, Science Quiz..."
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="flex-1 w-full sm:w-auto space-y-1">
+          <Label className="text-xs text-muted-foreground">Description</Label>
+          <Input
+            placeholder="Description optionnelle"
+            value={newDescription}
+            onChange={(e) => setNewDescription(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="w-full sm:w-28 space-y-1">
+          <Label className="text-xs text-muted-foreground">Langue</Label>
+          <Select value={newLanguage} onValueChange={setNewLanguage}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fr">🇫🇷 Français</SelectItem>
+              <SelectItem value="en">🇬🇧 English</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" className="h-8 text-xs gap-1.5 shrink-0" onClick={handleCreate} disabled={creating || !newName.trim()}>
+          {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+          Ajouter
+        </Button>
+      </div>
+
+      {/* Pack list */}
+      {packs.length === 0 ? (
+        <div className="text-center py-6 text-muted-foreground text-sm">
+          Aucune collection. Créez-en une ci-dessus.
+        </div>
+      ) : (
+        <div className="rounded-md border max-h-64 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-3">Nom</TableHead>
+                <TableHead>Langue</TableHead>
+                <TableHead>Puzzles</TableHead>
+                <TableHead className="text-right pr-3">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {packs.map((pack) => (
+                <TableRow key={pack.id}>
+                  <TableCell className="font-medium pl-3">
+                    {editingId === pack.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          value={editIcon}
+                          onChange={(e) => setEditIcon(e.target.value)}
+                          className="h-7 text-sm w-12 text-center"
+                          maxLength={4}
+                          autoFocus
+                        />
+                        <Input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+                          className="h-7 text-sm w-full"
+                        />
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-sm">{pack.icon || '📦'}</span>
+                        {pack.name}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editingId === pack.id ? (
+                      <Select value={editLanguage} onValueChange={setEditLanguage}>
+                        <SelectTrigger className="h-7 text-xs w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fr">🇫🇷 FR</SelectItem>
+                          <SelectItem value="en">🇬🇧 EN</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        {languageLabel(pack.language)}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {pack._count.puzzles}
+                  </TableCell>
+                  <TableCell className="text-right pr-3">
+                    <div className="flex items-center justify-end gap-1">
+                      {editingId === pack.id ? (
+                        <>
+                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingId(null)}>
+                            Annuler
+                          </Button>
+                          <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSaveEdit} disabled={saving}>
+                            {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+                            OK
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => startEdit(pack)}
+                          >
+                            <Pencil className="size-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(pack)}
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer la collection</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer « {deleteTarget?.name} » ? Les puzzles associés ne seront pas supprimés mais seront dépubliés de la collection.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 // --- Main AdminPanel Component ---
 
 export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
@@ -457,6 +772,7 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
 
   // Category filter for puzzle table
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [packFilter, setPackFilter] = useState<string>('all');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
 
   // Expose fetchData for editor callback
@@ -640,11 +956,14 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
     if (categoryFilter !== 'all') {
       filtered = filtered.filter((p) => p.categoryId === categoryFilter);
     }
+    if (packFilter !== 'all') {
+      filtered = filtered.filter((p) => p.packId === packFilter);
+    }
     if (languageFilter !== 'all') {
       filtered = filtered.filter((p) => p.language === languageFilter);
     }
     return filtered;
-  }, [data, categoryFilter, languageFilter]);
+  }, [data, categoryFilter, packFilter, languageFilter]);
 
   // --- Render ---
 
@@ -658,16 +977,21 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
               Administration
             </DialogTitle>
             <DialogDescription>
-              Gérez vos catégories, puzzles et programme de publication.
+              Gérez vos catégories, collections, puzzles et programme de publication.
             </DialogDescription>
           </DialogHeader>
 
           <div className="p-6 space-y-6">
             <Tabs defaultValue="categories" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
                   <FolderOpen className="size-3.5" />
-                  Catégories
+                  <span className="hidden sm:inline">Catégories</span>
+                  <span className="sm:hidden">Catég.</span>
+                </TabsTrigger>
+                <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
+                  <Package className="size-3.5" />
+                  Collections
                 </TabsTrigger>
                 <TabsTrigger value="puzzles" className="text-xs sm:text-sm gap-1.5">
                   <Grid3X3 className="size-3.5" />
@@ -675,7 +999,8 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
                 </TabsTrigger>
                 <TabsTrigger value="schedule" className="text-xs sm:text-sm gap-1.5">
                   <CalendarDays className="size-3.5" />
-                  Programme
+                  <span className="hidden sm:inline">Programme</span>
+                  <span className="sm:hidden">Prog.</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -695,6 +1020,28 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
                   ) : data ? (
                     <CategoryManager
                       categories={data.categories}
+                      onRefresh={fetchData}
+                    />
+                  ) : null}
+                </section>
+              </TabsContent>
+
+              {/* ── Packs Tab ── */}
+              <TabsContent value="packs" className="mt-4">
+                <section className="rounded-lg border bg-muted/30 p-4">
+                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                    <Package className="size-4 text-muted-foreground" />
+                    Gestion des Collections
+                    <Badge variant="secondary" className="ml-1">
+                      {data?.packs.length ?? 0}
+                    </Badge>
+                  </h3>
+
+                  {loading && !data ? (
+                    <CategorySkeleton />
+                  ) : data ? (
+                    <PackManager
+                      packs={data.packs}
                       onRefresh={fetchData}
                     />
                   ) : null}
@@ -736,7 +1083,22 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
                           <SelectItem value="all">Toutes</SelectItem>
                           {data?.categories.map((cat) => (
                             <SelectItem key={cat.id} value={cat.id}>
-                              {languageLabel(cat.language)} {cat.name}
+                              {cat.icon || '🏷️'} {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={packFilter} onValueChange={setPackFilter}>
+                        <SelectTrigger className="h-8 text-xs w-36">
+                          <Package className="size-3 mr-1" />
+                          <SelectValue placeholder="Collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Toutes</SelectItem>
+                          {data?.packs.map((pack) => (
+                            <SelectItem key={pack.id} value={pack.id}>
+                              {pack.icon || '📦'} {pack.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -762,6 +1124,7 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
                           <TableRow className="hover:bg-transparent">
                             <TableHead className="pl-3">Titre</TableHead>
                             <TableHead>Catégorie</TableHead>
+                            <TableHead>Collection</TableHead>
                             <TableHead>Langue</TableHead>
                             <TableHead>Difficulté</TableHead>
                             <TableHead className="hidden md:table-cell">Taille</TableHead>
@@ -783,8 +1146,20 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
 
                                 <TableCell>
                                   {puzzle.categoryName ? (
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge variant="outline" className="text-xs gap-1">
+                                      <span>{puzzle.categoryIcon || '🏷️'}</span>
                                       {puzzle.categoryName}
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">—</span>
+                                  )}
+                                </TableCell>
+
+                                <TableCell>
+                                  {puzzle.packName ? (
+                                    <Badge variant="outline" className="text-xs gap-1">
+                                      <span>{puzzle.packIcon || '📦'}</span>
+                                      {puzzle.packName}
                                     </Badge>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">—</span>

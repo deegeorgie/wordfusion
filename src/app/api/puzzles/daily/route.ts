@@ -63,8 +63,12 @@ export async function GET(request: NextRequest) {
         cols: true,
         publishDate: true,
         categoryId: true,
+        packId: true,
         category: {
-          select: { id: true, name: true, slug: true },
+          select: { id: true, name: true, slug: true, icon: true },
+        },
+        pack: {
+          select: { id: true, name: true, icon: true },
         },
       },
     });
@@ -80,6 +84,10 @@ export async function GET(request: NextRequest) {
       publishDate: p.publishDate?.toISOString() ?? '',
       categoryId: p.categoryId,
       categoryName: p.category?.name ?? null,
+      categoryIcon: p.category?.icon ?? null,
+      packId: p.packId,
+      packName: p.pack?.name ?? null,
+      packIcon: p.pack?.icon ?? null,
       categorySlug: p.category?.slug ?? null,
     }));
 

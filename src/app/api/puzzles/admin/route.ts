@@ -11,6 +11,7 @@ interface PuzzleBody {
   difficulty: number;
   language?: string;
   categoryId?: string | null;
+  packId?: string | null;
   rows: number;
   cols: number;
   grid: CrosswordPuzzleData['grid'];
@@ -43,13 +44,17 @@ export async function GET() {
         difficulty: true,
         language: true,
         categoryId: true,
+        packId: true,
         rows: true,
         cols: true,
         publishDate: true,
         published: true,
         createdAt: true,
         category: {
-          select: { id: true, name: true, slug: true },
+          select: { id: true, name: true, slug: true, icon: true },
+        },
+        pack: {
+          select: { id: true, name: true, icon: true },
         },
       },
     });
@@ -62,6 +67,10 @@ export async function GET() {
       categoryId: p.categoryId,
       categoryName: p.category?.name ?? null,
       categorySlug: p.category?.slug ?? null,
+      categoryIcon: p.category?.icon ?? null,
+      packId: p.packId,
+      packName: p.pack?.name ?? null,
+      packIcon: p.pack?.icon ?? null,
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? null,
@@ -82,10 +91,16 @@ export async function GET() {
       include: { _count: { select: { puzzles: true } } },
     });
 
+    const packs = await db.pack.findMany({
+      orderBy: [{ language: 'asc' }, { createdAt: 'desc' }],
+      include: { _count: { select: { puzzles: true } } },
+    });
+
     return NextResponse.json({
       puzzles: puzzleList,
       schedule: scheduleSettings,
       categories,
+      packs,
     });
   } catch (error) {
     console.error('Error fetching admin puzzles:', error);
@@ -108,12 +123,20 @@ export async function POST(request: NextRequest) {
 
     const language = ['fr', 'en'].includes(body.language) ? body.language : 'fr';
     const categoryId = body.categoryId || null;
+    const packId = body.packId || null;
 
     // Validate categoryId if provided
     if (categoryId) {
       const cat = await db.category.findUnique({ where: { id: categoryId } });
       if (!cat) {
         return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
+      }
+    }
+    // Validate packId if provided
+    if (packId) {
+      const pack = await db.pack.findUnique({ where: { id: packId } });
+      if (!pack) {
+        return NextResponse.json({ error: 'Pack introuvable' }, { status: 400 });
       }
     }
 
@@ -135,6 +158,7 @@ export async function POST(request: NextRequest) {
         difficulty: body.difficulty,
         language,
         categoryId,
+        packId,
         rows: body.rows,
         cols: body.cols,
         gridData: dbFormat.gridData,
@@ -189,12 +213,20 @@ export async function PUT(request: NextRequest) {
 
       const language = ['fr', 'en'].includes(body.language) ? body.language : existing.language;
       const categoryId = body.categoryId !== undefined ? (body.categoryId || null) : existing.categoryId;
+      const packId = body.packId !== undefined ? (body.packId || null) : existing.packId;
 
       // Validate categoryId if provided
       if (categoryId) {
         const cat = await db.category.findUnique({ where: { id: categoryId } });
         if (!cat) {
           return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
+        }
+      }
+      // Validate packId if provided
+      if (packId) {
+        const pack = await db.pack.findUnique({ where: { id: packId } });
+        if (!pack) {
+          return NextResponse.json({ error: 'Pack introuvable' }, { status: 400 });
         }
       }
 
@@ -206,6 +238,7 @@ export async function PUT(request: NextRequest) {
           difficulty: body.difficulty,
           language,
           categoryId,
+          packId,
           rows: body.rows,
           cols: body.cols,
           gridData: dbFormat.gridData,

@@ -64,6 +64,7 @@ export async function GET(
       puzzleId: puzzle.id,
       language: puzzle.language,
       categoryId: puzzle.categoryId,
+      packId: puzzle.packId,
       progress: userProgress
         ? {
             id: userProgress.id,

@@ -18,6 +18,8 @@ import {
   Globe,
   FolderOpen,
   Layers,
+  Package,
+  Share2,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -71,8 +73,30 @@ interface PuzzleSummary {
   language: string;
   categoryId?: string | null;
   categoryName?: string | null;
+  categoryIcon?: string | null;
+  packId?: string | null;
+  packName?: string | null;
+  packIcon?: string | null;
   completed?: boolean;
   timeSpent?: number;
+}
+
+interface PackInfo {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  language: string;
+  _count: { puzzles: number };
+}
+
+interface StreakCompletion {
+  date: string;
+  puzzleId: string;
+  time: number;
+  difficulty: number;
+  title: string;
+  language: string;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -184,10 +208,12 @@ export default function Home() {
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
-  // ── Language + Category filter state ────────────────────────────────
+  // ── Language + Category + Pack filter state ────────────────────────
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedPack, setSelectedPack] = useState<string>('all');
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
+  const [packs, setPacks] = useState<PackInfo[]>([]);
 
   // ── Puzzle data ─────────────────────────────────────────────────────
   const [selectedPuzzle, setSelectedPuzzle] = useState<CrosswordPuzzleData | null>(null);
@@ -212,6 +238,9 @@ export default function Home() {
   const [isChecking, setIsChecking] = useState(false);
   const [isLoadingPuzzle, setIsLoadingPuzzle] = useState(false);
 
+  // ── Streak ──────────────────────────────────────────────────────────
+  const [streakData, setStreakData] = useState<StreakCompletion[]>([]);
+
   // ── Timer interval ──────────────────────────────────────────────────
   useEffect(() => {
     if (!isTimerRunning) return;
@@ -227,6 +256,24 @@ export default function Home() {
         setCategories(data.categories ?? []);
       })
       .catch(() => {});
+  }, []);
+
+  // ── Load packs on mount ────────────────────────────────────────────
+  useEffect(() => {
+    fetch('/api/packs')
+      .then((res) => res.json())
+      .then((data) => {
+        setPacks(data.packs ?? []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Load streak data from localStorage ──────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('crossword-streak-data');
+      if (raw) setStreakData(JSON.parse(raw));
+    } catch {}
   }, []);
 
   // ── Load daily puzzles on mount / filter change ────────────────────
@@ -251,14 +298,17 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [selectedLanguage]);
 
-  // ── Filter puzzles by category on client side ──────────────────────
+  // ── Filter puzzles by category and pack on client side ──────────────
   const filteredPuzzles = useMemo(() => {
     let puzzles = dailyPuzzles;
     if (selectedCategory !== 'all') {
       puzzles = puzzles.filter((p) => p.categoryId === selectedCategory);
     }
+    if (selectedPack !== 'all') {
+      puzzles = puzzles.filter((p) => p.packId === selectedPack);
+    }
     return puzzles;
-  }, [dailyPuzzles, selectedCategory]);
+  }, [dailyPuzzles, selectedCategory, selectedPack]);
 
   // ── Available categories for filter (based on loaded puzzles) ────────
   const activeCategoryIds = useMemo(() => {
@@ -268,6 +318,46 @@ export default function Home() {
     }
     return ids;
   }, [dailyPuzzles]);
+
+  // ── Calculate daily streak ───────────────────────────────────────────
+  const streak = useMemo(() => {
+    if (streakData.length === 0) return 0;
+    const dates = [...new Set(streakData.map((c) => c.date))].sort().reverse();
+    if (dates.length === 0) return 0;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    if (dates[0] !== today && dates[0] !== yesterday) return 0;
+
+    let count = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]);
+      const curr = new Date(dates[i]);
+      const diff = (prev.getTime() - curr.getTime()) / 86400000;
+      if (diff === 1) count++;
+      else break;
+    }
+    return count;
+  }, [streakData]);
+
+  // ── Save streak on puzzle completion ─────────────────────────────────
+  useEffect(() => {
+    if (!isCompleted || !selectedPuzzle || !puzzleId) return;
+    const entry: StreakCompletion = {
+      date: new Date().toISOString().slice(0, 10),
+      puzzleId,
+      time: timer,
+      difficulty: selectedPuzzle.difficulty,
+      title: selectedPuzzle.title,
+      language: dailyPuzzles.find((p) => p.id === puzzleId)?.language || 'fr',
+    };
+    setStreakData((prev) => {
+      const updated = [...prev, entry];
+      localStorage.setItem('crossword-streak-data', JSON.stringify(updated));
+      return updated;
+    });
+  }, [isCompleted]);
 
   // ── Fetch a specific puzzle ─────────────────────────────────────────
   const fetchPuzzle = useCallback(async (id: string) => {
@@ -526,6 +616,34 @@ export default function Home() {
     setCurrentView('selection');
   }, []);
 
+  const handleShare = useCallback(async () => {
+    if (!selectedPuzzle) return;
+    const stars = '⭐'.repeat(selectedPuzzle.difficulty);
+    const mins = Math.floor(timer / 60);
+    const secs = timer % 60;
+    const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
+    const lang = selectedPuzzle.language === 'en' ? '🇬🇧' : '🇫🇷';
+
+    const text = [
+      `🧩 Mots Croisés`,
+      `${lang} ${selectedPuzzle.title}`,
+      `${stars} Résolu en ${timeStr}`,
+      `🔥 Série: ${streak} jour${streak > 1 ? 's' : ''}`,
+      ``,
+      `Essaie aussi → mots-croisés.app`,
+    ].join('\n');
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Mots Croisés', text });
+        return;
+      } catch {}
+    }
+
+    await navigator.clipboard.writeText(text);
+    toast.success('Résultat copié dans le presse-papiers !');
+  }, [selectedPuzzle, timer, streak]);
+
   // ── Derived values ───────────────────────────────────────────────────
 
   // Real-time auto-validation: compare each filled cell against the answer
@@ -620,6 +738,12 @@ export default function Home() {
                   </p>
                 </div>
               </div>
+              {streak > 0 && (
+                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1">
+                  <span className="text-lg">🔥</span>
+                  <span className="text-sm font-bold text-orange-700 dark:text-orange-400">{streak}</span>
+                </div>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -655,6 +779,7 @@ export default function Home() {
                 <Select value={selectedLanguage} onValueChange={(v) => {
                   setSelectedLanguage(v);
                   setSelectedCategory('all');
+                  setSelectedPack('all');
                 }}>
                   <SelectTrigger className="h-9 w-40 text-sm">
                     <SelectValue placeholder="Langue" />
@@ -733,7 +858,7 @@ export default function Home() {
                 </div>
                 <h3 className="text-lg font-medium">Aucun puzzle disponible</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {selectedLanguage !== 'all' || selectedCategory !== 'all'
+                  {selectedLanguage !== 'all' || selectedCategory !== 'all' || selectedPack !== 'all'
                     ? 'Essayez de modifier vos filtres pour trouver des puzzles.'
                     : 'Revenez demain pour de nouveaux puzzles !'}
                 </p>
@@ -770,8 +895,14 @@ export default function Home() {
                         </CardDescription>
                         {puzzle.categoryName && (
                           <Badge variant="secondary" className="text-xs mt-1 gap-1">
-                            <FolderOpen className="size-3" />
+                            <span>{puzzle.categoryIcon || '🏷️'}</span>
                             {puzzle.categoryName}
+                          </Badge>
+                        )}
+                        {puzzle.packName && (
+                          <Badge variant="outline" className="text-xs mt-1 gap-1">
+                            <span>{puzzle.packIcon || '📦'}</span>
+                            {puzzle.packName}
                           </Badge>
                         )}
                       </CardHeader>
@@ -805,6 +936,33 @@ export default function Home() {
                     </Card>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* ── Collections section ── */}
+            {packs.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Package className="size-5 text-muted-foreground" />
+                  Collections
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  {packs
+                    .filter((p) => !selectedLanguage || selectedLanguage === 'all' || p.language === selectedLanguage)
+                    .map((pack) => (
+                      <Button
+                        key={pack.id}
+                        variant={selectedPack === pack.id ? 'default' : 'outline'}
+                        size="sm"
+                        className="gap-1.5 text-sm"
+                        onClick={() => setSelectedPack(selectedPack === pack.id ? 'all' : pack.id)}
+                      >
+                        <span className="text-base">{pack.icon}</span>
+                        {pack.name}
+                        <Badge variant="secondary" className="ml-1 text-xs">{pack._count.puzzles}</Badge>
+                      </Button>
+                    ))}
+                </div>
               </div>
             )}
           </main>
@@ -1007,6 +1165,10 @@ export default function Home() {
                     <span className="font-semibold text-foreground">{formatTimer(timer)}</span>.
                   </p>
                   <div className="mt-6 flex items-center justify-center gap-3">
+                    <Button variant="outline" onClick={handleShare}>
+                      <Share2 className="size-4" />
+                      Partager
+                    </Button>
                     <Button variant="outline" onClick={handleBack}>
                       <ArrowLeft className="size-4" />
                       Retour
