@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/select';
 
 import AdminPanel from '@/components/crossword/AdminPanel';
+import { cn } from '@/lib/utils';
 import type {
   CrosswordPuzzleData,
   WordPlacement,
@@ -144,6 +145,48 @@ function languageFlag(lang: string): string {
 
 function languageName(lang: string): string {
   return lang === 'en' ? 'English' : 'Français';
+}
+
+// ── Streak Heatmap ──────────────────────────────────────────────
+
+function StreakHeatmap({ streakData }: { streakData: StreakCompletion[] }) {
+  const days = useMemo(() => {
+    const today = new Date();
+    const result: { date: string; completed: boolean; count: number }[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      const completions = streakData.filter((c) => c.date === dateStr);
+      result.push({
+        date: dateStr,
+        completed: completions.length > 0,
+        count: completions.length,
+      });
+    }
+    return result;
+  }, [streakData]);
+
+  if (streakData.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {days.map((day) => (
+        <div
+          key={day.date}
+          title={`${day.date}${day.completed ? ` — ${day.count} puzzle${day.count > 1 ? 's' : ''}` : ''}`}
+          className={cn(
+            'h-5 w-5 rounded-sm transition-colors',
+            day.completed
+              ? 'bg-emerald-500 dark:bg-emerald-400'
+              : day.date <= new Date().toISOString().slice(0, 10)
+                ? 'bg-muted'
+                : 'bg-transparent',
+          )}
+        />
+      ))}
+    </div>
+  );
 }
 
 // ── Confetti overlay ────────────────────────────────────────────────────
@@ -623,15 +666,18 @@ export default function Home() {
     const secs = timer % 60;
     const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
     const lang = selectedPuzzle.language === 'en' ? '🇬🇧' : '🇫🇷';
+    const wordCount = selectedPuzzle.clues.length;
+    const hints = revealedCells.size;
 
     const text = [
       `🧩 Mots Croisés`,
       `${lang} ${selectedPuzzle.title}`,
       `${stars} Résolu en ${timeStr}`,
-      `🔥 Série: ${streak} jour${streak > 1 ? 's' : ''}`,
+      `${wordCount} mots` + (hints > 0 ? ` • ${hints} indice${hints > 1 ? 's' : ''}` : ''),
+      streak > 0 ? `🔥 Série: ${streak} jour${streak > 1 ? 's' : ''}` : '',
       ``,
       `Essaie aussi → mots-croisés.app`,
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     if (navigator.share) {
       try {
@@ -642,7 +688,7 @@ export default function Home() {
 
     await navigator.clipboard.writeText(text);
     toast.success('Résultat copié dans le presse-papiers !');
-  }, [selectedPuzzle, timer, streak]);
+  }, [selectedPuzzle, timer, streak, revealedCells]);
 
   // ── Derived values ───────────────────────────────────────────────────
 
@@ -739,9 +785,14 @@ export default function Home() {
                 </div>
               </div>
               {streak > 0 && (
-                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1">
-                  <span className="text-lg">🔥</span>
+                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1.5 shadow-sm">
+                  <motion.span
+                    className="text-lg"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
+                  >🔥</motion.span>
                   <span className="text-sm font-bold text-orange-700 dark:text-orange-400">{streak}</span>
+                  <span className="text-[10px] text-orange-600/70 dark:text-orange-400/70 hidden sm:inline">jour{streak > 1 ? 's' : ''}</span>
                 </div>
               )}
               <Button
@@ -770,6 +821,60 @@ export default function Home() {
                 Puzzles du jour
               </h2>
             </div>
+
+            {/* ── Streak stats card ── */}
+            {streakData.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6 rounded-xl border bg-gradient-to-r from-orange-50/80 to-amber-50/80 dark:from-orange-950/20 dark:to-amber-950/20 p-4 sm:p-5"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  {/* Streak counter */}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="relative">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-lg shadow-orange-500/20">
+                        <span className="text-xl">🔥</span>
+                      </div>
+                      {streak > 0 && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                          className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-background border shadow-sm"
+                        >
+                          <span className="text-[10px] font-bold text-orange-600">{streak}</span>
+                        </motion.div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {streak > 0
+                          ? streak === 1
+                            ? 'Série de 1 jour !'
+                            : `Série de ${streak} jours !`
+                          : 'Reprenez votre série !'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {streakData.length} puzzle{streakData.length !== 1 ? 's' : ''} résolu{streakData.length !== 1 ? 's' : ''} au total
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Heatmap */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">30 derniers jours</span>
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <span className="flex items-center gap-0.5"><div className="h-2.5 w-2.5 rounded-sm bg-muted" /><span className="hidden sm:inline">Rien</span></span>
+                        <span className="flex items-center gap-0.5"><div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /><span className="hidden sm:inline">Résolu</span></span>
+                      </div>
+                    </div>
+                    <StreakHeatmap streakData={streakData} />
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* ── Filters ──────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -1150,7 +1255,12 @@ export default function Home() {
             <>
               <ConfettiOverlay />
               <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-                <div className="mx-4 rounded-2xl bg-card p-8 text-center shadow-2xl sm:p-12">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  className="mx-4 rounded-2xl bg-card p-8 text-center shadow-2xl sm:p-12 max-w-md w-full"
+                >
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
                     <Trophy className="size-8 text-emerald-600 dark:text-emerald-400" />
                   </div>
@@ -1161,9 +1271,25 @@ export default function Home() {
                     Félicitations !
                   </h2>
                   <p className="mt-2 text-muted-foreground">
-                    Vous avez résolu le puzzle en{' '}
+                    Vous avez résolu « <span className="font-semibold text-foreground">{selectedPuzzle?.title}</span> » en{' '}
                     <span className="font-semibold text-foreground">{formatTimer(timer)}</span>.
                   </p>
+                  <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span>⭐</span>
+                      <span className="text-muted-foreground">{selectedPuzzle?.clues.length} mots</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span>💡</span>
+                      <span className="text-muted-foreground">{revealedCells.size} indices</span>
+                    </div>
+                    {streak > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span>🔥</span>
+                        <span className="text-muted-foreground">Série: {streak}</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-6 flex items-center justify-center gap-3">
                     <Button variant="outline" onClick={handleShare}>
                       <Share2 className="size-4" />
@@ -1174,7 +1300,7 @@ export default function Home() {
                       Retour
                     </Button>
                   </div>
-                </div>
+                </motion.div>
               </div>
             </>
           )}

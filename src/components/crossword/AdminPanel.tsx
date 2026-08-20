@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   CalendarIcon,
@@ -22,6 +23,8 @@ import {
   Trash2,
   Tag,
   Languages,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -742,6 +745,251 @@ function PackManager({ packs, onRefresh }: { packs: PackItem[]; onRefresh: () =>
   );
 }
 
+// --- Auto Generator Sub-component ---
+
+function PuzzleGenerator({ categories, packs, onGenerated }: {
+  categories: CategoryItem[];
+  packs: PackItem[];
+  onGenerated: () => void;
+}) {
+  const [theme, setTheme] = useState('');
+  const [language, setLanguage] = useState('fr');
+  const [difficulty, setDifficulty] = useState('1');
+  const [wordCount, setWordCount] = useState('12');
+  const [categoryId, setCategoryId] = useState('none');
+  const [packId, setPackId] = useState('none');
+  const [autoPublish, setAutoPublish] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState<{ id: string; title: string; rows: number; cols: number; wordsPlaced: number; wordsTotal: number } | null>(null);
+
+  const handleGenerate = async () => {
+    if (!theme.trim()) {
+      toast.error('Veuillez entrer un thème');
+      return;
+    }
+    setGenerating(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/puzzles/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          theme: theme.trim(),
+          language,
+          difficulty: parseInt(difficulty, 10),
+          wordCount: parseInt(wordCount, 10),
+          categoryId: categoryId !== 'none' ? categoryId : null,
+          packId: packId !== 'none' ? packId : null,
+          autoPublish,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la génération');
+      setResult(data.puzzle);
+      toast.success(`Puzzle « ${data.puzzle.title} » généré avec succès !`);
+      onGenerated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const suggestions = language === 'fr'
+    ? ['Villes africaines', 'Animaux de la savane', 'Inventions célèbres', 'Cuisine du monde', 'Sport olympique', 'Histoire de France', 'Astronomie', 'Musique classique']
+    : ['World Capitals', 'African Wildlife', 'Space Exploration', 'Famous Scientists', 'Classic Literature', 'Olympic Sports', 'World Cuisine', 'Ancient History'];
+
+  return (
+    <div className="space-y-5">
+      {/* Theme input */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground font-medium">
+          <Sparkles className="size-3.5 inline mr-1" />
+          {language === 'fr' ? 'Thème du puzzle' : 'Puzzle Theme'}
+        </Label>
+        <Input
+          placeholder={language === 'fr' ? 'Ex: Villes africaines, Sciences naturelles...'
+            : 'e.g. World Capitals, Space Exploration...'}
+          value={theme}
+          onChange={(e) => setTheme(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+          disabled={generating}
+        />
+        {/* Quick suggestions */}
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {suggestions.slice(0, 6).map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="text-xs rounded-full border px-2.5 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              onClick={() => setTheme(s)}
+              disabled={generating}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Settings grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Langue</Label>
+          <Select value={language} onValueChange={setLanguage}>
+            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fr">🇫🇷 Français</SelectItem>
+              <SelectItem value="en">🇬🇧 English</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Difficulté</Label>
+          <Select value={difficulty} onValueChange={setDifficulty}>
+            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">{renderStars(1)} Facile</SelectItem>
+              <SelectItem value="2">{renderStars(2)} Moyen</SelectItem>
+              <SelectItem value="3">{renderStars(3)} Difficile</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Nb. mots</Label>
+          <Select value={wordCount} onValueChange={setWordCount}>
+            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="8">8 mots (petit)</SelectItem>
+              <SelectItem value="12">12 mots (moyen)</SelectItem>
+              <SelectItem value="16">16 mots (grand)</SelectItem>
+              <SelectItem value="20">20 mots (expert)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Catégorie</Label>
+          <Select value={categoryId} onValueChange={setCategoryId}>
+            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+              <SelectValue placeholder="Aucune" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Aucune —</SelectItem>
+              {categories
+                .filter((c) => c.language === language)
+                .map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Collection</Label>
+          <Select value={packId} onValueChange={setPackId}>
+            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+              <SelectValue placeholder="Aucune" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Aucune —</SelectItem>
+              {packs
+                .filter((p) => p.language === language)
+                .map((pack) => (
+                  <SelectItem key={pack.id} value={pack.id}>
+                    {pack.icon} {pack.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-end gap-2">
+          <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+            <Switch
+              id="auto-publish"
+              checked={autoPublish}
+              onCheckedChange={setAutoPublish}
+              disabled={generating}
+              className="scale-90"
+            />
+            <Label htmlFor="auto-publish" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+              Publier
+            </Label>
+          </div>
+        </div>
+      </div>
+
+      {/* Generate button */}
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleGenerate}
+          disabled={generating || !theme.trim()}
+          className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md"
+        >
+          {generating ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Génération en cours…
+            </>
+          ) : (
+            <>
+              <Zap className="size-4" />
+              Générer le puzzle
+            </>
+          )}
+        </Button>
+        {generating && (
+          <p className="text-xs text-muted-foreground animate-pulse">
+            {language === 'fr'
+              ? 'L\'IA génère les mots et construit la grille…'
+              : 'AI is generating words and building the grid…'}
+          </p>
+        )}
+      </div>
+
+      {/* Result card */}
+      {result && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 className="size-4 text-emerald-600" />
+            <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Puzzle généré avec succès !
+            </span>
+          </div>
+          <div className="text-sm space-y-1">
+            <p><span className="text-muted-foreground">Titre :</span> <span className="font-medium">{result.title}</span></p>
+            <p><span className="text-muted-foreground">Grille :</span> <span className="font-medium">{result.rows}×{result.cols}</span></p>
+            <p>
+              <span className="text-muted-foreground">Mots :</span>{' '}
+              <span className="font-medium">{result.wordsPlaced}/{result.wordsTotal}</span>{' '}
+              <span className="text-xs text-muted-foreground">placés</span>
+            </p>
+            {!autoPublish && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                ⚠ Ce puzzle est en brouillon. Publiez-le depuis l\'onglet Puzzles.
+              </p>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
 // --- Main AdminPanel Component ---
 
 export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
@@ -983,7 +1231,7 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
 
           <div className="p-6 space-y-6">
             <Tabs defaultValue="categories" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
                   <FolderOpen className="size-3.5" />
                   <span className="hidden sm:inline">Catégories</span>
@@ -991,11 +1239,17 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
                 </TabsTrigger>
                 <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
                   <Package className="size-3.5" />
-                  Collections
+                  <span className="hidden sm:inline">Collections</span>
+                  <span className="sm:hidden">Coll.</span>
                 </TabsTrigger>
                 <TabsTrigger value="puzzles" className="text-xs sm:text-sm gap-1.5">
                   <Grid3X3 className="size-3.5" />
                   Puzzles
+                </TabsTrigger>
+                <TabsTrigger value="generator" className="text-xs sm:text-sm gap-1.5">
+                  <Sparkles className="size-3.5" />
+                  <span className="hidden sm:inline">Générateur</span>
+                  <span className="sm:hidden">Gén.</span>
                 </TabsTrigger>
                 <TabsTrigger value="schedule" className="text-xs sm:text-sm gap-1.5">
                   <CalendarDays className="size-3.5" />
@@ -1274,6 +1528,35 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
                       </Table>
                     </div>
                   )}
+                </section>
+              </TabsContent>
+
+              {/* ── Generator Tab ── */}
+              <TabsContent value="generator" className="mt-4">
+                <section className="rounded-lg border bg-muted/30 p-4">
+                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                    <Sparkles className="size-4 text-emerald-500" />
+                    Générateur Automatique
+                    <Badge variant="secondary" className="ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+                      IA
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Générez un puzzle de mots croisés automatiquement grâce à l'intelligence artificielle.
+                    Entrez un thème et l'IA créera les mots et indices, puis construira la grille.
+                  </p>
+
+                  {loading && !data ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : data ? (
+                    <PuzzleGenerator
+                      categories={data.categories}
+                      packs={data.packs}
+                      onGenerated={fetchData}
+                    />
+                  ) : null}
                 </section>
               </TabsContent>
 

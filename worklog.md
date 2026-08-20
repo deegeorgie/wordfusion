@@ -236,3 +236,48 @@ Stage Summary:
 - Daily streak tracking with localStorage persistence
 - Share dialog on puzzle completion
 - All labels in French
+---
+Task ID: 2-a, 2-b, 3, 4, 5
+Agent: Main
+Task: Implement Daily Streak UI + Auto Puzzle Generator
+
+Work Log:
+- Read current project state (schema, page.tsx, APIs, AdminPanel)
+- Created `/home/z/my-project/src/lib/crossword/placement.ts` — crossword grid placement algorithm
+  - Takes raw words + clues and arranges them into a crossword grid
+  - First word placed horizontally at (0,0), subsequent words find intersections
+  - Conflict detection for letter mismatches and parallel adjacency
+  - Normalizes coordinates with 1-cell padding
+  - Returns success if >= 3 words placed
+- Created `/home/z/my-project/src/app/api/puzzles/generate/route.ts` — LLM-powered auto generator API
+  - Uses z-ai-web-dev-sdk to generate words + clues via LLM
+  - Supports theme, language (fr/en), difficulty (1-3), word count (5-30)
+  - 3-retry logic for LLM generation failures
+  - Uses placement algorithm to build grid, then saves to DB
+  - Supports auto-publish option
+  - Validates category/pack references
+- Enhanced `page.tsx` streak UI:
+  - Added `StreakHeatmap` component showing 30-day activity grid
+  - Added visual streak stats card with animated fire icon + count badge
+  - Enhanced completion modal with stats row (words, hints, streak)
+  - Enhanced share text to include word count and hints used
+  - Added `cn` utility import for conditional classes
+  - Added framer-motion animations to completion modal and streak card
+- Enhanced `AdminPanel.tsx`:
+  - Added new "Générateur" tab (5 tabs total)
+  - Created `PuzzleGenerator` sub-component with:
+    - Theme text input with quick suggestion chips
+    - Language, difficulty, word count selectors
+    - Category and collection selectors (filtered by language)
+    - Auto-publish toggle
+    - Gradient generate button with loading state
+    - Result card showing generated puzzle details
+  - Added `motion` import and `Sparkles`, `Zap` icon imports
+  - Fixed SelectItem empty value bug (changed "" to "none")
+
+Stage Summary:
+- Auto generator API verified: POST /api/puzzles/generate returns valid puzzle (tested with "Animaux" theme → 10×9 grid, 6/8 words placed in 5.3s)
+- Admin panel 5-tab layout verified via browser automation
+- Puzzle playing view confirmed working (generated puzzles are playable)
+- Clean ESLint pass
+- All features integrated into existing architecture without breaking changes
