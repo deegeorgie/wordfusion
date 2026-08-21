@@ -181,9 +181,9 @@ export default function ClueList({
                   Aucune indication horizontale
                 </div>
               ) : (
-                acrossClues.map((clue) => (
+                acrossClues.map((clue, idx) => (
                   <ClueItem
-                    key={getClueKey(clue.number, clue.direction)}
+                    key={`${getClueKey(clue.number, clue.direction)}-${idx}`}
                     clue={clue}
                     isActive={
                       activeClueNumber === clue.number &&
@@ -209,9 +209,9 @@ export default function ClueList({
                   Aucune indication verticale
                 </div>
               ) : (
-                downClues.map((clue) => (
+                downClues.map((clue, idx) => (
                   <ClueItem
-                    key={getClueKey(clue.number, clue.direction)}
+                    key={`${getClueKey(clue.number, clue.direction)}-${idx}`}
                     clue={clue}
                     isActive={
                       activeClueNumber === clue.number &&

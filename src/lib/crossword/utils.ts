@@ -71,14 +71,21 @@ function buildGridFromWords(
     }
   }
 
-  // Assign clue numbers to word placements
+  // Assign clue numbers to word placements.
+  // First pass: use numbers assigned by the grid scanner.
+  // Second pass: any word that didn't get a number (because it starts in
+  // the middle of another word's letter run) gets a new unique number.
   const wordsWithNumbers: WordPlacement[] = words.map((w) => {
     const key = `${w.row},${w.col}`;
-    return {
-      ...w,
-      clueNumber: numberMap.get(key) || 0,
-      length: w.word.length,
-    };
+    const existing = numberMap.get(key);
+    if (existing) {
+      return { ...w, clueNumber: existing, length: w.word.length };
+    }
+    // Assign a new number for unnumbered words
+    const num = clueNum++;
+    numberMap.set(key, num);
+    grid[w.row][w.col].number = num;
+    return { ...w, clueNumber: num, length: w.word.length };
   });
 
   return { grid, wordsWithNumbers };
