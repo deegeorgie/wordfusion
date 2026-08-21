@@ -9,7 +9,9 @@ import {
   CircleOff,
   FolderOpen,
   Globe,
+  Grid2X2,
   Grid3X3,
+  LayoutGrid,
   Loader2,
   Package,
   Pencil,
@@ -755,12 +757,25 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
   const [theme, setTheme] = useState('');
   const [language, setLanguage] = useState('fr');
   const [difficulty, setDifficulty] = useState('1');
-  const [wordCount, setWordCount] = useState('12');
+  const [wordCount, setWordCount] = useState('11');
+  const [sizePreset, setSizePreset] = useState<'small' | 'medium' | 'large'>('medium');
   const [categoryId, setCategoryId] = useState('none');
   const [packId, setPackId] = useState('none');
   const [autoPublish, setAutoPublish] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ id: string; title: string; rows: number; cols: number; wordsPlaced: number; wordsTotal: number } | null>(null);
+
+  const sizePresets = [
+    { id: 'small' as const, label: 'Petit', icon: Grid2X2, words: 6, range: '5-8', desc: 'Grille compacte' },
+    { id: 'medium' as const, label: 'Moyen', icon: Grid3X3, words: 11, range: '9-14', desc: 'Taille classique' },
+    { id: 'large' as const, label: 'Grand', icon: LayoutGrid, words: 20, range: '15-30', desc: 'Grand défi' },
+  ];
+
+  const handleSizePreset = (size: 'small' | 'medium' | 'large') => {
+    setSizePreset(size);
+    const preset = sizePresets.find(p => p.id === size);
+    if (preset) setWordCount(String(preset.words));
+  };
 
   const handleGenerate = async () => {
     if (!theme.trim()) {
@@ -778,6 +793,7 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
           language,
           difficulty: parseInt(difficulty, 10),
           wordCount: parseInt(wordCount, 10),
+          size: sizePreset,
           categoryId: categoryId !== 'none' ? categoryId : null,
           packId: packId !== 'none' ? packId : null,
           autoPublish,
@@ -831,6 +847,44 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
         </div>
       </div>
 
+      {/* Size preset buttons */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground font-medium">Taille de la grille</Label>
+        <div className="flex" role="group">
+          {sizePresets.map((preset, i) => {
+            const Icon = preset.icon;
+            const isSelected = sizePreset === preset.id;
+            const isFirst = i === 0;
+            const isLast = i === sizePresets.length - 1;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                disabled={generating}
+                onClick={() => handleSizePreset(preset.id)}
+                className={`flex-1 flex flex-col items-center gap-0.5 border px-3 py-2 text-xs font-medium transition-colors ${
+                  isFirst ? 'rounded-l-lg' : ''
+                } ${
+                  isLast ? 'rounded-r-lg' : 'border-r-0'
+                } ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                } ${
+                  generating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                }`}
+              >
+                <Icon className="size-4" />
+                <span>{preset.label}</span>
+                <span className={`text-[10px] ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                  {preset.range} mots
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Settings grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
@@ -867,12 +921,12 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="8">8 mots (petit)</SelectItem>
-              <SelectItem value="12">12 mots (moyen)</SelectItem>
-              <SelectItem value="16">16 mots (grand)</SelectItem>
-              <SelectItem value="20">20 mots (expert)</SelectItem>
+              {[5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30].map(n => (
+                <SelectItem key={n} value={String(n)}>{n} mots</SelectItem>
+              ))}
             </SelectContent>
           </Select>
+          <p className="text-[10px] text-muted-foreground">Plage : {sizePresets.find(p => p.id === sizePreset)?.range} mots</p>
         </div>
 
         <div className="space-y-1.5">

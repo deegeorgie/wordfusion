@@ -1,0 +1,1648 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useEffect, useCallback, useMemo } from 'react';
+     4→import { motion } from 'framer-motion';
+     5→import { toast } from 'sonner';
+     6→import {
+     7→  CalendarIcon,
+     8→  CheckCircle2,
+     9→  CircleOff,
+    10→  FolderOpen,
+    11→  Globe,
+    12→  Grid3X3,
+    13→  Loader2,
+    14→  Package,
+    15→  Pencil,
+    16→  Plus,
+    17→  Save,
+    18→  Settings,
+    19→  Star,
+    20→  CalendarDays,
+    21→  EyeOff,
+    22→  Eye,
+    23→  Trash2,
+    24→  Tag,
+    25→  Languages,
+    26→  Sparkles,
+    27→  Zap,
+    28→} from 'lucide-react';
+    29→import { format } from 'date-fns';
+    30→import { fr } from 'date-fns/locale';
+    31→
+    32→import {
+    33→  Dialog,
+    34→  DialogContent,
+    35→  DialogHeader,
+    36→  DialogTitle,
+    37→  DialogDescription,
+    38→} from '@/components/ui/dialog';
+    39→import {
+    40→  Table,
+    41→  TableBody,
+    42→  TableCell,
+    43→  TableHead,
+    44→  TableHeader,
+    45→  TableRow,
+    46→} from '@/components/ui/table';
+    47→import { Badge } from '@/components/ui/badge';
+    48→import { Button } from '@/components/ui/button';
+    49→import { Switch } from '@/components/ui/switch';
+    50→import { Input } from '@/components/ui/input';
+    51→import { Label } from '@/components/ui/label';
+    52→import { Skeleton } from '@/components/ui/skeleton';
+    53→import { Calendar } from '@/components/ui/calendar';
+    54→import {
+    55→  AlertDialog,
+    56→  AlertDialogAction,
+    57→  AlertDialogCancel,
+    58→  AlertDialogContent,
+    59→  AlertDialogDescription,
+    60→  AlertDialogFooter,
+    61→  AlertDialogHeader,
+    62→  AlertDialogTitle,
+    63→} from '@/components/ui/alert-dialog';
+    64→import {
+    65→  Popover,
+    66→  PopoverContent,
+    67→  PopoverTrigger,
+    68→} from '@/components/ui/popover';
+    69→import {
+    70→  Select,
+    71→  SelectContent,
+    72→  SelectItem,
+    73→  SelectTrigger,
+    74→  SelectValue,
+    75→} from '@/components/ui/select';
+    76→import { Separator } from '@/components/ui/separator';
+    77→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    78→
+    79→import PuzzleEditor from '@/components/crossword/PuzzleEditor';
+    80→
+    81→// --- Types ---
+    82→
+    83→interface CategoryItem {
+    84→  id: string;
+    85→  name: string;
+    86→  slug: string;
+    87→  icon: string;
+    88→  language: string;
+    89→  createdAt: string;
+    90→  _count: { puzzles: number };
+    91→}
+    92→
+    93→interface PackItem {
+    94→  id: string;
+    95→  name: string;
+    96→  description: string | null;
+    97→  icon: string;
+    98→  language: string;
+    99→  _count: { puzzles: number };
+   100→}
+   101→
+   102→interface PuzzleSummary {
+   103→  id: string;
+   104→  title: string;
+   105→  difficulty: number;
+   106→  language: string;
+   107→  categoryId: string | null;
+   108→  categoryName: string | null;
+   109→  categorySlug: string | null;
+   110→  categoryIcon?: string | null;
+   111→  packId?: string | null;
+   112→  packName?: string | null;
+   113→  packIcon?: string | null;
+   114→  rows: number;
+   115→  cols: number;
+   116→  published: boolean;
+   117→  publishDate: string | null;
+   118→  createdAt: string;
+   119→}
+   120→
+   121→interface PublishingSchedule {
+   122→  id: string;
+   123→  puzzlesPerDay: number;
+   124→  isActive: boolean;
+   125→}
+   126→
+   127→interface AdminData {
+   128→  puzzles: PuzzleSummary[];
+   129→  schedule: PublishingSchedule;
+   130→  categories: CategoryItem[];
+   131→  packs: PackItem[];
+   132→}
+   133→
+   134→interface AdminPanelProps {
+   135→  open: boolean;
+   136→  onOpenChange: (open: boolean) => void;
+   137→}
+   138→
+   139→// --- Helpers ---
+   140→
+   141→function renderStars(difficulty: number) {
+   142→  const maxStars = 3;
+   143→  return (
+   144→    <span className="inline-flex items-center gap-0.5">
+   145→      {Array.from({ length: maxStars }, (_, i) => (
+   146→        <Star
+   147→          key={i}
+   148→          className={`size-3.5 ${
+   149→            i < difficulty
+   150→              ? 'fill-amber-400 text-amber-400'
+   151→              : 'fill-muted text-muted-foreground/30'
+   152→          }`}
+   153→        />
+   154→      ))}
+   155→    </span>
+   156→  );
+   157→}
+   158→
+   159→function formatDate(dateStr: string | null): string {
+   160→  if (!dateStr) return '—';
+   161→  try {
+   162→    return format(new Date(dateStr), 'dd MMM yyyy', { locale: fr });
+   163→  } catch {
+   164→    return '—';
+   165→  }
+   166→}
+   167→
+   168→function languageLabel(lang: string) {
+   169→  return lang === 'en' ? '🇬🇧 EN' : '🇫🇷 FR';
+   170→}
+   171→
+   172→// --- Skeletons ---
+   173→
+   174→function TableSkeleton() {
+   175→  return (
+   176→    <div className="space-y-3">
+   177→      <div className="flex items-center justify-between">
+   178→        <Skeleton className="h-5 w-40" />
+   179→        <Skeleton className="h-8 w-24" />
+   180→      </div>
+   181→      {Array.from({ length: 4 }, (_, i) => (
+   182→        <div key={i} className="flex items-center gap-4">
+   183→          <Skeleton className="h-4 w-32" />
+   184→          <Skeleton className="h-4 w-16" />
+   185→          <Skeleton className="h-4 w-16" />
+   186→          <Skeleton className="h-4 w-24" />
+   187→          <Skeleton className="h-5 w-20" />
+   188→          <Skeleton className="h-8 w-20" />
+   189→        </div>
+   190→      ))}
+   191→    </div>
+   192→  );
+   193→}
+   194→
+   195→function CategorySkeleton() {
+   196→  return (
+   197→    <div className="space-y-3">
+   198→      {Array.from({ length: 3 }, (_, i) => (
+   199→        <div key={i} className="flex items-center gap-4">
+   200→          <Skeleton className="h-4 w-28" />
+   201→          <Skeleton className="h-5 w-12" />
+   202→          <Skeleton className="h-4 w-8" />
+   203→          <Skeleton className="h-8 w-20" />
+   204→        </div>
+   205→      ))}
+   206→    </div>
+   207→  );
+   208→}
+   209→
+   210→// --- Category Management Sub-component ---
+   211→
+   212→function CategoryManager({ categories, onRefresh }: { categories: CategoryItem[]; onRefresh: () => void }) {
+   213→  const [newName, setNewName] = useState('');
+   214→  const [newIcon, setNewIcon] = useState('🏷️');
+   215→  const [newLanguage, setNewLanguage] = useState('fr');
+   216→  const [creating, setCreating] = useState(false);
+   217→
+   218→  // Edit state
+   219→  const [editingId, setEditingId] = useState<string | null>(null);
+   220→  const [editName, setEditName] = useState('');
+   221→  const [editIcon, setEditIcon] = useState('');
+   222→  const [editLanguage, setEditLanguage] = useState('');
+   223→  const [saving, setSaving] = useState(false);
+   224→
+   225→  // Delete state
+   226→  const [deleteTarget, setDeleteTarget] = useState<CategoryItem | null>(null);
+   227→  const [deleting, setDeleting] = useState(false);
+   228→
+   229→  const handleCreate = async () => {
+   230→    if (!newName.trim()) return;
+   231→    setCreating(true);
+   232→    try {
+   233→      const res = await fetch('/api/categories', {
+   234→        method: 'POST',
+   235→        headers: { 'Content-Type': 'application/json' },
+   236→        body: JSON.stringify({ name: newName.trim(), icon: newIcon, language: newLanguage }),
+   237→      });
+   238→      if (!res.ok) {
+   239→        const err = await res.json().catch(() => ({}));
+   240→        throw new Error((err as { error?: string }).error || 'Erreur');
+   241→      }
+   242→      toast.success(`Catégorie « ${newName.trim()} » créée`);
+   243→      setNewName('');
+   244→      setNewIcon('🏷️');
+   245→      onRefresh();
+   246→    } catch (err) {
+   247→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   248→    } finally {
+   249→      setCreating(false);
+   250→    }
+   251→  };
+   252→
+   253→  const startEdit = (cat: CategoryItem) => {
+   254→    setEditingId(cat.id);
+   255→    setEditName(cat.name);
+   256→    setEditIcon(cat.icon || '🏷️');
+   257→    setEditLanguage(cat.language);
+   258→  };
+   259→
+   260→  const handleSaveEdit = async () => {
+   261→    if (!editingId || !editName.trim()) return;
+   262→    setSaving(true);
+   263→    try {
+   264→      const res = await fetch('/api/categories', {
+   265→        method: 'PUT',
+   266→        headers: { 'Content-Type': 'application/json' },
+   267→        body: JSON.stringify({ id: editingId, name: editName.trim(), icon: editIcon, language: editLanguage }),
+   268→      });
+   269→      if (!res.ok) {
+   270→        const err = await res.json().catch(() => ({}));
+   271→        throw new Error((err as { error?: string }).error || 'Erreur');
+   272→      }
+   273→      toast.success('Catégorie mise à jour');
+   274→      setEditingId(null);
+   275→      onRefresh();
+   276→    } catch (err) {
+   277→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   278→    } finally {
+   279→      setSaving(false);
+   280→    }
+   281→  };
+   282→
+   283→  const handleDelete = async () => {
+   284→    if (!deleteTarget) return;
+   285→    setDeleting(true);
+   286→    try {
+   287→      const res = await fetch(`/api/categories?id=${deleteTarget.id}`, { method: 'DELETE' });
+   288→      if (!res.ok) throw new Error('Erreur lors de la suppression');
+   289→      toast.success(`Catégorie « ${deleteTarget.name} » supprimée`);
+   290→      setDeleteTarget(null);
+   291→      onRefresh();
+   292→    } catch (err) {
+   293→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   294→    } finally {
+   295→      setDeleting(false);
+   296→    }
+   297→  };
+   298→
+   299→  return (
+   300→    <>
+   301→      {/* Create new category row */}
+   302→      <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2 mb-4">
+   303→        <div className="w-16 sm:w-20 space-y-1">
+   304→          <Label className="text-xs text-muted-foreground">Icône</Label>
+   305→          <Input
+   306→            placeholder="🏷️"
+   307→            value={newIcon}
+   308→            onChange={(e) => setNewIcon(e.target.value)}
+   309→            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+   310→            className="h-8 text-sm text-center"
+   311→            maxLength={4}
+   312→          />
+   313→        </div>
+   314→        <div className="flex-1 w-full sm:w-auto space-y-1">
+   315→          <Label className="text-xs text-muted-foreground">Nom de la catégorie</Label>
+   316→          <Input
+   317→            placeholder="Ex: Animaux, Sciences..."
+   318→            value={newName}
+   319→            onChange={(e) => setNewName(e.target.value)}
+   320→            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+   321→            className="h-8 text-sm"
+   322→          />
+   323→        </div>
+   324→        <div className="w-full sm:w-28 space-y-1">
+   325→          <Label className="text-xs text-muted-foreground">Langue</Label>
+   326→          <Select value={newLanguage} onValueChange={setNewLanguage}>
+   327→            <SelectTrigger className="h-8 text-sm">
+   328→              <SelectValue />
+   329→            </SelectTrigger>
+   330→            <SelectContent>
+   331→              <SelectItem value="fr">🇫🇷 Français</SelectItem>
+   332→              <SelectItem value="en">🇬🇧 English</SelectItem>
+   333→            </SelectContent>
+   334→          </Select>
+   335→        </div>
+   336→        <Button size="sm" className="h-8 text-xs gap-1.5 shrink-0" onClick={handleCreate} disabled={creating || !newName.trim()}>
+   337→          {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+   338→          Ajouter
+   339→        </Button>
+   340→      </div>
+   341→
+   342→      {/* Category list */}
+   343→      {categories.length === 0 ? (
+   344→        <div className="text-center py-6 text-muted-foreground text-sm">
+   345→          Aucune catégorie. Créez-en une ci-dessus.
+   346→        </div>
+   347→      ) : (
+   348→        <div className="rounded-md border max-h-64 overflow-y-auto">
+   349→          <Table>
+   350→            <TableHeader>
+   351→              <TableRow className="hover:bg-transparent">
+   352→                <TableHead className="pl-3">Nom</TableHead>
+   353→                <TableHead>Langue</TableHead>
+   354→                <TableHead>Puzzles</TableHead>
+   355→                <TableHead className="text-right pr-3">Actions</TableHead>
+   356→              </TableRow>
+   357→            </TableHeader>
+   358→            <TableBody>
+   359→              {categories.map((cat) => (
+   360→                <TableRow key={cat.id}>
+   361→                  <TableCell className="font-medium pl-3">
+   362→                    {editingId === cat.id ? (
+   363→                      <div className="flex items-center gap-1.5">
+   364→                        <Input
+   365→                          value={editIcon}
+   366→                          onChange={(e) => setEditIcon(e.target.value)}
+   367→                          className="h-7 text-sm w-12 text-center"
+   368→                          maxLength={4}
+   369→                          autoFocus
+   370→                        />
+   371→                        <Input
+   372→                          value={editName}
+   373→                          onChange={(e) => setEditName(e.target.value)}
+   374→                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+   375→                          className="h-7 text-sm w-full"
+   376→                        />
+   377→                      </div>
+   378→                    ) : (
+   379→                      <span className="flex items-center gap-1.5">
+   380→                        <span className="text-sm">{cat.icon || '🏷️'}</span>
+   381→                        {cat.name}
+   382→                      </span>
+   383→                    )}
+   384→                  </TableCell>
+   385→                  <TableCell>
+   386→                    {editingId === cat.id ? (
+   387→                      <Select value={editLanguage} onValueChange={setEditLanguage}>
+   388→                        <SelectTrigger className="h-7 text-xs w-24">
+   389→                          <SelectValue />
+   390→                        </SelectTrigger>
+   391→                        <SelectContent>
+   392→                          <SelectItem value="fr">🇫🇷 FR</SelectItem>
+   393→                          <SelectItem value="en">🇬🇧 EN</SelectItem>
+   394→                        </SelectContent>
+   395→                      </Select>
+   396→                    ) : (
+   397→                      <Badge variant="outline" className="text-xs">
+   398→                        {languageLabel(cat.language)}
+   399→                      </Badge>
+   400→                    )}
+   401→                  </TableCell>
+   402→                  <TableCell className="text-muted-foreground text-xs">
+   403→                    {cat._count.puzzles}
+   404→                  </TableCell>
+   405→                  <TableCell className="text-right pr-3">
+   406→                    <div className="flex items-center justify-end gap-1">
+   407→                      {editingId === cat.id ? (
+   408→                        <>
+   409→                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingId(null)}>
+   410→                            Annuler
+   411→                          </Button>
+   412→                          <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSaveEdit} disabled={saving}>
+   413→                            {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+   414→                            OK
+   415→                          </Button>
+   416→                        </>
+   417→                      ) : (
+   418→                        <>
+   419→                          <Button
+   420→                            variant="ghost"
+   421→                            size="sm"
+   422→                            className="h-7 text-xs gap-1"
+   423→                            onClick={() => startEdit(cat)}
+   424→                          >
+   425→                            <Pencil className="size-3" />
+   426→                          </Button>
+   427→                          <Button
+   428→                            variant="ghost"
+   429→                            size="sm"
+   430→                            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+   431→                            onClick={() => setDeleteTarget(cat)}
+   432→                          >
+   433→                            <Trash2 className="size-3" />
+   434→                          </Button>
+   435→                        </>
+   436→                      )}
+   437→                    </div>
+   438→                  </TableCell>
+   439→                </TableRow>
+   440→              ))}
+   441→            </TableBody>
+   442→          </Table>
+   443→        </div>
+   444→      )}
+   445→
+   446→      {/* Delete confirmation */}
+   447→      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+   448→        <AlertDialogContent>
+   449→          <AlertDialogHeader>
+   450→            <AlertDialogTitle>Supprimer la catégorie</AlertDialogTitle>
+   451→            <AlertDialogDescription>
+   452→              Êtes-vous sûr de vouloir supprimer « {deleteTarget?.name} » ? Les puzzles associés ne seront pas supprimés mais seront décatégorisés.
+   453→            </AlertDialogDescription>
+   454→          </AlertDialogHeader>
+   455→          <AlertDialogFooter>
+   456→            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+   457→            <AlertDialogAction
+   458→              onClick={handleDelete}
+   459→              disabled={deleting}
+   460→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   461→            >
+   462→              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+   463→              Supprimer
+   464→            </AlertDialogAction>
+   465→          </AlertDialogFooter>
+   466→        </AlertDialogContent>
+   467→      </AlertDialog>
+   468→    </>
+   469→  );
+   470→}
+   471→
+   472→// --- Pack Management Sub-component ---
+   473→
+   474→function PackManager({ packs, onRefresh }: { packs: PackItem[]; onRefresh: () => void }) {
+   475→  const [newName, setNewName] = useState('');
+   476→  const [newDescription, setNewDescription] = useState('');
+   477→  const [newIcon, setNewIcon] = useState('📦');
+   478→  const [newLanguage, setNewLanguage] = useState('fr');
+   479→  const [creating, setCreating] = useState(false);
+   480→
+   481→  // Edit state
+   482→  const [editingId, setEditingId] = useState<string | null>(null);
+   483→  const [editName, setEditName] = useState('');
+   484→  const [editDescription, setEditDescription] = useState('');
+   485→  const [editIcon, setEditIcon] = useState('');
+   486→  const [editLanguage, setEditLanguage] = useState('');
+   487→  const [saving, setSaving] = useState(false);
+   488→
+   489→  // Delete state
+   490→  const [deleteTarget, setDeleteTarget] = useState<PackItem | null>(null);
+   491→  const [deleting, setDeleting] = useState(false);
+   492→
+   493→  const handleCreate = async () => {
+   494→    if (!newName.trim()) return;
+   495→    setCreating(true);
+   496→    try {
+   497→      const res = await fetch('/api/packs', {
+   498→        method: 'POST',
+   499→        headers: { 'Content-Type': 'application/json' },
+   500→        body: JSON.stringify({ name: newName.trim(), description: newDescription.trim() || null, icon: newIcon, language: newLanguage }),
+   501→      });
+   502→      if (!res.ok) {
+   503→        const err = await res.json().catch(() => ({}));
+   504→        throw new Error((err as { error?: string }).error || 'Erreur');
+   505→      }
+   506→      toast.success(`Collection « ${newName.trim()} » créée`);
+   507→      setNewName('');
+   508→      setNewDescription('');
+   509→      setNewIcon('📦');
+   510→      onRefresh();
+   511→    } catch (err) {
+   512→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   513→    } finally {
+   514→      setCreating(false);
+   515→    }
+   516→  };
+   517→
+   518→  const startEdit = (pack: PackItem) => {
+   519→    setEditingId(pack.id);
+   520→    setEditName(pack.name);
+   521→    setEditDescription(pack.description || '');
+   522→    setEditIcon(pack.icon || '📦');
+   523→    setEditLanguage(pack.language);
+   524→  };
+   525→
+   526→  const handleSaveEdit = async () => {
+   527→    if (!editingId || !editName.trim()) return;
+   528→    setSaving(true);
+   529→    try {
+   530→      const res = await fetch('/api/packs', {
+   531→        method: 'PUT',
+   532→        headers: { 'Content-Type': 'application/json' },
+   533→        body: JSON.stringify({ id: editingId, name: editName.trim(), description: editDescription.trim() || null, icon: editIcon, language: editLanguage }),
+   534→      });
+   535→      if (!res.ok) {
+   536→        const err = await res.json().catch(() => ({}));
+   537→        throw new Error((err as { error?: string }).error || 'Erreur');
+   538→      }
+   539→      toast.success('Collection mise à jour');
+   540→      setEditingId(null);
+   541→      onRefresh();
+   542→    } catch (err) {
+   543→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   544→    } finally {
+   545→      setSaving(false);
+   546→    }
+   547→  };
+   548→
+   549→  const handleDelete = async () => {
+   550→    if (!deleteTarget) return;
+   551→    setDeleting(true);
+   552→    try {
+   553→      const res = await fetch(`/api/packs?id=${deleteTarget.id}`, { method: 'DELETE' });
+   554→      if (!res.ok) throw new Error('Erreur lors de la suppression');
+   555→      toast.success(`Collection « ${deleteTarget.name} » supprimée`);
+   556→      setDeleteTarget(null);
+   557→      onRefresh();
+   558→    } catch (err) {
+   559→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   560→    } finally {
+   561→      setDeleting(false);
+   562→    }
+   563→  };
+   564→
+   565→  return (
+   566→    <>
+   567→      {/* Create new pack row */}
+   568→      <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2 mb-4">
+   569→        <div className="w-16 sm:w-20 space-y-1">
+   570→          <Label className="text-xs text-muted-foreground">Icône</Label>
+   571→          <Input
+   572→            placeholder="📦"
+   573→            value={newIcon}
+   574→            onChange={(e) => setNewIcon(e.target.value)}
+   575→            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+   576→            className="h-8 text-sm text-center"
+   577→            maxLength={4}
+   578→          />
+   579→        </div>
+   580→        <div className="flex-1 w-full sm:w-auto space-y-1">
+   581→          <Label className="text-xs text-muted-foreground">Nom de la collection</Label>
+   582→          <Input
+   583→            placeholder="Ex: Pack Débutant, Science Quiz..."
+   584→            value={newName}
+   585→            onChange={(e) => setNewName(e.target.value)}
+   586→            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+   587→            className="h-8 text-sm"
+   588→          />
+   589→        </div>
+   590→        <div className="flex-1 w-full sm:w-auto space-y-1">
+   591→          <Label className="text-xs text-muted-foreground">Description</Label>
+   592→          <Input
+   593→            placeholder="Description optionnelle"
+   594→            value={newDescription}
+   595→            onChange={(e) => setNewDescription(e.target.value)}
+   596→            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+   597→            className="h-8 text-sm"
+   598→          />
+   599→        </div>
+   600→        <div className="w-full sm:w-28 space-y-1">
+   601→          <Label className="text-xs text-muted-foreground">Langue</Label>
+   602→          <Select value={newLanguage} onValueChange={setNewLanguage}>
+   603→            <SelectTrigger className="h-8 text-sm">
+   604→              <SelectValue />
+   605→            </SelectTrigger>
+   606→            <SelectContent>
+   607→              <SelectItem value="fr">🇫🇷 Français</SelectItem>
+   608→              <SelectItem value="en">🇬🇧 English</SelectItem>
+   609→            </SelectContent>
+   610→          </Select>
+   611→        </div>
+   612→        <Button size="sm" className="h-8 text-xs gap-1.5 shrink-0" onClick={handleCreate} disabled={creating || !newName.trim()}>
+   613→          {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
+   614→          Ajouter
+   615→        </Button>
+   616→      </div>
+   617→
+   618→      {/* Pack list */}
+   619→      {packs.length === 0 ? (
+   620→        <div className="text-center py-6 text-muted-foreground text-sm">
+   621→          Aucune collection. Créez-en une ci-dessus.
+   622→        </div>
+   623→      ) : (
+   624→        <div className="rounded-md border max-h-64 overflow-y-auto">
+   625→          <Table>
+   626→            <TableHeader>
+   627→              <TableRow className="hover:bg-transparent">
+   628→                <TableHead className="pl-3">Nom</TableHead>
+   629→                <TableHead>Langue</TableHead>
+   630→                <TableHead>Puzzles</TableHead>
+   631→                <TableHead className="text-right pr-3">Actions</TableHead>
+   632→              </TableRow>
+   633→            </TableHeader>
+   634→            <TableBody>
+   635→              {packs.map((pack) => (
+   636→                <TableRow key={pack.id}>
+   637→                  <TableCell className="font-medium pl-3">
+   638→                    {editingId === pack.id ? (
+   639→                      <div className="flex items-center gap-1.5">
+   640→                        <Input
+   641→                          value={editIcon}
+   642→                          onChange={(e) => setEditIcon(e.target.value)}
+   643→                          className="h-7 text-sm w-12 text-center"
+   644→                          maxLength={4}
+   645→                          autoFocus
+   646→                        />
+   647→                        <Input
+   648→                          value={editName}
+   649→                          onChange={(e) => setEditName(e.target.value)}
+   650→                          onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit()}
+   651→                          className="h-7 text-sm w-full"
+   652→                        />
+   653→                      </div>
+   654→                    ) : (
+   655→                      <span className="flex items-center gap-1.5">
+   656→                        <span className="text-sm">{pack.icon || '📦'}</span>
+   657→                        {pack.name}
+   658→                      </span>
+   659→                    )}
+   660→                  </TableCell>
+   661→                  <TableCell>
+   662→                    {editingId === pack.id ? (
+   663→                      <Select value={editLanguage} onValueChange={setEditLanguage}>
+   664→                        <SelectTrigger className="h-7 text-xs w-24">
+   665→                          <SelectValue />
+   666→                        </SelectTrigger>
+   667→                        <SelectContent>
+   668→                          <SelectItem value="fr">🇫🇷 FR</SelectItem>
+   669→                          <SelectItem value="en">🇬🇧 EN</SelectItem>
+   670→                        </SelectContent>
+   671→                      </Select>
+   672→                    ) : (
+   673→                      <Badge variant="outline" className="text-xs">
+   674→                        {languageLabel(pack.language)}
+   675→                      </Badge>
+   676→                    )}
+   677→                  </TableCell>
+   678→                  <TableCell className="text-muted-foreground text-xs">
+   679→                    {pack._count.puzzles}
+   680→                  </TableCell>
+   681→                  <TableCell className="text-right pr-3">
+   682→                    <div className="flex items-center justify-end gap-1">
+   683→                      {editingId === pack.id ? (
+   684→                        <>
+   685→                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingId(null)}>
+   686→                            Annuler
+   687→                          </Button>
+   688→                          <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSaveEdit} disabled={saving}>
+   689→                            {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+   690→                            OK
+   691→                          </Button>
+   692→                        </>
+   693→                      ) : (
+   694→                        <>
+   695→                          <Button
+   696→                            variant="ghost"
+   697→                            size="sm"
+   698→                            className="h-7 text-xs gap-1"
+   699→                            onClick={() => startEdit(pack)}
+   700→                          >
+   701→                            <Pencil className="size-3" />
+   702→                          </Button>
+   703→                          <Button
+   704→                            variant="ghost"
+   705→                            size="sm"
+   706→                            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+   707→                            onClick={() => setDeleteTarget(pack)}
+   708→                          >
+   709→                            <Trash2 className="size-3" />
+   710→                          </Button>
+   711→                        </>
+   712→                      )}
+   713→                    </div>
+   714→                  </TableCell>
+   715→                </TableRow>
+   716→              ))}
+   717→            </TableBody>
+   718→          </Table>
+   719→        </div>
+   720→      )}
+   721→
+   722→      {/* Delete confirmation */}
+   723→      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+   724→        <AlertDialogContent>
+   725→          <AlertDialogHeader>
+   726→            <AlertDialogTitle>Supprimer la collection</AlertDialogTitle>
+   727→            <AlertDialogDescription>
+   728→              Êtes-vous sûr de vouloir supprimer « {deleteTarget?.name} » ? Les puzzles associés ne seront pas supprimés mais seront dépubliés de la collection.
+   729→            </AlertDialogDescription>
+   730→          </AlertDialogHeader>
+   731→          <AlertDialogFooter>
+   732→            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+   733→            <AlertDialogAction
+   734→              onClick={handleDelete}
+   735→              disabled={deleting}
+   736→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+   737→            >
+   738→              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+   739→              Supprimer
+   740→            </AlertDialogAction>
+   741→          </AlertDialogFooter>
+   742→        </AlertDialogContent>
+   743→      </AlertDialog>
+   744→    </>
+   745→  );
+   746→}
+   747→
+   748→// --- Auto Generator Sub-component ---
+   749→
+   750→function PuzzleGenerator({ categories, packs, onGenerated }: {
+   751→  categories: CategoryItem[];
+   752→  packs: PackItem[];
+   753→  onGenerated: () => void;
+   754→}) {
+   755→  const [theme, setTheme] = useState('');
+   756→  const [language, setLanguage] = useState('fr');
+   757→  const [difficulty, setDifficulty] = useState('1');
+   758→  const [wordCount, setWordCount] = useState('12');
+   759→  const [categoryId, setCategoryId] = useState('none');
+   760→  const [packId, setPackId] = useState('none');
+   761→  const [autoPublish, setAutoPublish] = useState(false);
+   762→  const [generating, setGenerating] = useState(false);
+   763→  const [result, setResult] = useState<{ id: string; title: string; rows: number; cols: number; wordsPlaced: number; wordsTotal: number } | null>(null);
+   764→
+   765→  const handleGenerate = async () => {
+   766→    if (!theme.trim()) {
+   767→      toast.error('Veuillez entrer un thème');
+   768→      return;
+   769→    }
+   770→    setGenerating(true);
+   771→    setResult(null);
+   772→    try {
+   773→      const res = await fetch('/api/puzzles/generate', {
+   774→        method: 'POST',
+   775→        headers: { 'Content-Type': 'application/json' },
+   776→        body: JSON.stringify({
+   777→          theme: theme.trim(),
+   778→          language,
+   779→          difficulty: parseInt(difficulty, 10),
+   780→          wordCount: parseInt(wordCount, 10),
+   781→          categoryId: categoryId !== 'none' ? categoryId : null,
+   782→          packId: packId !== 'none' ? packId : null,
+   783→          autoPublish,
+   784→        }),
+   785→      });
+   786→      const data = await res.json();
+   787→      if (!res.ok) throw new Error(data.error || 'Erreur lors de la génération');
+   788→      setResult(data.puzzle);
+   789→      toast.success(`Puzzle « ${data.puzzle.title} » généré avec succès !`);
+   790→      onGenerated();
+   791→    } catch (err) {
+   792→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+   793→    } finally {
+   794→      setGenerating(false);
+   795→    }
+   796→  };
+   797→
+   798→  const suggestions = language === 'fr'
+   799→    ? ['Villes africaines', 'Animaux de la savane', 'Inventions célèbres', 'Cuisine du monde', 'Sport olympique', 'Histoire de France', 'Astronomie', 'Musique classique']
+   800→    : ['World Capitals', 'African Wildlife', 'Space Exploration', 'Famous Scientists', 'Classic Literature', 'Olympic Sports', 'World Cuisine', 'Ancient History'];
+   801→
+   802→  return (
+   803→    <div className="space-y-5">
+   804→      {/* Theme input */}
+   805→      <div className="space-y-1.5">
+   806→        <Label className="text-xs text-muted-foreground font-medium">
+   807→          <Sparkles className="size-3.5 inline mr-1" />
+   808→          {language === 'fr' ? 'Thème du puzzle' : 'Puzzle Theme'}
+   809→        </Label>
+   810→        <Input
+   811→          placeholder={language === 'fr' ? 'Ex: Villes africaines, Sciences naturelles...'
+   812→            : 'e.g. World Capitals, Space Exploration...'}
+   813→          value={theme}
+   814→          onChange={(e) => setTheme(e.target.value)}
+   815→          onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+   816→          disabled={generating}
+   817→        />
+   818→        {/* Quick suggestions */}
+   819→        <div className="flex flex-wrap gap-1.5 mt-2">
+   820→          {suggestions.slice(0, 6).map((s) => (
+   821→            <button
+   822→              key={s}
+   823→              type="button"
+   824→              className="text-xs rounded-full border px-2.5 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+   825→              onClick={() => setTheme(s)}
+   826→              disabled={generating}
+   827→            >
+   828→              {s}
+   829→            </button>
+   830→          ))}
+   831→        </div>
+   832→      </div>
+   833→
+   834→      {/* Settings grid */}
+   835→      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+   836→        <div className="space-y-1.5">
+   837→          <Label className="text-xs text-muted-foreground">Langue</Label>
+   838→          <Select value={language} onValueChange={setLanguage}>
+   839→            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+   840→              <SelectValue />
+   841→            </SelectTrigger>
+   842→            <SelectContent>
+   843→              <SelectItem value="fr">🇫🇷 Français</SelectItem>
+   844→              <SelectItem value="en">🇬🇧 English</SelectItem>
+   845→            </SelectContent>
+   846→          </Select>
+   847→        </div>
+   848→
+   849→        <div className="space-y-1.5">
+   850→          <Label className="text-xs text-muted-foreground">Difficulté</Label>
+   851→          <Select value={difficulty} onValueChange={setDifficulty}>
+   852→            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+   853→              <SelectValue />
+   854→            </SelectTrigger>
+   855→            <SelectContent>
+   856→              <SelectItem value="1">{renderStars(1)} Facile</SelectItem>
+   857→              <SelectItem value="2">{renderStars(2)} Moyen</SelectItem>
+   858→              <SelectItem value="3">{renderStars(3)} Difficile</SelectItem>
+   859→            </SelectContent>
+   860→          </Select>
+   861→        </div>
+   862→
+   863→        <div className="space-y-1.5">
+   864→          <Label className="text-xs text-muted-foreground">Nb. mots</Label>
+   865→          <Select value={wordCount} onValueChange={setWordCount}>
+   866→            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+   867→              <SelectValue />
+   868→            </SelectTrigger>
+   869→            <SelectContent>
+   870→              <SelectItem value="8">8 mots (petit)</SelectItem>
+   871→              <SelectItem value="12">12 mots (moyen)</SelectItem>
+   872→              <SelectItem value="16">16 mots (grand)</SelectItem>
+   873→              <SelectItem value="20">20 mots (expert)</SelectItem>
+   874→            </SelectContent>
+   875→          </Select>
+   876→        </div>
+   877→
+   878→        <div className="space-y-1.5">
+   879→          <Label className="text-xs text-muted-foreground">Catégorie</Label>
+   880→          <Select value={categoryId} onValueChange={setCategoryId}>
+   881→            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+   882→              <SelectValue placeholder="Aucune" />
+   883→            </SelectTrigger>
+   884→            <SelectContent>
+   885→              <SelectItem value="none">— Aucune —</SelectItem>
+   886→              {categories
+   887→                .filter((c) => c.language === language)
+   888→                .map((cat) => (
+   889→                  <SelectItem key={cat.id} value={cat.id}>
+   890→                    {cat.icon} {cat.name}
+   891→                  </SelectItem>
+   892→                ))}
+   893→            </SelectContent>
+   894→          </Select>
+   895→        </div>
+   896→
+   897→        <div className="space-y-1.5">
+   898→          <Label className="text-xs text-muted-foreground">Collection</Label>
+   899→          <Select value={packId} onValueChange={setPackId}>
+   900→            <SelectTrigger className="h-9 text-sm" disabled={generating}>
+   901→              <SelectValue placeholder="Aucune" />
+   902→            </SelectTrigger>
+   903→            <SelectContent>
+   904→              <SelectItem value="none">— Aucune —</SelectItem>
+   905→              {packs
+   906→                .filter((p) => p.language === language)
+   907→                .map((pack) => (
+   908→                  <SelectItem key={pack.id} value={pack.id}>
+   909→                    {pack.icon} {pack.name}
+   910→                  </SelectItem>
+   911→                ))}
+   912→            </SelectContent>
+   913→          </Select>
+   914→        </div>
+   915→
+   916→        <div className="flex items-end gap-2">
+   917→          <div className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+   918→            <Switch
+   919→              id="auto-publish"
+   920→              checked={autoPublish}
+   921→              onCheckedChange={setAutoPublish}
+   922→              disabled={generating}
+   923→              className="scale-90"
+   924→            />
+   925→            <Label htmlFor="auto-publish" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+   926→              Publier
+   927→            </Label>
+   928→          </div>
+   929→        </div>
+   930→      </div>
+   931→
+   932→      {/* Generate button */}
+   933→      <div className="flex items-center gap-3">
+   934→        <Button
+   935→          onClick={handleGenerate}
+   936→          disabled={generating || !theme.trim()}
+   937→          className="gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md"
+   938→        >
+   939→          {generating ? (
+   940→            <>
+   941→              <Loader2 className="size-4 animate-spin" />
+   942→              Génération en cours…
+   943→            </>
+   944→          ) : (
+   945→            <>
+   946→              <Zap className="size-4" />
+   947→              Générer le puzzle
+   948→            </>
+   949→          )}
+   950→        </Button>
+   951→        {generating && (
+   952→          <p className="text-xs text-muted-foreground animate-pulse">
+   953→            {language === 'fr'
+   954→              ? 'L\'IA génère les mots et construit la grille…'
+   955→              : 'AI is generating words and building the grid…'}
+   956→          </p>
+   957→        )}
+   958→      </div>
+   959→
+   960→      {/* Result card */}
+   961→      {result && (
+   962→        <motion.div
+   963→          initial={{ opacity: 0, y: 8 }}
+   964→          animate={{ opacity: 1, y: 0 }}
+   965→          className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 p-4"
+   966→        >
+   967→          <div className="flex items-center gap-2 mb-2">
+   968→            <CheckCircle2 className="size-4 text-emerald-600" />
+   969→            <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+   970→              Puzzle généré avec succès !
+   971→            </span>
+   972→          </div>
+   973→          <div className="text-sm space-y-1">
+   974→            <p><span className="text-muted-foreground">Titre :</span> <span className="font-medium">{result.title}</span></p>
+   975→            <p><span className="text-muted-foreground">Grille :</span> <span className="font-medium">{result.rows}×{result.cols}</span></p>
+   976→            <p>
+   977→              <span className="text-muted-foreground">Mots :</span>{' '}
+   978→              <span className="font-medium">{result.wordsPlaced}/{result.wordsTotal}</span>{' '}
+   979→              <span className="text-xs text-muted-foreground">placés</span>
+   980→            </p>
+   981→            {!autoPublish && (
+   982→              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+   983→                ⚠ Ce puzzle est en brouillon. Publiez-le depuis l\'onglet Puzzles.
+   984→              </p>
+   985→            )}
+   986→          </div>
+   987→        </motion.div>
+   988→      )}
+   989→    </div>
+   990→  );
+   991→}
+   992→
+   993→// --- Main AdminPanel Component ---
+   994→
+   995→export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
+   996→  // Data state
+   997→  const [data, setData] = useState<AdminData | null>(null);
+   998→  const [loading, setLoading] = useState(false);
+   999→
+  1000→  // Schedule editing state
+  1001→  const [schedulePuzzlesPerDay, setSchedulePuzzlesPerDay] = useState(1);
+  1002→  const [scheduleIsActive, setScheduleIsActive] = useState(false);
+  1003→  const [savingSchedule, setSavingSchedule] = useState(false);
+  1004→
+  1005→  // Date picker state
+  1006→  const [datePickerPuzzleId, setDatePickerPuzzleId] = useState<string | null>(null);
+  1007→  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  1008→  const [savingDate, setSavingDate] = useState(false);
+  1009→
+  1010→  // Publish/unpublish loading map
+  1011→  const [togglingPuzzleIds, setTogglingPuzzleIds] = useState<Set<string>>(new Set());
+  1012→
+  1013→  // Delete confirmation state
+  1014→  const [deleteTarget, setDeleteTarget] = useState<PuzzleSummary | null>(null);
+  1015→  const [deleting, setDeleting] = useState(false);
+  1016→
+  1017→  // Editor state
+  1018→  const [editorOpen, setEditorOpen] = useState(false);
+  1019→  const [editPuzzleId, setEditPuzzleId] = useState<string | null>(null);
+  1020→
+  1021→  // Category filter for puzzle table
+  1022→  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  1023→  const [packFilter, setPackFilter] = useState<string>('all');
+  1024→  const [languageFilter, setLanguageFilter] = useState<string>('all');
+  1025→
+  1026→  // Expose fetchData for editor callback
+  1027→  const fetchData = useCallback(async () => {
+  1028→    setLoading(true);
+  1029→    try {
+  1030→      const res = await fetch('/api/puzzles/admin');
+  1031→      if (!res.ok) {
+  1032→        throw new Error('Erreur lors du chargement des données');
+  1033→      }
+  1034→      const json: AdminData = await res.json();
+  1035→      setData(json);
+  1036→      setSchedulePuzzlesPerDay(json.schedule.puzzlesPerDay);
+  1037→      setScheduleIsActive(json.schedule.isActive);
+  1038→    } catch (err) {
+  1039→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1040→    } finally {
+  1041→      setLoading(false);
+  1042→    }
+  1043→  }, []);
+  1044→
+  1045→  useEffect(() => {
+  1046→    if (open) {
+  1047→      fetchData();
+  1048→    }
+  1049→  }, [open, fetchData]);
+  1050→
+  1051→  // Reset state when dialog opens/closes
+  1052→  useEffect(() => {
+  1053→    if (!open) {
+  1054→      setDatePickerPuzzleId(null);
+  1055→      setSelectedDate(undefined);
+  1056→    }
+  1057→  }, [open]);
+  1058→
+  1059→  // --- Handlers ---
+  1060→
+  1061→  const handleSaveSchedule = async () => {
+  1062→    setSavingSchedule(true);
+  1063→    try {
+  1064→      const res = await fetch('/api/puzzles/admin/schedule', {
+  1065→        method: 'POST',
+  1066→        headers: { 'Content-Type': 'application/json' },
+  1067→        body: JSON.stringify({
+  1068→          puzzlesPerDay: schedulePuzzlesPerDay,
+  1069→          isActive: scheduleIsActive,
+  1070→        }),
+  1071→      });
+  1072→      if (!res.ok) throw new Error('Erreur lors de la sauvegarde');
+  1073→      toast.success('Programme de publication mis à jour');
+  1074→      await fetchData();
+  1075→    } catch (err) {
+  1076→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1077→    } finally {
+  1078→      setSavingSchedule(false);
+  1079→    }
+  1080→  };
+  1081→
+  1082→  const handleTogglePublish = async (puzzle: PuzzleSummary) => {
+  1083→    const puzzleId = puzzle.id;
+  1084→    const newPublished = !puzzle.published;
+  1085→
+  1086→    setTogglingPuzzleIds((prev) => new Set(prev).add(puzzleId));
+  1087→    setData((prev) =>
+  1088→      prev
+  1089→        ? {
+  1090→            ...prev,
+  1091→            puzzles: prev.puzzles.map((p) =>
+  1092→              p.id === puzzleId
+  1093→                ? {
+  1094→                    ...p,
+  1095→                    published: newPublished,
+  1096→                    publishDate: newPublished
+  1097→                      ? p.publishDate || new Date().toISOString()
+  1098→                      : null,
+  1099→                  }
+  1100→                : p
+  1101→            ),
+  1102→          }
+  1103→        : prev
+  1104→    );
+  1105→
+  1106→    try {
+  1107→      const res = await fetch('/api/puzzles/admin/publish', {
+  1108→        method: 'POST',
+  1109→        headers: { 'Content-Type': 'application/json' },
+  1110→        body: JSON.stringify({ puzzleId, published: newPublished }),
+  1111→      });
+  1112→      if (!res.ok) throw new Error('Erreur lors de la modification');
+  1113→      toast.success(newPublished ? 'Puzzle publié avec succès' : 'Puzzle dépublié avec succès');
+  1114→      await fetchData();
+  1115→    } catch (err) {
+  1116→      setData((prev) =>
+  1117→        prev
+  1118→          ? {
+  1119→              ...prev,
+  1120→              puzzles: prev.puzzles.map((p) =>
+  1121→                p.id === puzzleId
+  1122→                  ? { ...p, published: !newPublished, publishDate: puzzle.publishDate }
+  1123→                  : p
+  1124→              ),
+  1125→            }
+  1126→          : prev
+  1127→      );
+  1128→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1129→    } finally {
+  1130→      setTogglingPuzzleIds((prev) => {
+  1131→        const next = new Set(prev);
+  1132→        next.delete(puzzleId);
+  1133→        return next;
+  1134→      });
+  1135→    }
+  1136→  };
+  1137→
+  1138→  const handleOpenDatePicker = (puzzle: PuzzleSummary) => {
+  1139→    setDatePickerPuzzleId(puzzle.id);
+  1140→    setSelectedDate(puzzle.publishDate ? new Date(puzzle.publishDate) : undefined);
+  1141→  };
+  1142→
+  1143→  const handleSaveDate = async () => {
+  1144→    if (!datePickerPuzzleId || !selectedDate) return;
+  1145→    setSavingDate(true);
+  1146→    try {
+  1147→      const res = await fetch('/api/puzzles/admin/publish', {
+  1148→        method: 'POST',
+  1149→        headers: { 'Content-Type': 'application/json' },
+  1150→        body: JSON.stringify({
+  1151→          puzzleId: datePickerPuzzleId,
+  1152→          published: true,
+  1153→          publishDate: selectedDate.toISOString(),
+  1154→        }),
+  1155→      });
+  1156→      if (!res.ok) throw new Error('Erreur lors de la mise à jour de la date');
+  1157→      toast.success('Date de publication mise à jour');
+  1158→      setDatePickerPuzzleId(null);
+  1159→      setSelectedDate(undefined);
+  1160→      await fetchData();
+  1161→    } catch (err) {
+  1162→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1163→    } finally {
+  1164→      setSavingDate(false);
+  1165→    }
+  1166→  };
+  1167→
+  1168→  const handleDelete = async () => {
+  1169→    if (!deleteTarget) return;
+  1170→    setDeleting(true);
+  1171→    try {
+  1172→      const res = await fetch(`/api/puzzles/admin?id=${deleteTarget.id}`, { method: 'DELETE' });
+  1173→      if (!res.ok) throw new Error('Erreur lors de la suppression');
+  1174→      toast.success(`« ${deleteTarget.title} » supprimé`);
+  1175→      setDeleteTarget(null);
+  1176→      await fetchData();
+  1177→    } catch (err) {
+  1178→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1179→    } finally {
+  1180→      setDeleting(false);
+  1181→    }
+  1182→  };
+  1183→
+  1184→  const handlePuzzlesPerDayChange = (value: string) => {
+  1185→    const num = parseInt(value, 10);
+  1186→    if (!isNaN(num) && num >= 1 && num <= 10) {
+  1187→      setSchedulePuzzlesPerDay(num);
+  1188→    }
+  1189→  };
+  1190→
+  1191→  const openEditor = (puzzleId?: string) => {
+  1192→    setEditPuzzleId(puzzleId ?? null);
+  1193→    setEditorOpen(true);
+  1194→  };
+  1195→
+  1196→  const handleEditorSaved = () => {
+  1197→    fetchData();
+  1198→  };
+  1199→
+  1200→  // Filtered puzzles
+  1201→  const filteredPuzzles = useMemo(() => {
+  1202→    if (!data) return [];
+  1203→    let filtered = data.puzzles;
+  1204→    if (categoryFilter !== 'all') {
+  1205→      filtered = filtered.filter((p) => p.categoryId === categoryFilter);
+  1206→    }
+  1207→    if (packFilter !== 'all') {
+  1208→      filtered = filtered.filter((p) => p.packId === packFilter);
+  1209→    }
+  1210→    if (languageFilter !== 'all') {
+  1211→      filtered = filtered.filter((p) => p.language === languageFilter);
+  1212→    }
+  1213→    return filtered;
+  1214→  }, [data, categoryFilter, packFilter, languageFilter]);
+  1215→
+  1216→  // --- Render ---
+  1217→
+  1218→  return (
+  1219→    <>
+  1220→      <Dialog open={open} onOpenChange={onOpenChange}>
+  1221→        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+  1222→          <DialogHeader className="p-6 pb-0">
+  1223→            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+  1224→              <Settings className="size-5" />
+  1225→              Administration
+  1226→            </DialogTitle>
+  1227→            <DialogDescription>
+  1228→              Gérez vos catégories, collections, puzzles et programme de publication.
+  1229→            </DialogDescription>
+  1230→          </DialogHeader>
+  1231→
+  1232→          <div className="p-6 space-y-6">
+  1233→            <Tabs defaultValue="categories" className="w-full">
+  1234→              <TabsList className="grid w-full grid-cols-5">
+  1235→                <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
+  1236→                  <FolderOpen className="size-3.5" />
+  1237→                  <span className="hidden sm:inline">Catégories</span>
+  1238→                  <span className="sm:hidden">Catég.</span>
+  1239→                </TabsTrigger>
+  1240→                <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
+  1241→                  <Package className="size-3.5" />
+  1242→                  <span className="hidden sm:inline">Collections</span>
+  1243→                  <span className="sm:hidden">Coll.</span>
+  1244→                </TabsTrigger>
+  1245→                <TabsTrigger value="puzzles" className="text-xs sm:text-sm gap-1.5">
+  1246→                  <Grid3X3 className="size-3.5" />
+  1247→                  Puzzles
+  1248→                </TabsTrigger>
+  1249→                <TabsTrigger value="generator" className="text-xs sm:text-sm gap-1.5">
+  1250→                  <Sparkles className="size-3.5" />
+  1251→                  <span className="hidden sm:inline">Générateur</span>
+  1252→                  <span className="sm:hidden">Gén.</span>
+  1253→                </TabsTrigger>
+  1254→                <TabsTrigger value="schedule" className="text-xs sm:text-sm gap-1.5">
+  1255→                  <CalendarDays className="size-3.5" />
+  1256→                  <span className="hidden sm:inline">Programme</span>
+  1257→                  <span className="sm:hidden">Prog.</span>
+  1258→                </TabsTrigger>
+  1259→              </TabsList>
+  1260→
+  1261→              {/* ── Categories Tab ── */}
+  1262→              <TabsContent value="categories" className="mt-4">
+  1263→                <section className="rounded-lg border bg-muted/30 p-4">
+  1264→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1265→                    <Tag className="size-4 text-muted-foreground" />
+  1266→                    Gestion des Catégories
+  1267→                    <Badge variant="secondary" className="ml-1">
+  1268→                      {data?.categories.length ?? 0}
+  1269→                    </Badge>
+  1270→                  </h3>
+  1271→
+  1272→                  {loading && !data ? (
+  1273→                    <CategorySkeleton />
+  1274→                  ) : data ? (
+  1275→                    <CategoryManager
+  1276→                      categories={data.categories}
+  1277→                      onRefresh={fetchData}
+  1278→                    />
+  1279→                  ) : null}
+  1280→                </section>
+  1281→              </TabsContent>
+  1282→
+  1283→              {/* ── Packs Tab ── */}
+  1284→              <TabsContent value="packs" className="mt-4">
+  1285→                <section className="rounded-lg border bg-muted/30 p-4">
+  1286→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1287→                    <Package className="size-4 text-muted-foreground" />
+  1288→                    Gestion des Collections
+  1289→                    <Badge variant="secondary" className="ml-1">
+  1290→                      {data?.packs.length ?? 0}
+  1291→                    </Badge>
+  1292→                  </h3>
+  1293→
+  1294→                  {loading && !data ? (
+  1295→                    <CategorySkeleton />
+  1296→                  ) : data ? (
+  1297→                    <PackManager
+  1298→                      packs={data.packs}
+  1299→                      onRefresh={fetchData}
+  1300→                    />
+  1301→                  ) : null}
+  1302→                </section>
+  1303→              </TabsContent>
+  1304→
+  1305→              {/* ── Puzzles Tab ── */}
+  1306→              <TabsContent value="puzzles" className="mt-4">
+  1307→                <section>
+  1308→                  {/* Filters and create button */}
+  1309→                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+  1310→                    <h3 className="text-sm font-semibold flex items-center gap-2">
+  1311→                      <CalendarIcon className="size-4 text-muted-foreground" />
+  1312→                      Tous les Puzzles
+  1313→                      <Badge variant="secondary" className="ml-1">
+  1314→                        {filteredPuzzles.length}
+  1315→                      </Badge>
+  1316→                    </h3>
+  1317→
+  1318→                    <div className="flex items-center gap-2">
+  1319→                      <Select value={languageFilter} onValueChange={setLanguageFilter}>
+  1320→                        <SelectTrigger className="h-8 text-xs w-28">
+  1321→                          <Languages className="size-3 mr-1" />
+  1322→                          <SelectValue placeholder="Langue" />
+  1323→                        </SelectTrigger>
+  1324→                        <SelectContent>
+  1325→                          <SelectItem value="all">Toutes</SelectItem>
+  1326→                          <SelectItem value="fr">🇫🇷 Français</SelectItem>
+  1327→                          <SelectItem value="en">🇬🇧 English</SelectItem>
+  1328→                        </SelectContent>
+  1329→                      </Select>
+  1330→
+  1331→                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+  1332→                        <SelectTrigger className="h-8 text-xs w-36">
+  1333→                          <FolderOpen className="size-3 mr-1" />
+  1334→                          <SelectValue placeholder="Catégorie" />
+  1335→                        </SelectTrigger>
+  1336→                        <SelectContent>
+  1337→                          <SelectItem value="all">Toutes</SelectItem>
+  1338→                          {data?.categories.map((cat) => (
+  1339→                            <SelectItem key={cat.id} value={cat.id}>
+  1340→                              {cat.icon || '🏷️'} {cat.name}
+  1341→                            </SelectItem>
+  1342→                          ))}
+  1343→                        </SelectContent>
+  1344→                      </Select>
+  1345→
+  1346→                      <Select value={packFilter} onValueChange={setPackFilter}>
+  1347→                        <SelectTrigger className="h-8 text-xs w-36">
+  1348→                          <Package className="size-3 mr-1" />
+  1349→                          <SelectValue placeholder="Collection" />
+  1350→                        </SelectTrigger>
+  1351→                        <SelectContent>
+  1352→                          <SelectItem value="all">Toutes</SelectItem>
+  1353→                          {data?.packs.map((pack) => (
+  1354→                            <SelectItem key={pack.id} value={pack.id}>
+  1355→                              {pack.icon || '📦'} {pack.name}
+  1356→                            </SelectItem>
+  1357→                          ))}
+  1358→                        </SelectContent>
+  1359→                      </Select>
+  1360→
+  1361→                      <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => openEditor()}>
+  1362→                        <Plus className="size-3.5" />
+  1363→                        Créer
+  1364→                      </Button>
+  1365→                    </div>
+  1366→                  </div>
+  1367→
+  1368→                  {loading && !data ? (
+  1369→                    <TableSkeleton />
+  1370→                  ) : filteredPuzzles.length === 0 ? (
+  1371→                    <div className="text-center py-8 text-muted-foreground text-sm">
+  1372→                      Aucun puzzle ne correspond aux filtres.
+  1373→                    </div>
+  1374→                  ) : (
+  1375→                    <div className="rounded-md border max-h-96 overflow-y-auto">
+  1376→                      <Table>
+  1377→                        <TableHeader>
+  1378→                          <TableRow className="hover:bg-transparent">
+  1379→                            <TableHead className="pl-3">Titre</TableHead>
+  1380→                            <TableHead>Catégorie</TableHead>
+  1381→                            <TableHead>Collection</TableHead>
+  1382→                            <TableHead>Langue</TableHead>
+  1383→                            <TableHead>Difficulté</TableHead>
+  1384→                            <TableHead className="hidden md:table-cell">Taille</TableHead>
+  1385→                            <TableHead className="hidden lg:table-cell">Date</TableHead>
+  1386→                            <TableHead>Statut</TableHead>
+  1387→                            <TableHead className="text-right pr-3">Actions</TableHead>
+  1388→                          </TableRow>
+  1389→                        </TableHeader>
+  1390→                        <TableBody>
+  1391→                          {filteredPuzzles.map((puzzle) => {
+  1392→                            const isToggling = togglingPuzzleIds.has(puzzle.id);
+  1393→                            const isDatePicking = datePickerPuzzleId === puzzle.id;
+  1394→
+  1395→                            return (
+  1396→                              <TableRow key={puzzle.id}>
+  1397→                                <TableCell className="font-medium pl-3 max-w-[140px] truncate">
+  1398→                                  {puzzle.title}
+  1399→                                </TableCell>
+  1400→
+  1401→                                <TableCell>
+  1402→                                  {puzzle.categoryName ? (
+  1403→                                    <Badge variant="outline" className="text-xs gap-1">
+  1404→                                      <span>{puzzle.categoryIcon || '🏷️'}</span>
+  1405→                                      {puzzle.categoryName}
+  1406→                                    </Badge>
+  1407→                                  ) : (
+  1408→                                    <span className="text-xs text-muted-foreground">—</span>
+  1409→                                  )}
+  1410→                                </TableCell>
+  1411→
+  1412→                                <TableCell>
+  1413→                                  {puzzle.packName ? (
+  1414→                                    <Badge variant="outline" className="text-xs gap-1">
+  1415→                                      <span>{puzzle.packIcon || '📦'}</span>
+  1416→                                      {puzzle.packName}
+  1417→                                    </Badge>
+  1418→                                  ) : (
+  1419→                                    <span className="text-xs text-muted-foreground">—</span>
+  1420→                                  )}
+  1421→                                </TableCell>
+  1422→
+  1423→                                <TableCell>
+  1424→                                  <Badge variant="outline" className="text-xs">
+  1425→                                    {languageLabel(puzzle.language)}
+  1426→                                  </Badge>
+  1427→                                </TableCell>
+  1428→
+  1429→                                <TableCell>{renderStars(puzzle.difficulty)}</TableCell>
+  1430→
+  1431→                                <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
+  1432→                                  {puzzle.rows}×{puzzle.cols}
+  1433→                                </TableCell>
+  1434→
+  1435→                                <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+  1436→                                  {isDatePicking ? (
+  1437→                                    <Popover open={isDatePicking} onOpenChange={(o) => !o && setDatePickerPuzzleId(null)}>
+  1438→                                      <PopoverTrigger asChild>
+  1439→                                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 font-normal">
+  1440→                                          <CalendarIcon className="size-3" />
+  1441→                                          {selectedDate ? format(selectedDate, 'dd MMM yyyy', { locale: fr }) : 'Choisir…'}
+  1442→                                        </Button>
+  1443→                                      </PopoverTrigger>
+  1444→                                      <PopoverContent className="w-auto p-0" align="start">
+  1445→                                        <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
+  1446→                                        <div className="flex justify-end gap-2 border-t p-2">
+  1447→                                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDatePickerPuzzleId(null)}>
+  1448→                                            Annuler
+  1449→                                          </Button>
+  1450→                                          <Button size="sm" className="h-7 text-xs" onClick={handleSaveDate} disabled={!selectedDate || savingDate}>
+  1451→                                            {savingDate ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+  1452→                                            OK
+  1453→                                          </Button>
+  1454→                                        </div>
+  1455→                                      </PopoverContent>
+  1456→                                    </Popover>
+  1457→                                  ) : (
+  1458→                                    <span>{formatDate(puzzle.publishDate)}</span>
+  1459→                                  )}
+  1460→                                </TableCell>
+  1461→
+  1462→                                <TableCell>
+  1463→                                  {puzzle.published ? (
+  1464→                                    <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent gap-1">
+  1465→                                      <CheckCircle2 className="size-3" />
+  1466→                                      <span className="hidden sm:inline">Publié</span>
+  1467→                                    </Badge>
+  1468→                                  ) : (
+  1469→                                    <Badge variant="secondary" className="gap-1 text-muted-foreground">
+  1470→                                      <CircleOff className="size-3" />
+  1471→                                      <span className="hidden sm:inline">Brouillon</span>
+  1472→                                    </Badge>
+  1473→                                  )}
+  1474→                                </TableCell>
+  1475→
+  1476→                                <TableCell className="text-right pr-3">
+  1477→                                  <div className="flex items-center justify-end gap-1">
+  1478→                                    <Button
+  1479→                                      variant="ghost"
+  1480→                                      size="sm"
+  1481→                                      className="h-7 text-xs gap-1.5"
+  1482→                                      onClick={() => openEditor(puzzle.id)}
+  1483→                                      title="Modifier"
+  1484→                                    >
+  1485→                                      <Pencil className="size-3" />
+  1486→                                      <span className="hidden xl:inline">Modifier</span>
+  1487→                                    </Button>
+  1488→                                    <Button
+  1489→                                      variant={puzzle.published ? 'outline' : 'default'}
+  1490→                                      size="sm"
+  1491→                                      className="h-7 text-xs gap-1.5"
+  1492→                                      onClick={() => handleTogglePublish(puzzle)}
+  1493→                                      disabled={isToggling}
+  1494→                                    >
+  1495→                                      {isToggling ? (
+  1496→                                        <Loader2 className="size-3 animate-spin" />
+  1497→                                      ) : puzzle.published ? (
+  1498→                                        <EyeOff className="size-3" />
+  1499→                                      ) : (
+  1500→                                        <Eye className="size-3" />
+  1501→                                      )}
+  1502→                                      <span className="hidden xl:inline">{puzzle.published ? 'Dépublier' : 'Publier'}</span>
+  1503→                                    </Button>
+  1504→                                    <Button
+  1505→                                      variant="ghost"
+  1506→                                      size="sm"
+  1507→                                      className="h-7 text-xs gap-1.5"
+  1508→                                      onClick={() => handleOpenDatePicker(puzzle)}
+  1509→                                      disabled={isToggling || isDatePicking}
+  1510→                                      title="Date"
+  1511→                                    >
+  1512→                                      <CalendarDays className="size-3" />
+  1513→                                    </Button>
+  1514→                                    <Button
+  1515→                                      variant="ghost"
+  1516→                                      size="sm"
+  1517→                                      className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive"
+  1518→                                      onClick={() => setDeleteTarget(puzzle)}
+  1519→                                    >
+  1520→                                      <Trash2 className="size-3" />
+  1521→                                    </Button>
+  1522→                                  </div>
+  1523→                                </TableCell>
+  1524→                              </TableRow>
+  1525→                            );
+  1526→                          })}
+  1527→                        </TableBody>
+  1528→                      </Table>
+  1529→                    </div>
+  1530→                  )}
+  1531→                </section>
+  1532→              </TabsContent>
+  1533→
+  1534→              {/* ── Generator Tab ── */}
+  1535→              <TabsContent value="generator" className="mt-4">
+  1536→                <section className="rounded-lg border bg-muted/30 p-4">
+  1537→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1538→                    <Sparkles className="size-4 text-emerald-500" />
+  1539→                    Générateur Automatique
+  1540→                    <Badge variant="secondary" className="ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+  1541→                      IA
+  1542→                    </Badge>
+  1543→                  </h3>
+  1544→                  <p className="text-xs text-muted-foreground mb-4">
+  1545→                    Générez un puzzle de mots croisés automatiquement grâce à l'intelligence artificielle.
+  1546→                    Entrez un thème et l'IA créera les mots et indices, puis construira la grille.
+  1547→                  </p>
+  1548→
+  1549→                  {loading && !data ? (
+  1550→                    <div className="flex items-center justify-center py-8">
+  1551→                      <Loader2 className="size-6 animate-spin text-muted-foreground" />
+  1552→                    </div>
+  1553→                  ) : data ? (
+  1554→                    <PuzzleGenerator
+  1555→                      categories={data.categories}
+  1556→                      packs={data.packs}
+  1557→                      onGenerated={fetchData}
+  1558→                    />
+  1559→                  ) : null}
+  1560→                </section>
+  1561→              </TabsContent>
+  1562→
+  1563→              {/* ── Schedule Tab ── */}
+  1564→              <TabsContent value="schedule" className="mt-4">
+  1565→                <section className="rounded-lg border bg-muted/30 p-4">
+  1566→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1567→                    <CalendarDays className="size-4 text-muted-foreground" />
+  1568→                    Programme de Publication
+  1569→                  </h3>
+  1570→
+  1571→                  <div className="space-y-4">
+  1572→                    <div className="flex items-center justify-between">
+  1573→                      <Label htmlFor="schedule-active" className="text-sm font-medium">
+  1574→                        Publication automatique active
+  1575→                      </Label>
+  1576→                      <Switch
+  1577→                        id="schedule-active"
+  1578→                        checked={scheduleIsActive}
+  1579→                        onCheckedChange={setScheduleIsActive}
+  1580→                      />
+  1581→                    </div>
+  1582→
+  1583→                    <div className="flex items-center gap-3">
+  1584→                      <Label htmlFor="puzzles-per-day" className="text-sm font-medium whitespace-nowrap">
+  1585→                        Puzzles par jour
+  1586→                      </Label>
+  1587→                      <Input
+  1588→                        id="puzzles-per-day"
+  1589→                        type="number"
+  1590→                        min={1}
+  1591→                        max={10}
+  1592→                        value={schedulePuzzlesPerDay}
+  1593→                        onChange={(e) => handlePuzzlesPerDayChange(e.target.value)}
+  1594→                        className="w-20 h-9 text-center"
+  1595→                        disabled={!scheduleIsActive}
+  1596→                      />
+  1597→                    </div>
+  1598→
+  1599→                    <div className="flex justify-end pt-1">
+  1600→                      <Button size="sm" onClick={handleSaveSchedule} disabled={savingSchedule}>
+  1601→                        {savingSchedule ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+  1602→                        Enregistrer
+  1603→                      </Button>
+  1604→                    </div>
+  1605→                  </div>
+  1606→                </section>
+  1607→              </TabsContent>
+  1608→            </Tabs>
+  1609→          </div>
+  1610→        </DialogContent>
+  1611→      </Dialog>
+  1612→
+  1613→      {/* ── Puzzle Editor Dialog ──────────────────────────────── */}
+  1614→      <PuzzleEditor
+  1615→        open={editorOpen}
+  1616→        onOpenChange={setEditorOpen}
+  1617→        editPuzzleId={editPuzzleId}
+  1618→        onSaved={handleEditorSaved}
+  1619→      />
+  1620→
+  1621→      {/* ── Delete Confirmation Dialog ────────────────────────── */}
+  1622→      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+  1623→        <AlertDialogContent>
+  1624→          <AlertDialogHeader>
+  1625→            <AlertDialogTitle>Supprimer le puzzle</AlertDialogTitle>
+  1626→            <AlertDialogDescription>
+  1627→              Êtes-vous sûr de vouloir supprimer « {deleteTarget?.title} » ? Cette action est irréversible.
+  1628→            </AlertDialogDescription>
+  1629→          </AlertDialogHeader>
+  1630→          <AlertDialogFooter>
+  1631→            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+  1632→            <AlertDialogAction
+  1633→              onClick={handleDelete}
+  1634→              disabled={deleting}
+  1635→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+  1636→            >
+  1637→              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+  1638→              Supprimer
+  1639→            </AlertDialogAction>
+  1640→          </AlertDialogFooter>
+  1641→        </AlertDialogContent>
+  1642→      </AlertDialog>
+  1643→    </>
+  1644→  );
+  1645→}
+  1646→
+  1647→
+  1648→

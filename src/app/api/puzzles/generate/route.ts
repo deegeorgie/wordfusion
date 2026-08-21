@@ -13,22 +13,44 @@ interface GenerateRequest {
   categoryId?: string | null;
   packId?: string | null;
   wordCount?: number;
+  size?: 'small' | 'medium' | 'large';
   autoPublish?: boolean;
 }
 
 // ── LLM word generation ────────────────────────────────────────────────
+
+const sizeWordHints: Record<string, Record<number, string>> = {
+  small: { 1: '3-5 lettres', 2: '4-6 lettres', 3: '4-6 lettres' },
+  medium: { 1: '4-7 lettres', 2: '5-9 lettres', 3: '6-11 lettres' },
+  large: { 1: '5-8 lettres', 2: '5-10 lettres', 3: '5-10 lettres' },
+};
+
+const sizeTargetSizes: Record<string, number> = {
+  small: 12,
+  medium: 20,
+  large: 30,
+};
 
 async function generateWordsWithLLM(
   theme: string,
   language: 'fr' | 'en',
   difficulty: number,
   wordCount: number,
+  size?: 'small' | 'medium' | 'large',
 ): Promise<{ word: string; clue: string }[]> {
   const zai = await ZAI.create();
 
+  const sizeKey = size || 'medium';
+  const frSizeMap = sizeWordHints[sizeKey];
+  const enSizeMap: Record<number, string> = {
+    1: sizeKey === 'small' ? '3-5 letters' : sizeKey === 'large' ? '5-8 letters' : '4-7 letters',
+    2: sizeKey === 'small' ? '4-6 letters' : sizeKey === 'large' ? '5-10 letters' : '5-9 letters',
+    3: sizeKey === 'small' ? '4-6 letters' : sizeKey === 'large' ? '5-10 letters' : '6-12 letters',
+  };
+
   const sizeDesc = language === 'en'
-    ? { 1: '4-7 letters', 2: '5-9 letters', 3: '6-12 letters' }[difficulty]
-    : { 1: '4-7 lettres', 2: '5-9 lettres', 3: '6-11 lettres' }[difficulty];
+    ? enSizeMap[difficulty]
+    : frSizeMap[difficulty];
 
   const instructions = language === 'fr'
     ? `Tu es un créateur expert de mots croisés français. Génère exactement ${wordCount} mots et leurs indices pour un puzzle de mots croisés sur le thème "${theme}".
@@ -116,6 +138,7 @@ export async function POST(request: NextRequest) {
       categoryId = null,
       packId = null,
       wordCount = 12,
+      size = 'medium',
       autoPublish = false,
     } = body;
 
@@ -145,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        rawWords = await generateWordsWithLLM(theme, language, difficulty, wordCount);
+        rawWords = await generateWordsWithLLM(theme, language, difficulty, wordCount, size);
         if (rawWords.length >= 5) break;
         lastError = `Only ${rawWords.length} valid words generated`;
       } catch (err) {
@@ -161,7 +184,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Place words into crossword grid
-    const placement = placeWords(rawWords as RawWord[]);
+    const targetSize = sizeTargetSizes[size || 'medium'];
+    const placement = placeWords(rawWords as RawWord[], targetSize);
 
     if (!placement.success) {
       return NextResponse.json(

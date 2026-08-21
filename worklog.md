@@ -281,3 +281,134 @@ Stage Summary:
 - Puzzle playing view confirmed working (generated puzzles are playable)
 - Clean ESLint pass
 - All features integrated into existing architecture without breaking changes
+
+---
+Task ID: 1
+Agent: fullstack-developer (subagent)
+Task: Build StatsPanel component for personal statistics dialog
+
+Work Log:
+- Read reference files: utils.ts (cn utility), dialog.tsx, card.tsx, badge.tsx, scroll-area.tsx
+- Created `/src/components/crossword/StatsPanel.tsx` — comprehensive personal statistics panel
+- Implemented localStorage data loading from `crossword-streak-data` key on dialog open
+- Calculated 4 overview stats: total puzzles solved, current streak (consecutive days ending at today/yesterday), best streak (longest consecutive run), average solve time
+- Built AnimatedNumber sub-component using framer-motion useSpring/useTransform for number counting animation
+- Created 4 stat cards in responsive grid (2-col desktop, 1-col mobile) with framer-motion staggered fade-in
+- Each stat card has: colored icon in rounded background, large animated number, French label
+- Built 14-day daily activity bar chart using recharts BarChart with emerald fill and rounded bars
+- Built difficulty distribution donut chart using recharts PieChart (innerRadius/outerRadius) with emerald/amber/orange colors
+- Pie chart legend shown alongside with colored dots, difficulty names, and counts
+- Built recent activity scrollable list (last 20 puzzles) with ScrollArea max-h-[300px]
+- Each activity row shows: title, language flag (🇫🇷/🇬🇧), French locale date, difficulty badge, solve time
+- Added empty state with friendly French message and trending-up icon
+- Used emerald/amber/orange color palette throughout matching crossword theme
+- Time formatting: "Xs" under 60s, "X min Ys" otherwise
+- Difficulty labels: 1=Facile (emerald), 2=Moyen (amber), 3+=Difficile (orange)
+- All UI text in French, Dialog container max-w-3xl with scrollable content
+
+Stage Summary:
+- StatsPanel component created at `/src/components/crossword/StatsPanel.tsx`
+- 4 animated stat cards with staggered framer-motion entrance
+- 14-day bar chart + difficulty donut chart using recharts
+- Scrollable recent activity list (last 20 puzzles)
+- Empty state handling with French message
+- All labels in French, color palette matches app theme
+- Zero existing files modified
+
+---
+Task ID: 3
+Agent: fullstack-developer (subagent)
+Task: Build PDF export utility for crossword puzzles
+
+Work Log:
+- Read existing type definitions (CrosswordPuzzleData, CrosswordCell, Clue, WordPlacement)
+- Read existing worklog.md for project context
+- Created `/src/lib/crossword/pdf-export.ts` — pure utility module (no React)
+- Implemented `exportPuzzleToPdf(puzzle, options?)` with withAnswers, title, showNumbers options
+- A4 portrait PDF via jsPDF with 20mm margins (left/right/top/bottom)
+- Header: bold 18pt centered title, italic 10pt description, difficulty stars + 🇫🇷 flag (top-right), thin gray separator line
+- Grid: dynamically sized cells (formula: `Math.min(Math.max(availableWidth/cols, 22), 36)`), centered horizontally
+- Black cells filled rgb(30,30,30), white cells with black border (0.2mm line width)
+- Clue numbers: 6pt font, positioned at cell top-left (x+1.5, y+3)
+- Answer letters (when withAnswers=true): bold font at cellSize*0.4, centered in cell
+- Clues section: two-column layout for grids with ≥8 columns, single-column otherwise
+- Column headings: "HORIZONTAL" and "VERTICAL" in bold 12pt
+- Two-column uses independent page tracking per column (ensurePage helper to reuse existing pages)
+- Page breaks for tall grids (row-by-row check) and clue overflow (line-by-line check)
+- Footer on every page: gray 8pt "Mots Croisés — mots-croisés.app" centered, page number right-aligned
+- All PDF text in French; difficulty labels: 1=⭐ Facile, 2=⭐⭐ Moyen, 3=⭐⭐⭐ Difficile
+- Saves as `mots-croises.pdf`
+- Type-check passes clean (tsc --noEmit)
+
+Stage Summary:
+- PDF export utility created at `/src/lib/crossword/pdf-export.ts`
+- Professional A4 layout with header, centered grid, two-column clues, footer
+- Supports answer reveal mode and clue number toggle
+- Handles multi-page grids and clue overflow with proper page breaks
+- Zero existing files modified
+
+---
+Task ID: 2
+Agent: fullstack-developer (subagent)
+Task: Add puzzle size presets to crossword generator
+
+Work Log:
+- Read AdminPanel.tsx (PuzzleGenerator component, lines 750-991) and generate/route.ts to understand current state
+- Verified Grid2X2 and LayoutGrid icons exist in lucide-react (both available)
+- Added Grid2X2 and LayoutGrid to lucide-react imports in AdminPanel.tsx
+- Added `sizePreset` state (default 'medium') and changed `wordCount` default from '12' to '11' (medium median)
+- Added `sizePresets` config array: small (Grid2X2, 6 words, 5-8 range), medium (Grid3X3, 11 words, 9-14 range), large (LayoutGrid, 20 words, 15-30 range)
+- Added `handleSizePreset` handler that updates both sizePreset and wordCount
+- Added size preset button group UI above the settings grid:
+  - 3-column button group with proper rounded corners (rounded-l-lg/rounded-r-lg)
+  - Selected button styled with bg-primary text-primary-foreground
+  - Each button shows icon, label, and word range hint
+  - Disabled during generation
+- Updated word count selector: expanded from 4 fixed options to full 5-30 range
+- Added dynamic range hint below word count showing current preset's range
+- Added `size: sizePreset` to the API request body
+- Updated GenerateRequest interface in route.ts with `size?: 'small' | 'medium' | 'large'`
+- Added `sizeWordHints` lookup (small: 4-6, medium: 4-7, large: 5-10 letters by difficulty)
+- Added `sizeTargetSizes` lookup (small: 12, medium: 20, large: 30)
+- Updated `generateWordsWithLLM` to accept size parameter and use size-specific word length hints in LLM prompt
+- Updated `placeWords` call to pass `targetSize` based on size preset
+- Added `size = 'medium'` to POST handler destructuring
+- Type-check passes clean (no errors in modified files)
+
+Stage Summary:
+- Size preset button group (Petit/Moyen/Grand) added above settings grid in PuzzleGenerator
+- Selecting a preset auto-sets word count to median of its range
+- Word count remains manually adjustable (full 5-30 range) with range hint shown
+- API accepts `size` parameter and adjusts LLM word-length hints and grid targetSize accordingly
+- Small puzzles target 12×12 grid with shorter words, large puzzles target 30×30 with longer words
+- All labels in French, zero breaking changes
+
+---
+Task ID: 4
+Agent: Main Coordinator
+Task: Wire StatsPanel + PDF export into main page, browser verification
+
+Work Log:
+- Added imports: BarChart3, Download, FileText (lucide-react), StatsPanel component, exportPuzzleToPdf utility
+- Added `statsOpen` state to Home component
+- Added Statistics button (BarChart3 icon) in selection view header, visible only when streakData.length > 0
+- Added PDF export buttons ("PDF" with Download icon, "PDF + Réponses" with FileText icon) in playing view action bar
+- Added PDF quick-export button in playing view top bar (header)
+- Added StatsPanel dialog component at bottom of page alongside AdminPanel
+- Verified via Agent Browser:
+  - Selection view loads correctly with puzzle cards and collections
+  - Playing view shows grid, clues, PDF buttons (e1=header PDF, e10=action bar PDF, e11=action bar PDF+Réponses)
+  - PDF export triggers without errors (no console errors)
+  - Stats button appears when streakData has entries
+  - Stats panel dialog opens with all sections: stat cards, charts, recent activity
+  - VLM analysis confirmed clean professional layout with correct stat values
+  - Generator tab shows size preset buttons: "Petit 5-8 mots", "Moyen 9-14 mots", "Grand 15-30 mots"
+- Clean ESLint pass
+- Zero console errors throughout testing
+
+Stage Summary:
+- All three features (Stats, PDF Export, Size Presets) fully integrated and verified
+- Statistics panel accessible from header when user has completion data
+- PDF export available both in top bar and action bar of playing view
+- Size presets (Petit/Moyen/Grand) functional in admin generator tab
+- Zero errors in dev server log and browser console

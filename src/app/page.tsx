@@ -20,6 +20,9 @@ import {
   Layers,
   Package,
   Share2,
+  BarChart3,
+  Download,
+  FileText,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -47,6 +50,8 @@ import {
 } from '@/components/ui/select';
 
 import AdminPanel from '@/components/crossword/AdminPanel';
+import { StatsPanel } from '@/components/crossword/StatsPanel';
+import { exportPuzzleToPdf } from '@/lib/crossword/pdf-export';
 import { cn } from '@/lib/utils';
 import type {
   CrosswordPuzzleData,
@@ -248,6 +253,7 @@ export default function Home() {
   // ── View state ──────────────────────────────────────────────────────
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
   const [adminOpen, setAdminOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
@@ -795,15 +801,28 @@ export default function Home() {
                   <span className="text-[10px] text-orange-600/70 dark:text-orange-400/70 hidden sm:inline">jour{streak > 1 ? 's' : ''}</span>
                 </div>
               )}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                onClick={() => setAdminOpen(true)}
-              >
-                <Settings className="size-3.5" />
-                Administration
-              </Button>
+              <div className="flex items-center gap-1">
+                {streakData.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                    onClick={() => setStatsOpen(true)}
+                  >
+                    <BarChart3 className="size-3.5" />
+                    <span className="hidden sm:inline">Statistiques</span>
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                  onClick={() => setAdminOpen(true)}
+                >
+                  <Settings className="size-3.5" />
+                  Administration
+                </Button>
+              </div>
             </div>
           </header>
 
@@ -1115,6 +1134,20 @@ export default function Home() {
                 <Clock className="size-3.5 text-muted-foreground" />
                 <span className="font-medium">{formatTimer(timer)}</span>
               </div>
+              {selectedPuzzle && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                  onClick={() => {
+                    if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
+                    toast.success('PDF téléchargé !');
+                  }}
+                >
+                  <Download className="size-3.5" />
+                  <span className="hidden sm:inline">PDF</span>
+                </Button>
+              )}
             </div>
           </header>
 
@@ -1194,6 +1227,29 @@ export default function Home() {
                     >
                       <Trash2 className="size-4 text-red-500" />
                       Effacer
+                    </Button>
+                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
+                        toast.success('PDF téléchargé !');
+                      }}
+                    >
+                      <Download className="size-4 text-emerald-600" />
+                      <span className="hidden sm:inline">PDF</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle, { withAnswers: true });
+                        toast.success('PDF avec réponses téléchargé !');
+                      }}
+                    >
+                      <FileText className="size-4 text-amber-500" />
+                      <span className="hidden sm:inline">PDF + Réponses</span>
                     </Button>
                   </div>
 
@@ -1309,6 +1365,9 @@ export default function Home() {
 
       {/* ── Admin Panel Dialog ──────────────────────────────── */}
       <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} />
+
+      {/* ── Stats Panel Dialog ────────────────────────────────── */}
+      <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />
     </div>
   );
 }
