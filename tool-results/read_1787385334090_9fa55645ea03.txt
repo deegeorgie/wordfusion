@@ -1,0 +1,463 @@
+     1→     1→---
+     2→     2→Task ID: 1
+     3→     3→Agent: Main Coordinator
+     4→     4→Task: Create a French crossword puzzle application with daily publishing
+     5→     5→
+     6→     6→Work Log:
+     7→     7→- Designed Prisma schema with CrosswordPuzzle, UserProgress, PublishingSchedule models
+     8→     8→- Created crossword type definitions (CrosswordCell, WordPlacement, Clue, etc.)
+     9→     9→- Built puzzle generator utilities with grid-first approach for correct intersections
+    10→    10→- Designed 10 French crossword puzzles (animals, France, colors, cuisine, science, music, geography, fruits, literature, sports)
+    11→    11→- Built interactive CrosswordGrid component with keyboard navigation
+    12→    12→- Built ClueList component with Horizontal/Vertical tabs
+    13→    13→- Created 7 API routes (daily, [id], check, hint, admin, admin/publish, admin/schedule)
+    14→    14→- Created main page with puzzle selection view and puzzle solving view
+    15→    15→- Created AdminPanel component for puzzle management
+    16→    16→- Seeded database with 10 puzzles across 4 days (3 per day)
+    17→    17→- Removed framer-motion to reduce Turbopack compilation load
+    18→    18→- Verified page loads correctly through Caddy with Agent Browser
+    19→    19→
+    20→    20→Stage Summary:
+    21→    21→- 10 crossword puzzles created and seeded in database
+    22→    22→- Publishing schedule: 3 puzzles per day
+    23→    23→- Full crossword solving interface with grid, clues, timer, hints, verification
+    24→    24→- Admin panel for managing puzzle publishing
+    25→    25→- Page verified working through Preview Panel via Caddy proxy
+    26→    26→
+    27→    27→---
+    28→    28→Task ID: 2
+    29→    29→Agent: fullstack-developer
+    30→    30→Task: Build PuzzleEditor component for creating and editing crossword puzzles visually
+    31→    31→
+    32→    32→Work Log:
+    33→    33→- Read existing types (CrosswordCell, WordPlacement, Clue, CrosswordPuzzleData) and utility functions
+    34→    34→- Read existing API routes (admin CRUD, puzzles/[id] GET) to understand data contract
+    35→    35→- Read shadcn/ui component exports (dialog, tabs, select, input, textarea, label, button, skeleton, scroll-area, badge, separator)
+    36→    36→- Created `/src/components/crossword/PuzzleEditor.tsx` — a full-screen dialog puzzle editor
+    37→    37→- Implemented interactive grid editor: click to select cells, type letters A-Z, double-click to toggle black/white
+    38→    38→- Implemented keyboard navigation: arrow keys, Backspace/Delete, Escape, auto-advance on letter input
+    39→    39→- Built auto word-detection algorithm: scans horizontal and vertical for sequences of 2+ non-black cells with letters
+    40→    40→- Built auto clue-numbering: left-to-right, top-to-bottom, assigns numbers at word-start positions
+    41→    41→- Created word/clue editor sidebar with Horizontal/Vertical tabs, editable word inputs and clue textareas
+    42→    42→- Implemented word→grid sync: changing a word in the clue editor updates corresponding grid cells
+    43→    43→- Implemented clue text preservation across recomputations
+    44→    44→- Added puzzle settings (title, description, difficulty select)
+    45→    45→- Added grid resize controls (2-20 rows/cols) with data preservation
+    46→    46→- Added toolbar actions: Sauvegarder (save), Grille vide (clear letters), Effacer tout (clear all)
+    47→    47→- Implemented save via POST/PUT to /api/puzzles/admin with proper body format
+    48→    48→- Implemented edit mode: fetches puzzle data from /api/puzzles/[id] on dialog open
+    49→    49→- Added loading skeleton state, saving disabled state
+    50→    50→- Added toast notifications (sonner) for success/error
+    51→    51→- Responsive layout: side-by-side (grid + clues) on desktop (lg+), stacked on mobile
+    52→    52→- All labels in French
+    53→    53→- Verified successful build with `next build`
+    54→    54→
+    55→    55→Stage Summary:
+    56→    56→- PuzzleEditor component created at `/src/components/crossword/PuzzleEditor.tsx`
+    57→    57→- Full visual grid editor with keyboard navigation and auto word/clue detection
+    58→    58→- Create and edit modes supported via editPuzzleId prop
+    59→    59→- Responsive design with mobile-first approach
+    60→    60→- Zero existing files modified
+    61→    61→
+    62→    62→---
+    63→    63→Task ID: 3
+    64→    64→Agent: Main Coordinator
+    65→    65→Task: Add Categories system and multi-language support (FR/EN) to crossword app
+    66→    66→
+    67→    67→Work Log:
+    68→    68→- Updated Prisma schema: added `Category` model (name, slug, language) and `language`/`categoryId` fields to `CrosswordPuzzle` with onDelete: SetNull relation
+    69→    69→- Ran `prisma db push` and `prisma generate` to apply schema changes
+    70→    70→- Created `/api/categories/route.ts` with full CRUD (GET list, POST create, PUT update, DELETE)
+    71→    71→- Updated `/api/puzzles/admin/route.ts`: GET returns categories + language/category fields on puzzles; POST/PUT accept language + categoryId
+    72→    72→- Updated `/api/puzzles/daily/route.ts`: supports `?language=fr|en` filter; returns language + category info per puzzle
+    73→    73→- Updated `/api/puzzles/[id]/route.ts`: returns language and categoryId in response
+    74→    74→- Rewrote `AdminPanel.tsx` with 3-tab layout: Catégories, Puzzles, Programme
+    75→    75→  - Categories tab: create/edit/delete categories with inline editing
+    76→    76→  - Puzzles tab: filter by language and category, create/edit/delete puzzles
+    77→    77→  - Programme tab: publishing schedule settings
+    78→    78→- Updated `PuzzleEditor.tsx`: added Language selector (FR/EN) and Category dropdown
+    79→    79→  - Fetches categories from API on dialog open
+    80→    80→  - Language and category included in save payload
+    81→    81→  - Loads language/category from existing puzzle when editing
+    82→    82→- Rewrote `page.tsx`: category-based browsing with language filter
+    83→    83→  - Language selector (All/French/English) filters puzzles server-side
+    84→    84→  - Category selector appears dynamically when categories have puzzles
+    85→    85→  - Puzzle cards show language badge and category badge
+    86→    86→  - Maintained all existing functionality (auto-check green/red feedback, timer, hints, verification)
+    87→    87→- Seeded 8 initial categories (4 FR: Général, Nature, Sciences, Histoire + 4 EN: General Knowledge, Flora & Fauna, Science & Tech, World History)
+    88→    88→- Verified all APIs working via curl: /api/categories (200), /api/puzzles/daily (200), /api/puzzles/admin (200)
+    89→    89→- Verified UI elements via agent-browser snapshot: language filter, admin tabs, category management
+    90→    90→- Lint passes clean
+    91→    91→
+    92→    92→Stage Summary:
+    93→    93→- Category system fully implemented with CRUD
+    94→    94→- Multi-language support (FR/EN) across all components
+    95→    95→- Admin panel redesigned with tabbed interface
+    96→    96→- Puzzle editor extended with language/category fields
+    97→    97→- Main page shows category badges and language filters
+    98→    98→- All existing puzzle functionality preserved
+    99→    99→
+   100→   100→---
+   101→   101→Task ID: 5-a
+   102→   102→Agent: fullstack-developer
+   103→   103→Task: Add Packs tab, category icons, and pack selector to admin panel and puzzle editor
+   104→   104→
+   105→   105→Work Log:
+   106→   106→- Updated AdminPanel.tsx types:
+   107→   107→  - Added `PackItem` interface (id, name, description, icon, language, _count)
+   108→   108→  - Extended `PuzzleSummary` with categoryIcon, packId, packName, packIcon fields
+   109→   109→  - Extended `AdminData` with packs array
+   110→   110→  - Added `icon` field to `CategoryItem` interface
+   111→   111→- Updated CategoryManager in AdminPanel.tsx:
+   112→   112→  - Added icon input field (emoji) to create form
+   113→   113→  - Icon now shown in category list table before name
+   114→   114→  - Icon editable in inline edit mode (icon input + name input side by side)
+   115→   115→  - Icon sent in POST/PUT fetch bodies
+   116→   116→- Created PackManager sub-component in AdminPanel.tsx:
+   117→   117→  - Create form: icon input, name input, description input, language select
+   118→   118→  - Pack list table: Name (with icon), Langue, Puzzles count, Actions (edit/delete)
+   119→   119→  - Inline editing for packs (same pattern as CategoryManager)
+   120→   120→  - Delete confirmation dialog for packs
+   121→   121→  - All CRUD via /api/packs endpoint
+   122→   122→- Updated AdminPanel main component:
+   123→   123→  - Changed TabsList from grid-cols-3 to grid-cols-4
+   124→   124→  - Added 4th "Collections" tab with Package icon from lucide-react
+   125→   125→  - Updated dialog description to mention collections
+   126→   126→  - Added packFilter state alongside categoryFilter
+   127→   127→  - Updated filteredPuzzles useMemo to include pack filtering
+   128→   128→  - Added Pack filter dropdown in puzzle filters section (same pattern as category filter)
+   129→   129→  - Added "Collection" column header to puzzles table
+   130→   130→  - Added pack badge (icon + name) in each puzzle row
+   131→   131→  - Updated category badge to show icon
+   132→   132→  - Updated category filter dropdown to show icon
+   133→   133→- Updated PuzzleEditor.tsx:
+   134→   134→  - Added `icon?: string` to CategoryOption interface
+   135→   135→  - Added PackOption interface (id, name, icon, language)
+   136→   136→  - Added nonePack constant
+   137→   137→  - Added packId state and packs state
+   138→   138→  - Added /api/packs fetch alongside /api/categories on dialog open
+   139→   139→  - Added Collection (Pack) selector dropdown in puzzle settings grid (grid changed from 5 to 6 cols)
+   140→   140→  - Pack selector shows pack icon + language flag + name, includes "Sans collection" option
+   141→   141→  - packId included in save body (both create and edit)
+   142→   142→  - packId loaded from existing puzzle data when editing
+   143→   143→  - packId reset on new puzzle creation
+   144→   144→  - Category items now show icon in dropdown
+   145→   145→- Verified lint passes clean
+   146→   146→- Verified dev server compiles without errors
+   147→   147→
+   148→   148→Stage Summary:
+   149→   149→- Admin panel now has 4 tabs: Catégories, Collections, Puzzles, Programme
+   150→   150→- Category management supports emoji icons (create, edit, display)
+   151→   151→- Pack management fully implemented with CRUD operations
+   152→   152→- Puzzles table shows both category badge (with icon) and pack badge (with icon)
+   153→   153→- Puzzle filters include pack filter dropdown
+   154→   154→- Puzzle editor includes Collection (Pack) selector alongside Language, Category, Difficulty
+   155→   155→- All labels in French, existing UI patterns preserved
+   156→   156→
+   157→   157→---
+   158→   158→Task ID: 7-a
+   159→   159→Agent: fullstack-developer
+   160→   160→Task: Update main page with streak, share, packs, and category icons
+   161→   161→
+   162→   162→Work Log:
+   163→   163→- Updated PuzzleSummary type: added categoryIcon, packId, packName, packIcon fields
+   164→   164→- Added PackInfo interface (id, name, description, icon, language, _count) and StreakCompletion interface (date, puzzleId, time, difficulty, title, language)
+   165→   165→- Added Package and Share2 to lucide-react imports
+   166→   166→- Added state: selectedPack, packs (PackInfo[]), streakData (StreakCompletion[])
+   167→   167→- Added useEffect to fetch packs from /api/packs on mount
+   168→   168→- Added useEffect to load streak data from localStorage key `crossword-streak-data`
+   169→   169→- Added streak calculation useMemo: counts consecutive days ending at today or yesterday
+   170→   170→- Added useEffect to save streak entry to localStorage on puzzle completion
+   171→   171→- Updated filteredPuzzles useMemo to include pack filtering
+   172→   172→- Updated language filter onValueChange to also reset selectedPack to 'all'
+   173→   173→- Updated empty state condition to include selectedPack filter check
+   174→   174→- Updated category badge on puzzle cards: replaced FolderOpen icon with emoji (puzzle.categoryIcon || '🏷️')
+   175→   175→- Added pack badge below category badge on puzzle cards (outline variant, shows packIcon || '📦')
+   176→   176→- Added Collections section after puzzle cards grid: shows pack buttons filtered by language, toggleable selection
+   177→   177→- Added streak display in header between title div and Administration button (🔥 gradient pill)
+   178→   178→- Added handleShare callback: generates share text with puzzle info, uses navigator.share or clipboard fallback
+   179→   179→- Added Partager (Share) button in completion overlay alongside Retour button
+   180→   180→- Lint passes clean
+   181→   181→
+   182→   182→Stage Summary:
+   183→   183→- Category badges now show emoji icons from API data
+   184→   184→- Pack badges shown on puzzle cards when pack is assigned
+   185→   185→- Collections section allows filtering puzzles by pack/collection
+   186→   186→- Daily streak tracked in localStorage and displayed in header
+   187→   187→- Share functionality with Web Share API fallback to clipboard
+   188→   188→- All labels in French, existing functionality preserved
+   189→   189→
+   190→   190→---
+   191→   191→Task ID: 5-a
+   192→   192→Agent: fullstack-developer (subagent)
+   193→   193→Task: Update AdminPanel + PuzzleEditor with packs and category icons
+   194→   194→
+   195→   195→Work Log:
+   196→   196→- Added PackItem type, extended CategoryItem with icon, extended PuzzleSummary with pack fields
+   197→   197→- Created PackManager sub-component with full CRUD (create, inline edit, delete with confirmation)
+   198→   198→- Updated CategoryManager to include emoji icon input in create/edit forms
+   199→   199→- Added "Collections" tab (4th tab) in AdminPanel tabs
+   200→   200→- Added pack filter dropdown alongside category and language filters in puzzle table
+   201→   201→- Added pack badge column in puzzle table rows
+   202→   202→- Updated PuzzleEditor: added PackOption type, loads packs from /api/packs, Collection selector dropdown
+   203→   203→- Pack selector included in save body (packId), loaded on edit, reset on new puzzle
+   204→   204→
+   205→   205→Stage Summary:
+   206→   206→- AdminPanel has 4 tabs: Catégories, Collections, Puzzles, Programme
+   207→   207→- Category icons supported throughout admin
+   208→   208→- Pack CRUD fully functional
+   209→   209→- PuzzleEditor supports pack assignment
+   210→   210→
+   211→   211→---
+   212→   212→Task ID: 7-a
+   213→   213→Agent: fullstack-developer (subagent)
+   214→   214→Task: Update main page with streak, share, pack browsing, category icons
+   215→   215→
+   216→   216→Work Log:
+   217→   217→- Updated PuzzleSummary type with categoryIcon, packId, packName, packIcon
+   218→   218→- Updated category badge to show emoji icon instead of FolderOpen icon
+   219→   219→- Added pack badge on puzzle cards (conditionally rendered)
+   220→   220→- Added Collections section with toggleable pack buttons filtered by language
+   221→   221→- Added selectedPack state and pack filtering in filteredPuzzles
+   222→   222→- Implemented daily streak system using localStorage (crossword-streak-data key)
+   223→   223→- Calculates consecutive day streak from completion history
+   224→   224→- Saves completion entry when isCompleted becomes true
+   225→   225→- Displays streak badge (🔥 + count) in header
+   226→   226→- Implemented share functionality (handleShare callback)
+   227→   227→- Uses navigator.share API with clipboard fallback
+   228→   228→- Share text includes puzzle title, language flag, difficulty stars, time, streak
+   229→   229→- Added "Partager" button in completion overlay
+   230→   230→- Lint passes clean
+   231→   231→
+   232→   232→Stage Summary:
+   233→   233→- Category icons visible on puzzle cards
+   234→   234→- Pack badges visible on puzzle cards
+   235→   235→- Collections section with filterable pack buttons
+   236→   236→- Daily streak tracking with localStorage persistence
+   237→   237→- Share dialog on puzzle completion
+   238→   238→- All labels in French
+   239→   239→---
+   240→   240→Task ID: 2-a, 2-b, 3, 4, 5
+   241→   241→Agent: Main
+   242→   242→Task: Implement Daily Streak UI + Auto Puzzle Generator
+   243→   243→
+   244→   244→Work Log:
+   245→   245→- Read current project state (schema, page.tsx, APIs, AdminPanel)
+   246→   246→- Created `/home/z/my-project/src/lib/crossword/placement.ts` — crossword grid placement algorithm
+   247→   247→  - Takes raw words + clues and arranges them into a crossword grid
+   248→   248→  - First word placed horizontally at (0,0), subsequent words find intersections
+   249→   249→  - Conflict detection for letter mismatches and parallel adjacency
+   250→   250→  - Normalizes coordinates with 1-cell padding
+   251→   251→  - Returns success if >= 3 words placed
+   252→   252→- Created `/home/z/my-project/src/app/api/puzzles/generate/route.ts` — LLM-powered auto generator API
+   253→   253→  - Uses z-ai-web-dev-sdk to generate words + clues via LLM
+   254→   254→  - Supports theme, language (fr/en), difficulty (1-3), word count (5-30)
+   255→   255→  - 3-retry logic for LLM generation failures
+   256→   256→  - Uses placement algorithm to build grid, then saves to DB
+   257→   257→  - Supports auto-publish option
+   258→   258→  - Validates category/pack references
+   259→   259→- Enhanced `page.tsx` streak UI:
+   260→   260→  - Added `StreakHeatmap` component showing 30-day activity grid
+   261→   261→  - Added visual streak stats card with animated fire icon + count badge
+   262→   262→  - Enhanced completion modal with stats row (words, hints, streak)
+   263→   263→  - Enhanced share text to include word count and hints used
+   264→   264→  - Added `cn` utility import for conditional classes
+   265→   265→  - Added framer-motion animations to completion modal and streak card
+   266→   266→- Enhanced `AdminPanel.tsx`:
+   267→   267→  - Added new "Générateur" tab (5 tabs total)
+   268→   268→  - Created `PuzzleGenerator` sub-component with:
+   269→   269→    - Theme text input with quick suggestion chips
+   270→   270→    - Language, difficulty, word count selectors
+   271→   271→    - Category and collection selectors (filtered by language)
+   272→   272→    - Auto-publish toggle
+   273→   273→    - Gradient generate button with loading state
+   274→   274→    - Result card showing generated puzzle details
+   275→   275→  - Added `motion` import and `Sparkles`, `Zap` icon imports
+   276→   276→  - Fixed SelectItem empty value bug (changed "" to "none")
+   277→   277→
+   278→   278→Stage Summary:
+   279→   279→- Auto generator API verified: POST /api/puzzles/generate returns valid puzzle (tested with "Animaux" theme → 10×9 grid, 6/8 words placed in 5.3s)
+   280→   280→- Admin panel 5-tab layout verified via browser automation
+   281→   281→- Puzzle playing view confirmed working (generated puzzles are playable)
+   282→   282→- Clean ESLint pass
+   283→   283→- All features integrated into existing architecture without breaking changes
+   284→   284→
+   285→   285→---
+   286→   286→Task ID: 1
+   287→   287→Agent: fullstack-developer (subagent)
+   288→   288→Task: Build StatsPanel component for personal statistics dialog
+   289→   289→
+   290→   290→Work Log:
+   291→   291→- Read reference files: utils.ts (cn utility), dialog.tsx, card.tsx, badge.tsx, scroll-area.tsx
+   292→   292→- Created `/src/components/crossword/StatsPanel.tsx` — comprehensive personal statistics panel
+   293→   293→- Implemented localStorage data loading from `crossword-streak-data` key on dialog open
+   294→   294→- Calculated 4 overview stats: total puzzles solved, current streak (consecutive days ending at today/yesterday), best streak (longest consecutive run), average solve time
+   295→   295→- Built AnimatedNumber sub-component using framer-motion useSpring/useTransform for number counting animation
+   296→   296→- Created 4 stat cards in responsive grid (2-col desktop, 1-col mobile) with framer-motion staggered fade-in
+   297→   297→- Each stat card has: colored icon in rounded background, large animated number, French label
+   298→   298→- Built 14-day daily activity bar chart using recharts BarChart with emerald fill and rounded bars
+   299→   299→- Built difficulty distribution donut chart using recharts PieChart (innerRadius/outerRadius) with emerald/amber/orange colors
+   300→   300→- Pie chart legend shown alongside with colored dots, difficulty names, and counts
+   301→   301→- Built recent activity scrollable list (last 20 puzzles) with ScrollArea max-h-[300px]
+   302→   302→- Each activity row shows: title, language flag (🇫🇷/🇬🇧), French locale date, difficulty badge, solve time
+   303→   303→- Added empty state with friendly French message and trending-up icon
+   304→   304→- Used emerald/amber/orange color palette throughout matching crossword theme
+   305→   305→- Time formatting: "Xs" under 60s, "X min Ys" otherwise
+   306→   306→- Difficulty labels: 1=Facile (emerald), 2=Moyen (amber), 3+=Difficile (orange)
+   307→   307→- All UI text in French, Dialog container max-w-3xl with scrollable content
+   308→   308→
+   309→   309→Stage Summary:
+   310→   310→- StatsPanel component created at `/src/components/crossword/StatsPanel.tsx`
+   311→   311→- 4 animated stat cards with staggered framer-motion entrance
+   312→   312→- 14-day bar chart + difficulty donut chart using recharts
+   313→   313→- Scrollable recent activity list (last 20 puzzles)
+   314→   314→- Empty state handling with French message
+   315→   315→- All labels in French, color palette matches app theme
+   316→   316→- Zero existing files modified
+   317→   317→
+   318→   318→---
+   319→   319→Task ID: 3
+   320→   320→Agent: fullstack-developer (subagent)
+   321→   321→Task: Build PDF export utility for crossword puzzles
+   322→   322→
+   323→   323→Work Log:
+   324→   324→- Read existing type definitions (CrosswordPuzzleData, CrosswordCell, Clue, WordPlacement)
+   325→   325→- Read existing worklog.md for project context
+   326→   326→- Created `/src/lib/crossword/pdf-export.ts` — pure utility module (no React)
+   327→   327→- Implemented `exportPuzzleToPdf(puzzle, options?)` with withAnswers, title, showNumbers options
+   328→   328→- A4 portrait PDF via jsPDF with 20mm margins (left/right/top/bottom)
+   329→   329→- Header: bold 18pt centered title, italic 10pt description, difficulty stars + 🇫🇷 flag (top-right), thin gray separator line
+   330→   330→- Grid: dynamically sized cells (formula: `Math.min(Math.max(availableWidth/cols, 22), 36)`), centered horizontally
+   331→   331→- Black cells filled rgb(30,30,30), white cells with black border (0.2mm line width)
+   332→   332→- Clue numbers: 6pt font, positioned at cell top-left (x+1.5, y+3)
+   333→   333→- Answer letters (when withAnswers=true): bold font at cellSize*0.4, centered in cell
+   334→   334→- Clues section: two-column layout for grids with ≥8 columns, single-column otherwise
+   335→   335→- Column headings: "HORIZONTAL" and "VERTICAL" in bold 12pt
+   336→   336→- Two-column uses independent page tracking per column (ensurePage helper to reuse existing pages)
+   337→   337→- Page breaks for tall grids (row-by-row check) and clue overflow (line-by-line check)
+   338→   338→- Footer on every page: gray 8pt "Mots Croisés — mots-croisés.app" centered, page number right-aligned
+   339→   339→- All PDF text in French; difficulty labels: 1=⭐ Facile, 2=⭐⭐ Moyen, 3=⭐⭐⭐ Difficile
+   340→   340→- Saves as `mots-croises.pdf`
+   341→   341→- Type-check passes clean (tsc --noEmit)
+   342→   342→
+   343→   343→Stage Summary:
+   344→   344→- PDF export utility created at `/src/lib/crossword/pdf-export.ts`
+   345→   345→- Professional A4 layout with header, centered grid, two-column clues, footer
+   346→   346→- Supports answer reveal mode and clue number toggle
+   347→   347→- Handles multi-page grids and clue overflow with proper page breaks
+   348→   348→- Zero existing files modified
+   349→   349→
+   350→   350→---
+   351→   351→Task ID: 2
+   352→   352→Agent: fullstack-developer (subagent)
+   353→   353→Task: Add puzzle size presets to crossword generator
+   354→   354→
+   355→   355→Work Log:
+   356→   356→- Read AdminPanel.tsx (PuzzleGenerator component, lines 750-991) and generate/route.ts to understand current state
+   357→   357→- Verified Grid2X2 and LayoutGrid icons exist in lucide-react (both available)
+   358→   358→- Added Grid2X2 and LayoutGrid to lucide-react imports in AdminPanel.tsx
+   359→   359→- Added `sizePreset` state (default 'medium') and changed `wordCount` default from '12' to '11' (medium median)
+   360→   360→- Added `sizePresets` config array: small (Grid2X2, 6 words, 5-8 range), medium (Grid3X3, 11 words, 9-14 range), large (LayoutGrid, 20 words, 15-30 range)
+   361→   361→- Added `handleSizePreset` handler that updates both sizePreset and wordCount
+   362→   362→- Added size preset button group UI above the settings grid:
+   363→   363→  - 3-column button group with proper rounded corners (rounded-l-lg/rounded-r-lg)
+   364→   364→  - Selected button styled with bg-primary text-primary-foreground
+   365→   365→  - Each button shows icon, label, and word range hint
+   366→   366→  - Disabled during generation
+   367→   367→- Updated word count selector: expanded from 4 fixed options to full 5-30 range
+   368→   368→- Added dynamic range hint below word count showing current preset's range
+   369→   369→- Added `size: sizePreset` to the API request body
+   370→   370→- Updated GenerateRequest interface in route.ts with `size?: 'small' | 'medium' | 'large'`
+   371→   371→- Added `sizeWordHints` lookup (small: 4-6, medium: 4-7, large: 5-10 letters by difficulty)
+   372→   372→- Added `sizeTargetSizes` lookup (small: 12, medium: 20, large: 30)
+   373→   373→- Updated `generateWordsWithLLM` to accept size parameter and use size-specific word length hints in LLM prompt
+   374→   374→- Updated `placeWords` call to pass `targetSize` based on size preset
+   375→   375→- Added `size = 'medium'` to POST handler destructuring
+   376→   376→- Type-check passes clean (no errors in modified files)
+   377→   377→
+   378→   378→Stage Summary:
+   379→   379→- Size preset button group (Petit/Moyen/Grand) added above settings grid in PuzzleGenerator
+   380→   380→- Selecting a preset auto-sets word count to median of its range
+   381→   381→- Word count remains manually adjustable (full 5-30 range) with range hint shown
+   382→   382→- API accepts `size` parameter and adjusts LLM word-length hints and grid targetSize accordingly
+   383→   383→- Small puzzles target 12×12 grid with shorter words, large puzzles target 30×30 with longer words
+   384→   384→- All labels in French, zero breaking changes
+   385→   385→
+   386→   386→---
+   387→   387→Task ID: 4
+   388→   388→Agent: Main Coordinator
+   389→   389→Task: Wire StatsPanel + PDF export into main page, browser verification
+   390→   390→
+   391→   391→Work Log:
+   392→   392→- Added imports: BarChart3, Download, FileText (lucide-react), StatsPanel component, exportPuzzleToPdf utility
+   393→   393→- Added `statsOpen` state to Home component
+   394→   394→- Added Statistics button (BarChart3 icon) in selection view header, visible only when streakData.length > 0
+   395→   395→- Added PDF export buttons ("PDF" with Download icon, "PDF + Réponses" with FileText icon) in playing view action bar
+   396→   396→- Added PDF quick-export button in playing view top bar (header)
+   397→   397→- Added StatsPanel dialog component at bottom of page alongside AdminPanel
+   398→   398→- Verified via Agent Browser:
+   399→   399→  - Selection view loads correctly with puzzle cards and collections
+   400→   400→  - Playing view shows grid, clues, PDF buttons (e1=header PDF, e10=action bar PDF, e11=action bar PDF+Réponses)
+   401→   401→  - PDF export triggers without errors (no console errors)
+   402→   402→  - Stats button appears when streakData has entries
+   403→   403→  - Stats panel dialog opens with all sections: stat cards, charts, recent activity
+   404→   404→  - VLM analysis confirmed clean professional layout with correct stat values
+   405→   405→  - Generator tab shows size preset buttons: "Petit 5-8 mots", "Moyen 9-14 mots", "Grand 15-30 mots"
+   406→   406→- Clean ESLint pass
+   407→   407→- Zero console errors throughout testing
+   408→   408→
+   409→   409→Stage Summary:
+   410→   410→- All three features (Stats, PDF Export, Size Presets) fully integrated and verified
+   411→   411→- Statistics panel accessible from header when user has completion data
+   412→   412→- PDF export available both in top bar and action bar of playing view
+   413→   413→- Size presets (Petit/Moyen/Grand) functional in admin generator tab
+   414→   414→- Zero errors in dev server log and browser console
+   415→   415→
+   416→   416→---
+   417→   417→Task ID: 5
+   418→   418→Agent: fullstack-developer (subagent)
+   419→   419→Task: Add explicit grid size presets (5×5, 10×10, etc.) to generator and puzzle editor
+   420→   420→
+   421→   421→Work Log:
+   422→   422→- Read AdminPanel.tsx PuzzleGenerator sub-component (lines 750-1045) to understand current abstract size presets (Petit/Moyen/Grand)
+   423→   423→- Read PuzzleEditor.tsx grid resize controls (lines 529-545, 934-993) to understand current manual row/col inputs
+   424→   424→- Read generate/route.ts to understand current `size` parameter and `targetSize` derivation
+   425→   425→- Read placement.ts to understand `placeWords(rawWords, targetSize)` signature
+   426→   426→
+   427→   427→**AdminPanel.tsx (PuzzleGenerator):**
+   428→   428→- Replaced `sizePreset` state ('small'|'medium'|'large') with `gridSizePreset` state ('10x10' default)
+   429→   429→- Replaced `sizePresets` array (3 abstract presets) with `gridSizePresets` array (6 explicit presets: 5×5, 8×8, 10×10, 13×13, 15×15, 20×20)
+   430→   430→- Each preset has: id, label, icon (Grid2X2/Grid3X3/LayoutGrid), default word count, word range hint
+   431→   431→- Replaced `handleSizePreset` with `handleGridSizePreset` — updates preset + auto-sets word count
+   432→   432→- Replaced 3-column button group with flex-wrap pill-style button grid (rounded-lg, icon + label)
+   433→   433→- Updated API request body: sends `gridSize: { rows, cols }` instead of `size: 'small'|'medium'|'large'`
+   434→   434→- Updated word count range hint to reference `gridSizePresets`
+   435→   435→
+   436→   436→**PuzzleEditor.tsx:**
+   437→   437→- Added Grid2X2, Grid3X3, LayoutGrid to lucide-react imports
+   438→   438→- Added module-level `gridSizePresets` constant (same 6 sizes as generator)
+   439→   439→- Refactored `handleResizeGrid` into `applyGridSize(rows, cols)` + thin `handleResizeGrid` wrapper
+   440→   440→- Added `handlePresetGridSize(presetId)` that parses 'NxN' and calls `applyGridSize`
+   441→   441→- Restructured toolbar: first row has preset pills (with active state when matching current rows/cols) + manual inputs + Appliquer button, second row has action buttons (Grille vide, Effacer tout, Sauvegarder)
+   442→   442→- Active preset highlighted with bg-primary text-primary-foreground
+   443→   443→
+   444→   444→**generate/route.ts:**
+   445→   445→- Added `gridSize?: { rows: number; cols: number }` to `GenerateRequest` interface (kept `size` as @deprecated)
+   446→   446→- Added `getWordLengthHint(gridSize, difficulty, language)` — returns appropriate word length range based on max grid dimension (5 tiers: ≤5, ≤8, ≤10, ≤13, >13)
+   447→   447→- Added `getTargetSizeFromGrid(gridSize)` — returns `Math.max(rows, cols)` for placement algorithm
+   448→   448→- Updated `generateWordsWithLLM` signature to accept both `gridSize` and `size` parameters
+   449→   449→- When `gridSize` is provided, uses `getWordLengthHint` for LLM prompt; otherwise falls back to legacy `size` lookup
+   450→   450→- Added `gridSize = undefined` to POST handler destructuring with validation (clamps 3-25)
+   451→   451→- Updated placement: uses `getTargetSizeFromGrid(gridSize)` when available, else legacy `sizeTargetSizes`
+   452→   452→- Updated LLM call to pass both `gridSize` and `size` parameters
+   453→   453→
+   454→   454→- Type-check passes clean (zero errors in modified files, pre-existing errors in unrelated files unchanged)
+   455→   455→- ESLint passes clean for all 3 modified files
+   456→   456→
+   457→   457→Stage Summary:
+   458→   458→- Generator tab now shows 6 explicit grid size presets: 5×5, 8×8, 10×10, 13×13, 15×15, 20×20
+   459→   459→- Puzzle editor toolbar shows matching 6 preset pills with active state highlighting
+   460→   460→- API accepts `gridSize: { rows, cols }` and derives word length hints + placement target from actual dimensions
+   461→   461→- Backward compatible: legacy `size` parameter still works as fallback
+   462→   462→- All labels in French, zero breaking changes to other components
+   463→   463→

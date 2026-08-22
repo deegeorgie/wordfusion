@@ -23,6 +23,7 @@ import {
   BarChart3,
   Download,
   FileText,
+  Award,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -51,7 +52,10 @@ import {
 
 import AdminPanel from '@/components/crossword/AdminPanel';
 import { StatsPanel } from '@/components/crossword/StatsPanel';
+import { BadgePanel } from '@/components/crossword/BadgePanel';
+import { BadgeNotification } from '@/components/crossword/BadgeNotification';
 import { exportPuzzleToPdf } from '@/lib/crossword/pdf-export';
+import { evaluateBadges, getNewBadges, type EarnedBadge } from '@/lib/crossword/badges';
 import { cn } from '@/lib/utils';
 import type {
   CrosswordPuzzleData,
@@ -254,6 +258,9 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
   const [adminOpen, setAdminOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const [badgesOpen, setBadgesOpen] = useState(false);
+  const [newBadge, setNewBadge] = useState<EarnedBadge | null>(null);
+  const [earnedBadgeIds, setEarnedBadgeIds] = useState<Set<string>>(new Set());
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
@@ -321,7 +328,13 @@ export default function Home() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('crossword-streak-data');
-      if (raw) setStreakData(JSON.parse(raw));
+      if (raw) {
+        const data = JSON.parse(raw);
+        setStreakData(data);
+        // Pre-compute already-earned badge IDs
+        const earned = evaluateBadges(data);
+        setEarnedBadgeIds(new Set(earned.map((b) => b.id)));
+      }
     } catch {}
   }, []);
 
@@ -404,6 +417,20 @@ export default function Home() {
     setStreakData((prev) => {
       const updated = [...prev, entry];
       localStorage.setItem('crossword-streak-data', JSON.stringify(updated));
+
+      // Check for newly earned badges
+      const previouslyEarned = Array.from(earnedBadgeIds);
+      const newBadges = getNewBadges(updated, previouslyEarned);
+      if (newBadges.length > 0) {
+        setEarnedBadgeIds((prev) => {
+          const next = new Set(prev);
+          for (const b of newBadges) next.add(b.id);
+          return next;
+        });
+        // Show the first new badge as notification
+        setNewBadge(newBadges[0]);
+      }
+
       return updated;
     });
   }, [isCompleted]);
@@ -803,15 +830,31 @@ export default function Home() {
               )}
               <div className="flex items-center gap-1">
                 {streakData.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                    onClick={() => setStatsOpen(true)}
-                  >
-                    <BarChart3 className="size-3.5" />
-                    <span className="hidden sm:inline">Statistiques</span>
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                      onClick={() => setStatsOpen(true)}
+                    >
+                      <BarChart3 className="size-3.5" />
+                      <span className="hidden sm:inline">Statistiques</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground hover:text-foreground gap-1.5 relative"
+                      onClick={() => setBadgesOpen(true)}
+                    >
+                      <Award className="size-3.5" />
+                      <span className="hidden sm:inline">Badges</span>
+                      {earnedBadgeIds.size > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white px-1">
+                          {earnedBadgeIds.size}
+                        </span>
+                      )}
+                    </Button>
+                  </>
                 )}
                 <Button
                   variant="ghost"
@@ -1368,6 +1411,12 @@ export default function Home() {
 
       {/* ── Stats Panel Dialog ────────────────────────────────── */}
       <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />
+
+      {/* ── Badge Panel Dialog ────────────────────────────────── */}
+      <BadgePanel open={badgesOpen} onOpenChange={setBadgesOpen} />
+
+      {/* ── Badge Notification ────────────────────────────────── */}
+      <BadgeNotification badge={newBadge} onDismiss={() => setNewBadge(null)} />
     </div>
   );
 }

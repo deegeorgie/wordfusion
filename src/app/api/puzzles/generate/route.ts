@@ -13,6 +13,8 @@ interface GenerateRequest {
   categoryId?: string | null;
   packId?: string | null;
   wordCount?: number;
+  gridSize?: { rows: number; cols: number };
+  /** @deprecated Use gridSize instead */
   size?: 'small' | 'medium' | 'large';
   autoPublish?: boolean;
 }
@@ -31,26 +33,49 @@ const sizeTargetSizes: Record<string, number> = {
   large: 30,
 };
 
+function getWordLengthHint(gridSize: { rows: number; cols: number }, difficulty: number, language: 'fr' | 'en'): string {
+  const maxDim = Math.max(gridSize.rows, gridSize.cols);
+  if (language === 'en') {
+    if (maxDim <= 5) return difficulty === 1 ? '3-4 letters' : difficulty === 2 ? '3-5 letters' : '3-5 letters';
+    if (maxDim <= 8) return difficulty === 1 ? '3-5 letters' : difficulty === 2 ? '4-6 letters' : '4-7 letters';
+    if (maxDim <= 10) return difficulty === 1 ? '4-7 letters' : difficulty === 2 ? '5-9 letters' : '6-11 letters';
+    if (maxDim <= 13) return difficulty === 1 ? '5-8 letters' : difficulty === 2 ? '5-10 letters' : '6-12 letters';
+    return difficulty === 1 ? '5-10 letters' : difficulty === 2 ? '6-11 letters' : '7-14 letters';
+  }
+  if (maxDim <= 5) return difficulty === 1 ? '3-4 lettres' : difficulty === 2 ? '3-5 lettres' : '3-5 lettres';
+  if (maxDim <= 8) return difficulty === 1 ? '3-5 lettres' : difficulty === 2 ? '4-6 lettres' : '4-7 lettres';
+  if (maxDim <= 10) return difficulty === 1 ? '4-7 lettres' : difficulty === 2 ? '5-9 lettres' : '6-11 lettres';
+  if (maxDim <= 13) return difficulty === 1 ? '5-8 lettres' : difficulty === 2 ? '5-10 lettres' : '6-12 lettres';
+  return difficulty === 1 ? '5-10 lettres' : difficulty === 2 ? '6-11 lettres' : '7-14 lettres';
+}
+
+function getTargetSizeFromGrid(gridSize: { rows: number; cols: number }): number {
+  return Math.max(gridSize.rows, gridSize.cols);
+}
+
 async function generateWordsWithLLM(
   theme: string,
   language: 'fr' | 'en',
   difficulty: number,
   wordCount: number,
+  gridSize?: { rows: number; cols: number },
   size?: 'small' | 'medium' | 'large',
 ): Promise<{ word: string; clue: string }[]> {
   const zai = await ZAI.create();
 
-  const sizeKey = size || 'medium';
-  const frSizeMap = sizeWordHints[sizeKey];
-  const enSizeMap: Record<number, string> = {
-    1: sizeKey === 'small' ? '3-5 letters' : sizeKey === 'large' ? '5-8 letters' : '4-7 letters',
-    2: sizeKey === 'small' ? '4-6 letters' : sizeKey === 'large' ? '5-10 letters' : '5-9 letters',
-    3: sizeKey === 'small' ? '4-6 letters' : sizeKey === 'large' ? '5-10 letters' : '6-12 letters',
-  };
-
-  const sizeDesc = language === 'en'
-    ? enSizeMap[difficulty]
-    : frSizeMap[difficulty];
+  let sizeDesc: string;
+  if (gridSize) {
+    sizeDesc = getWordLengthHint(gridSize, difficulty, language);
+  } else {
+    const sizeKey = size || 'medium';
+    const frSizeMap = sizeWordHints[sizeKey];
+    const enSizeMap: Record<number, string> = {
+      1: sizeKey === 'small' ? '3-5 letters' : sizeKey === 'large' ? '5-8 letters' : '4-7 letters',
+      2: sizeKey === 'small' ? '4-6 letters' : sizeKey === 'large' ? '5-10 letters' : '5-9 letters',
+      3: sizeKey === 'small' ? '4-6 letters' : sizeKey === 'large' ? '5-10 letters' : '6-12 letters',
+    };
+    sizeDesc = language === 'en' ? enSizeMap[difficulty] : frSizeMap[difficulty];
+  }
 
   const instructions = language === 'fr'
     ? `Tu es un créateur expert de mots croisés français. Génère exactement ${wordCount} mots et leurs indices pour un puzzle de mots croisés sur le thème "${theme}".
@@ -138,9 +163,19 @@ export async function POST(request: NextRequest) {
       categoryId = null,
       packId = null,
       wordCount = 12,
+      gridSize = undefined,
       size = 'medium',
       autoPublish = false,
     } = body;
+
+    // Validate gridSize
+    if (gridSize) {
+      if (typeof gridSize.rows !== 'number' || typeof gridSize.cols !== 'number') {
+        return NextResponse.json({ error: 'Format de grille invalide' }, { status: 400 });
+      }
+      gridSize.rows = Math.max(3, Math.min(25, gridSize.rows));
+      gridSize.cols = Math.max(3, Math.min(25, gridSize.cols));
+    }
 
     if (!['fr', 'en'].includes(language)) {
       return NextResponse.json({ error: 'Langue invalide' }, { status: 400 });
@@ -168,7 +203,7 @@ export async function POST(request: NextRequest) {
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        rawWords = await generateWordsWithLLM(theme, language, difficulty, wordCount, size);
+        rawWords = await generateWordsWithLLM(theme, language, difficulty, wordCount, gridSize, size);
         if (rawWords.length >= 5) break;
         lastError = `Only ${rawWords.length} valid words generated`;
       } catch (err) {
@@ -184,7 +219,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 2: Place words into crossword grid
-    const targetSize = sizeTargetSizes[size || 'medium'];
+    let targetSize: number;
+    if (gridSize) {
+      targetSize = getTargetSizeFromGrid(gridSize);
+    } else {
+      targetSize = sizeTargetSizes[size || 'medium'];
+    }
     const placement = placeWords(rawWords as RawWord[], targetSize);
 
     if (!placement.success) {

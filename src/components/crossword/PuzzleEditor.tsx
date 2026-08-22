@@ -27,7 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
-import { Languages, FolderOpen, Package } from "lucide-react";
+import { Languages, FolderOpen, Package, Grid2X2, Grid3X3, LayoutGrid } from "lucide-react";
 
 import type {
   CrosswordCell,
@@ -70,6 +70,15 @@ interface PackOption {
 
 const noneCategory = "__none__";
 const nonePack = "__none__";
+
+const gridSizePresets = [
+  { id: '5x5', label: '5×5', icon: Grid2X2 },
+  { id: '8x8', label: '8×8', icon: Grid2X2 },
+  { id: '10x10', label: '10×10', icon: Grid3X3 },
+  { id: '13x13', label: '13×13', icon: Grid3X3 },
+  { id: '15x15', label: '15×15', icon: LayoutGrid },
+  { id: '20x20', label: '20×20', icon: LayoutGrid },
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -527,9 +536,9 @@ export default function PuzzleEditor({
   }, [selectedCell, grid, recomputeWords]);
 
   // ── Resize grid ──────────────────────────────────────────────────
-  const handleResizeGrid = useCallback(() => {
-    const r = Math.max(2, Math.min(20, rowsInput));
-    const c = Math.max(2, Math.min(20, colsInput));
+  const applyGridSize = useCallback((rows: number, cols: number) => {
+    const r = Math.max(2, Math.min(20, rows));
+    const c = Math.max(2, Math.min(20, cols));
     const newGrid = createEmptyGrid(r, c);
     // Preserve existing data
     for (let row = 0; row < Math.min(r, grid.length); row++) {
@@ -542,7 +551,16 @@ export default function PuzzleEditor({
     setGrid(newGrid);
     setSelectedCell(null);
     recomputeWords(newGrid);
-  }, [rowsInput, colsInput, grid, recomputeWords]);
+  }, [grid, recomputeWords]);
+
+  const handleResizeGrid = useCallback(() => {
+    applyGridSize(rowsInput, colsInput);
+  }, [rowsInput, colsInput, applyGridSize]);
+
+  const handlePresetGridSize = useCallback((presetId: string) => {
+    const [rows, cols] = presetId.split('x').map(Number);
+    applyGridSize(rows, cols);
+  }, [applyGridSize]);
 
   // ── Clear all ────────────────────────────────────────────────────
   const handleClearAll = useCallback(() => {
@@ -932,39 +950,61 @@ export default function PuzzleEditor({
         <Separator className="shrink-0" />
 
         {/* ── Grid size + toolbar ────────────────────────────────── */}
-        <div className="px-4 py-2 shrink-0 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <Label className="text-xs whitespace-nowrap">Lignes</Label>
-            <Input
-              type="number"
-              min={2}
-              max={20}
-              value={rowsInput}
-              onChange={(e) => setRowsInput(Number(e.target.value))}
-              className="h-7 w-14 text-sm text-center"
-            />
+        <div className="px-4 py-2 shrink-0 space-y-2">
+          {/* Grid size presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {gridSizePresets.map((preset) => {
+              const Icon = preset.icon;
+              const isActive = rowsInput === parseInt(preset.id.split('x')[0], 10) && colsInput === parseInt(preset.id.split('x')[1], 10);
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handlePresetGridSize(preset.id)}
+                  className={`flex items-center gap-1 border rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  <Icon className="size-3" />
+                  {preset.label}
+                </button>
+              );
+            })}
+            <div className="flex items-center gap-1.5 ml-auto">
+              <Label className="text-xs whitespace-nowrap">Lignes</Label>
+              <Input
+                type="number"
+                min={2}
+                max={20}
+                value={rowsInput}
+                onChange={(e) => setRowsInput(Number(e.target.value))}
+                className="h-7 w-14 text-sm text-center"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs whitespace-nowrap">Colonnes</Label>
+              <Input
+                type="number"
+                min={2}
+                max={20}
+                value={colsInput}
+                onChange={(e) => setColsInput(Number(e.target.value))}
+                className="h-7 w-14 text-sm text-center"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleResizeGrid}
+            >
+              Appliquer
+            </Button>
           </div>
+          {/* Action buttons */}
           <div className="flex items-center gap-1.5">
-            <Label className="text-xs whitespace-nowrap">Colonnes</Label>
-            <Input
-              type="number"
-              min={2}
-              max={20}
-              value={colsInput}
-              onChange={(e) => setColsInput(Number(e.target.value))}
-              className="h-7 w-14 text-sm text-center"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={handleResizeGrid}
-          >
-            Appliquer la taille
-          </Button>
-
-          <div className="ml-auto flex items-center gap-1.5">
             <Button
               variant="outline"
               size="sm"

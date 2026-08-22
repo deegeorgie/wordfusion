@@ -758,22 +758,25 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
   const [language, setLanguage] = useState('fr');
   const [difficulty, setDifficulty] = useState('1');
   const [wordCount, setWordCount] = useState('11');
-  const [sizePreset, setSizePreset] = useState<'small' | 'medium' | 'large'>('medium');
+  const [gridSizePreset, setGridSizePreset] = useState('10x10');
   const [categoryId, setCategoryId] = useState('none');
   const [packId, setPackId] = useState('none');
   const [autoPublish, setAutoPublish] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ id: string; title: string; rows: number; cols: number; wordsPlaced: number; wordsTotal: number } | null>(null);
 
-  const sizePresets = [
-    { id: 'small' as const, label: 'Petit', icon: Grid2X2, words: 6, range: '5-8', desc: 'Grille compacte' },
-    { id: 'medium' as const, label: 'Moyen', icon: Grid3X3, words: 11, range: '9-14', desc: 'Taille classique' },
-    { id: 'large' as const, label: 'Grand', icon: LayoutGrid, words: 20, range: '15-30', desc: 'Grand défi' },
+  const gridSizePresets = [
+    { id: '5x5', label: '5×5', icon: Grid2X2, words: 5, range: '3-6' },
+    { id: '8x8', label: '8×8', icon: Grid3X3, words: 8, range: '5-10' },
+    { id: '10x10', label: '10×10', icon: Grid3X3, words: 11, range: '7-14' },
+    { id: '13x13', label: '13×13', icon: LayoutGrid, words: 15, range: '9-18' },
+    { id: '15x15', label: '15×15', icon: LayoutGrid, words: 18, range: '10-22' },
+    { id: '20x20', label: '20×20', icon: LayoutGrid, words: 24, range: '15-30' },
   ];
 
-  const handleSizePreset = (size: 'small' | 'medium' | 'large') => {
-    setSizePreset(size);
-    const preset = sizePresets.find(p => p.id === size);
+  const handleGridSizePreset = (presetId: string) => {
+    setGridSizePreset(presetId);
+    const preset = gridSizePresets.find(p => p.id === presetId);
     if (preset) setWordCount(String(preset.words));
   };
 
@@ -793,7 +796,7 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
           language,
           difficulty: parseInt(difficulty, 10),
           wordCount: parseInt(wordCount, 10),
-          size: sizePreset,
+          gridSize: { rows: parseInt(gridSizePreset.split('x')[0], 10), cols: parseInt(gridSizePreset.split('x')[1], 10) },
           categoryId: categoryId !== 'none' ? categoryId : null,
           packId: packId !== 'none' ? packId : null,
           autoPublish,
@@ -847,26 +850,20 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
         </div>
       </div>
 
-      {/* Size preset buttons */}
+      {/* Grid size preset buttons */}
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground font-medium">Taille de la grille</Label>
-        <div className="flex" role="group">
-          {sizePresets.map((preset, i) => {
+        <div className="flex flex-wrap gap-1.5" role="group">
+          {gridSizePresets.map((preset) => {
             const Icon = preset.icon;
-            const isSelected = sizePreset === preset.id;
-            const isFirst = i === 0;
-            const isLast = i === sizePresets.length - 1;
+            const isSelected = gridSizePreset === preset.id;
             return (
               <button
                 key={preset.id}
                 type="button"
                 disabled={generating}
-                onClick={() => handleSizePreset(preset.id)}
-                className={`flex-1 flex flex-col items-center gap-0.5 border px-3 py-2 text-xs font-medium transition-colors ${
-                  isFirst ? 'rounded-l-lg' : ''
-                } ${
-                  isLast ? 'rounded-r-lg' : 'border-r-0'
-                } ${
+                onClick={() => handleGridSizePreset(preset.id)}
+                className={`flex items-center gap-1.5 border rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
                   isSelected
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -874,11 +871,8 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
                   generating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                 }`}
               >
-                <Icon className="size-4" />
+                <Icon className="size-3.5" />
                 <span>{preset.label}</span>
-                <span className={`text-[10px] ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                  {preset.range} mots
-                </span>
               </button>
             );
           })}
@@ -926,7 +920,7 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-[10px] text-muted-foreground">Plage : {sizePresets.find(p => p.id === sizePreset)?.range} mots</p>
+          <p className="text-[10px] text-muted-foreground">Plage : {gridSizePresets.find(p => p.id === gridSizePreset)?.range} mots</p>
         </div>
 
         <div className="space-y-1.5">
