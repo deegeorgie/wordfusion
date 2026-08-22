@@ -1136,9 +1136,16 @@ export default function Home() {
 
           {/* ── Footer ─────────────────────────────────────────── */}
           <footer className="mt-auto border-t py-4">
-            <p className="text-center text-xs text-muted-foreground">
-              Mots Croisés &mdash; Un puzzle unique chaque jour
-            </p>
+            <div className="mx-auto max-w-4xl flex flex-col items-center gap-1.5 text-[11px] text-muted-foreground">
+              <p className="font-medium">Mots Croisés &mdash; Un puzzle unique chaque jour</p>
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
+                <span>© {new Date().getFullYear()} <a href="https://deebodiong.quarto.pub" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">Georges BODIONG</a></span>
+                <span className="hidden sm:inline">·</span>
+                <a href="mailto:deebodiong@gmail.com" className="hover:text-foreground transition-colors">deebodiong@gmail.com</a>
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden sm:inline">+226 74 91 15 38</span>
+              </div>
+            </div>
           </footer>
         </div>
       )}
@@ -1344,9 +1351,16 @@ export default function Home() {
 
           {/* ── Footer ─────────────────────────────────────────── */}
           <footer className="mt-auto border-t py-3">
-            <p className="text-center text-[11px] text-muted-foreground">
-              Mots Croisés &mdash; Un puzzle unique chaque jour
-            </p>
+            <div className="mx-auto max-w-4xl flex flex-col items-center gap-1 text-[11px] text-muted-foreground">
+              <p className="font-medium">Mots Croisés &mdash; Un puzzle unique chaque jour</p>
+              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
+                <span>© {new Date().getFullYear()} <a href="https://deebodiong.quarto.pub" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">Georges BODIONG</a></span>
+                <span className="hidden sm:inline">·</span>
+                <a href="mailto:deebodiong@gmail.com" className="hover:text-foreground transition-colors">deebodiong@gmail.com</a>
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden sm:inline">+226 74 91 15 38</span>
+              </div>
+            </div>
           </footer>
 
           {/* ── Completion celebration ─────────────────────────── */}

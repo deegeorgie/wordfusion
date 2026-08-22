@@ -1,0 +1,1423 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect, useCallback, useMemo } from 'react';
+     4→import { motion } from 'framer-motion';
+     5→import { toast } from 'sonner';
+     6→import {
+     7→  ArrowLeft,
+     8→  Clock,
+     9→  CheckCircle2,
+    10→  Eye,
+    11→  Trash2,
+    12→  Trophy,
+    13→  Star,
+    14→  Grid3X3,
+    15→  Play,
+    16→  Lightbulb,
+    17→  Settings,
+    18→  Globe,
+    19→  FolderOpen,
+    20→  Layers,
+    21→  Package,
+    22→  Share2,
+    23→  BarChart3,
+    24→  Download,
+    25→  FileText,
+    26→  Award,
+    27→} from 'lucide-react';
+    28→
+    29→import CrosswordGrid from '@/components/crossword/CrosswordGrid';
+    30→import ClueList from '@/components/crossword/ClueList';
+    31→import { Button } from '@/components/ui/button';
+    32→import {
+    33→  Card,
+    34→  CardHeader,
+    35→  CardTitle,
+    36→  CardDescription,
+    37→  CardContent,
+    38→  CardAction,
+    39→} from '@/components/ui/card';
+    40→import { Badge } from '@/components/ui/badge';
+    41→import { Skeleton } from '@/components/ui/skeleton';
+    42→import { Separator } from '@/components/ui/separator';
+    43→import { Switch } from '@/components/ui/switch';
+    44→import { Label } from '@/components/ui/label';
+    45→import {
+    46→  Select,
+    47→  SelectContent,
+    48→  SelectItem,
+    49→  SelectTrigger,
+    50→  SelectValue,
+    51→} from '@/components/ui/select';
+    52→
+    53→import AdminPanel from '@/components/crossword/AdminPanel';
+    54→import { StatsPanel } from '@/components/crossword/StatsPanel';
+    55→import { BadgePanel } from '@/components/crossword/BadgePanel';
+    56→import { BadgeNotification } from '@/components/crossword/BadgeNotification';
+    57→import { exportPuzzleToPdf } from '@/lib/crossword/pdf-export';
+    58→import { evaluateBadges, getNewBadges, type EarnedBadge } from '@/lib/crossword/badges';
+    59→import { cn } from '@/lib/utils';
+    60→import type {
+    61→  CrosswordPuzzleData,
+    62→  WordPlacement,
+    63→  Clue,
+    64→} from '@/lib/crossword/types';
+    65→
+    66→// ── Types ───────────────────────────────────────────────────────────────
+    67→
+    68→interface CategoryInfo {
+    69→  id: string;
+    70→  name: string;
+    71→  slug: string;
+    72→  language: string;
+    73→}
+    74→
+    75→interface PuzzleSummary {
+    76→  id: string;
+    77→  title: string;
+    78→  difficulty: number;
+    79→  description?: string;
+    80→  rows: number;
+    81→  cols: number;
+    82→  publishDate: string;
+    83→  language: string;
+    84→  categoryId?: string | null;
+    85→  categoryName?: string | null;
+    86→  categoryIcon?: string | null;
+    87→  packId?: string | null;
+    88→  packName?: string | null;
+    89→  packIcon?: string | null;
+    90→  completed?: boolean;
+    91→  timeSpent?: number;
+    92→}
+    93→
+    94→interface PackInfo {
+    95→  id: string;
+    96→  name: string;
+    97→  description?: string;
+    98→  icon?: string;
+    99→  language: string;
+   100→  _count: { puzzles: number };
+   101→}
+   102→
+   103→interface StreakCompletion {
+   104→  date: string;
+   105→  puzzleId: string;
+   106→  time: number;
+   107→  difficulty: number;
+   108→  title: string;
+   109→  language: string;
+   110→}
+   111→
+   112→// ── Helpers ─────────────────────────────────────────────────────────────
+   113→
+   114→function toCellKey(row: number, col: number): string {
+   115→  return `${row},${col}`;
+   116→}
+   117→
+   118→function clueKey(number: number, direction: 'across' | 'down'): string {
+   119→  return `${number}-${direction}`;
+   120→}
+   121→
+   122→function formatFrenchDate(): string {
+   123→  return new Date().toLocaleDateString('fr-FR', {
+   124→    weekday: 'long',
+   125→    year: 'numeric',
+   126→    month: 'long',
+   127→    day: 'numeric',
+   128→  });
+   129→}
+   130→
+   131→function formatTimer(seconds: number): string {
+   132→  const m = Math.floor(seconds / 60);
+   133→  const s = seconds % 60;
+   134→  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+   135→}
+   136→
+   137→function difficultyLabel(d: number): string {
+   138→  if (d <= 1) return 'Facile';
+   139→  if (d <= 2) return 'Moyen';
+   140→  if (d <= 3) return 'Difficile';
+   141→  return 'Expert';
+   142→}
+   143→
+   144→function difficultyColor(d: number): string {
+   145→  if (d <= 1) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
+   146→  if (d <= 2) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400';
+   147→  if (d <= 3) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400';
+   148→  return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400';
+   149→}
+   150→
+   151→function languageFlag(lang: string): string {
+   152→  return lang === 'en' ? '🇬🇧' : '🇫🇷';
+   153→}
+   154→
+   155→function languageName(lang: string): string {
+   156→  return lang === 'en' ? 'English' : 'Français';
+   157→}
+   158→
+   159→// ── Streak Heatmap ──────────────────────────────────────────────
+   160→
+   161→function StreakHeatmap({ streakData }: { streakData: StreakCompletion[] }) {
+   162→  const days = useMemo(() => {
+   163→    const today = new Date();
+   164→    const result: { date: string; completed: boolean; count: number }[] = [];
+   165→    for (let i = 29; i >= 0; i--) {
+   166→      const d = new Date(today);
+   167→      d.setDate(d.getDate() - i);
+   168→      const dateStr = d.toISOString().slice(0, 10);
+   169→      const completions = streakData.filter((c) => c.date === dateStr);
+   170→      result.push({
+   171→        date: dateStr,
+   172→        completed: completions.length > 0,
+   173→        count: completions.length,
+   174→      });
+   175→    }
+   176→    return result;
+   177→  }, [streakData]);
+   178→
+   179→  if (streakData.length === 0) return null;
+   180→
+   181→  return (
+   182→    <div className="flex flex-wrap gap-1">
+   183→      {days.map((day) => (
+   184→        <div
+   185→          key={day.date}
+   186→          title={`${day.date}${day.completed ? ` — ${day.count} puzzle${day.count > 1 ? 's' : ''}` : ''}`}
+   187→          className={cn(
+   188→            'h-5 w-5 rounded-sm transition-colors',
+   189→            day.completed
+   190→              ? 'bg-emerald-500 dark:bg-emerald-400'
+   191→              : day.date <= new Date().toISOString().slice(0, 10)
+   192→                ? 'bg-muted'
+   193→                : 'bg-transparent',
+   194→          )}
+   195→        />
+   196→      ))}
+   197→    </div>
+   198→  );
+   199→}
+   200→
+   201→// ── Confetti overlay ────────────────────────────────────────────────────
+   202→
+   203→function ConfettiOverlay() {
+   204→  const particles = useMemo(() => {
+   205→    const colors = ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+   206→    return Array.from({ length: 50 }, (_, i) => ({
+   207→      id: i,
+   208→      x: Math.random() * 100,
+   209→      y: Math.random() * -50 - 10,
+   210→      color: colors[i % colors.length],
+   211→      size: Math.random() * 8 + 4,
+   212→      delay: Math.random() * 1.2,
+   213→      duration: Math.random() * 2 + 2.5,
+   214→    }));
+   215→  }, []);
+   216→
+   217→  return (
+   218→    <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden">
+   219→      {particles.map((p) => (
+   220→        <motion.div
+   221→          key={p.id}
+   222→          initial={{ x: `${p.x}vw`, y: `${p.y}vh`, opacity: 1, scale: 1 }}
+   223→          animate={{ y: '110vh', opacity: 0, rotate: 540 }}
+   224→          transition={{ duration: p.duration, delay: p.delay, ease: 'easeIn' }}
+   225→          className="absolute rounded-sm"
+   226→          style={{ width: p.size, height: p.size, backgroundColor: p.color }}
+   227→        />
+   228→      ))}
+   229→    </div>
+   230→  );
+   231→}
+   232→
+   233→// ── Puzzle card skeleton ────────────────────────────────────────────────
+   234→
+   235→function PuzzleCardSkeleton() {
+   236→  return (
+   237→    <Card className="py-5">
+   238→      <CardHeader className="gap-1.5 px-5">
+   239→        <Skeleton className="h-5 w-3/4" />
+   240→        <Skeleton className="h-4 w-1/2" />
+   241→      </CardHeader>
+   242→      <CardContent className="px-5">
+   243→        <div className="flex items-center justify-between">
+   244→          <Skeleton className="h-6 w-16 rounded-full" />
+   245→          <Skeleton className="h-8 w-20 rounded-md" />
+   246→        </div>
+   247→      </CardContent>
+   248→    </Card>
+   249→  );
+   250→}
+   251→
+   252→// ════════════════════════════════════════════════════════════════════════
+   253→// MAIN PAGE
+   254→// ════════════════════════════════════════════════════════════════════════
+   255→
+   256→export default function Home() {
+   257→  // ── View state ──────────────────────────────────────────────────────
+   258→  const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
+   259→  const [adminOpen, setAdminOpen] = useState(false);
+   260→  const [statsOpen, setStatsOpen] = useState(false);
+   261→  const [badgesOpen, setBadgesOpen] = useState(false);
+   262→  const [newBadge, setNewBadge] = useState<EarnedBadge | null>(null);
+   263→  const [earnedBadgeIds, setEarnedBadgeIds] = useState<Set<string>>(new Set());
+   264→  const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
+   265→  const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
+   266→
+   267→  // ── Language + Category + Pack filter state ────────────────────────
+   268→  const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
+   269→  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+   270→  const [selectedPack, setSelectedPack] = useState<string>('all');
+   271→  const [categories, setCategories] = useState<CategoryInfo[]>([]);
+   272→  const [packs, setPacks] = useState<PackInfo[]>([]);
+   273→
+   274→  // ── Puzzle data ─────────────────────────────────────────────────────
+   275→  const [selectedPuzzle, setSelectedPuzzle] = useState<CrosswordPuzzleData | null>(null);
+   276→  const [puzzleId, setPuzzleId] = useState<string | null>(null);
+   277→  const [userInputs, setUserInputs] = useState<(string | null)[][]>([]);
+   278→  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+   279→  const [direction, setDirection] = useState<'across' | 'down'>('across');
+   280→  const [activeClueNumber, setActiveClueNumber] = useState<number | null>(null);
+   281→  const [activeClueDirection, setActiveClueDirection] = useState<'across' | 'down'>('across');
+   282→
+   283→  // ── Cell status ─────────────────────────────────────────────────────
+   284→  const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
+   285→  const [correctCellsManual, setCorrectCellsManual] = useState<Set<string>>(new Set());
+   286→  const [incorrectCellsManual, setIncorrectCellsManual] = useState<Set<string>>(new Set());
+   287→  const [completedClues, setCompletedClues] = useState<Set<string>>(new Set());
+   288→  const [autoCheck, setAutoCheck] = useState(true); // Real-time letter validation
+   289→
+   290→  // ── Timer / completion ──────────────────────────────────────────────
+   291→  const [timer, setTimer] = useState(0);
+   292→  const [isTimerRunning, setIsTimerRunning] = useState(false);
+   293→  const [isCompleted, setIsCompleted] = useState(false);
+   294→  const [isChecking, setIsChecking] = useState(false);
+   295→  const [isLoadingPuzzle, setIsLoadingPuzzle] = useState(false);
+   296→
+   297→  // ── Streak ──────────────────────────────────────────────────────────
+   298→  const [streakData, setStreakData] = useState<StreakCompletion[]>([]);
+   299→
+   300→  // ── Timer interval ──────────────────────────────────────────────────
+   301→  useEffect(() => {
+   302→    if (!isTimerRunning) return;
+   303→    const id = setInterval(() => setTimer((t) => t + 1), 1000);
+   304→    return () => clearInterval(id);
+   305→  }, [isTimerRunning]);
+   306→
+   307→  // ── Load categories on mount ────────────────────────────────────────
+   308→  useEffect(() => {
+   309→    fetch('/api/categories')
+   310→      .then((res) => res.json())
+   311→      .then((data) => {
+   312→        setCategories(data.categories ?? []);
+   313→      })
+   314→      .catch(() => {});
+   315→  }, []);
+   316→
+   317→  // ── Load packs on mount ────────────────────────────────────────────
+   318→  useEffect(() => {
+   319→    fetch('/api/packs')
+   320→      .then((res) => res.json())
+   321→      .then((data) => {
+   322→        setPacks(data.packs ?? []);
+   323→      })
+   324→      .catch(() => {});
+   325→  }, []);
+   326→
+   327→  // ── Load streak data from localStorage ──────────────────────────────
+   328→  useEffect(() => {
+   329→    try {
+   330→      const raw = localStorage.getItem('crossword-streak-data');
+   331→      if (raw) {
+   332→        const data = JSON.parse(raw);
+   333→        setStreakData(data);
+   334→        // Pre-compute already-earned badge IDs
+   335→        const earned = evaluateBadges(data);
+   336→        setEarnedBadgeIds(new Set(earned.map((b) => b.id)));
+   337→      }
+   338→    } catch {}
+   339→  }, []);
+   340→
+   341→  // ── Load daily puzzles on mount / filter change ────────────────────
+   342→  useEffect(() => {
+   343→    let cancelled = false;
+   344→    (async () => {
+   345→      setIsLoadingPuzzles(true);
+   346→      try {
+   347→        const params = new URLSearchParams();
+   348→        if (selectedLanguage !== 'all') params.set('language', selectedLanguage);
+   349→        const query = params.toString() ? `?${params.toString()}` : '';
+   350→        const res = await fetch(`/api/puzzles/daily${query}`);
+   351→        if (!res.ok) throw new Error();
+   352→        const data = await res.json();
+   353→        if (!cancelled) setDailyPuzzles(data.puzzles ?? []);
+   354→      } catch {
+   355→        if (!cancelled) toast.error('Impossible de charger les puzzles du jour');
+   356→      } finally {
+   357→        if (!cancelled) setIsLoadingPuzzles(false);
+   358→      }
+   359→    })();
+   360→    return () => { cancelled = true; };
+   361→  }, [selectedLanguage]);
+   362→
+   363→  // ── Filter puzzles by category and pack on client side ──────────────
+   364→  const filteredPuzzles = useMemo(() => {
+   365→    let puzzles = dailyPuzzles;
+   366→    if (selectedCategory !== 'all') {
+   367→      puzzles = puzzles.filter((p) => p.categoryId === selectedCategory);
+   368→    }
+   369→    if (selectedPack !== 'all') {
+   370→      puzzles = puzzles.filter((p) => p.packId === selectedPack);
+   371→    }
+   372→    return puzzles;
+   373→  }, [dailyPuzzles, selectedCategory, selectedPack]);
+   374→
+   375→  // ── Available categories for filter (based on loaded puzzles) ────────
+   376→  const activeCategoryIds = useMemo(() => {
+   377→    const ids = new Set<string>();
+   378→    for (const p of dailyPuzzles) {
+   379→      if (p.categoryId) ids.add(p.categoryId);
+   380→    }
+   381→    return ids;
+   382→  }, [dailyPuzzles]);
+   383→
+   384→  // ── Calculate daily streak ───────────────────────────────────────────
+   385→  const streak = useMemo(() => {
+   386→    if (streakData.length === 0) return 0;
+   387→    const dates = [...new Set(streakData.map((c) => c.date))].sort().reverse();
+   388→    if (dates.length === 0) return 0;
+   389→
+   390→    const today = new Date().toISOString().slice(0, 10);
+   391→    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+   392→
+   393→    if (dates[0] !== today && dates[0] !== yesterday) return 0;
+   394→
+   395→    let count = 1;
+   396→    for (let i = 1; i < dates.length; i++) {
+   397→      const prev = new Date(dates[i - 1]);
+   398→      const curr = new Date(dates[i]);
+   399→      const diff = (prev.getTime() - curr.getTime()) / 86400000;
+   400→      if (diff === 1) count++;
+   401→      else break;
+   402→    }
+   403→    return count;
+   404→  }, [streakData]);
+   405→
+   406→  // ── Save streak on puzzle completion ─────────────────────────────────
+   407→  useEffect(() => {
+   408→    if (!isCompleted || !selectedPuzzle || !puzzleId) return;
+   409→    const entry: StreakCompletion = {
+   410→      date: new Date().toISOString().slice(0, 10),
+   411→      puzzleId,
+   412→      time: timer,
+   413→      difficulty: selectedPuzzle.difficulty,
+   414→      title: selectedPuzzle.title,
+   415→      language: dailyPuzzles.find((p) => p.id === puzzleId)?.language || 'fr',
+   416→    };
+   417→    setStreakData((prev) => {
+   418→      const updated = [...prev, entry];
+   419→      localStorage.setItem('crossword-streak-data', JSON.stringify(updated));
+   420→
+   421→      // Check for newly earned badges
+   422→      const previouslyEarned = Array.from(earnedBadgeIds);
+   423→      const newBadges = getNewBadges(updated, previouslyEarned);
+   424→      if (newBadges.length > 0) {
+   425→        setEarnedBadgeIds((prev) => {
+   426→          const next = new Set(prev);
+   427→          for (const b of newBadges) next.add(b.id);
+   428→          return next;
+   429→        });
+   430→        // Show the first new badge as notification
+   431→        setNewBadge(newBadges[0]);
+   432→      }
+   433→
+   434→      return updated;
+   435→    });
+   436→  }, [isCompleted]);
+   437→
+   438→  // ── Fetch a specific puzzle ─────────────────────────────────────────
+   439→  const fetchPuzzle = useCallback(async (id: string) => {
+   440→    setIsLoadingPuzzle(true);
+   441→    setCurrentView('playing');
+   442→    try {
+   443→      const res = await fetch(`/api/puzzles/${id}`);
+   444→      if (!res.ok) throw new Error();
+   445→      const data = await res.json();
+   446→      const puzzle: CrosswordPuzzleData = data.puzzle;
+   447→
+   448→      const inputs: (string | null)[][] = Array.from({ length: puzzle.rows }, () =>
+   449→        Array.from<null>({ length: puzzle.cols }).fill(null),
+   450→      );
+   451→
+   452→      // Restore saved progress
+   453→      if (data.progress?.cells) {
+   454→        for (const cell of data.progress.cells) {
+   455→          const { row, col, letter } = cell as { row: number; col: number; letter: string };
+   456→          if (row >= 0 && row < puzzle.rows && col >= 0 && col < puzzle.cols) {
+   457→            inputs[row][col] = letter;
+   458→          }
+   459→        }
+   460→      }
+   461→
+   462→      setSelectedPuzzle(puzzle);
+   463→      setPuzzleId(id);
+   464→      setUserInputs(inputs);
+   465→      setSelectedCell(null);
+   466→      setDirection('across');
+   467→      setActiveClueNumber(null);
+   468→      setActiveClueDirection('across');
+   469→      setRevealedCells(new Set());
+   470→      setCorrectCellsManual(new Set());
+   471→      setIncorrectCellsManual(new Set());
+   472→      setCompletedClues(new Set());
+   473→      setTimer(0);
+   474→      setIsTimerRunning(false);
+   475→      setIsCompleted(false);
+   476→      setIsChecking(false);
+   477→    } catch {
+   478→      toast.error('Impossible de charger le puzzle');
+   479→      setCurrentView('selection');
+   480→    } finally {
+   481→      setIsLoadingPuzzle(false);
+   482→    }
+   483→  }, []);
+   484→
+   485→  // ── Get active word cells for highlighting ──────────────────────────
+   486→  const getActiveWordCells = useCallback(
+   487→    (row: number, col: number, dir: 'across' | 'down') => {
+   488→      if (!selectedPuzzle) return [];
+   489→      const word = selectedPuzzle.words.find((w: WordPlacement) => {
+   490→        if (w.direction !== dir) return false;
+   491→        return dir === 'across'
+   492→          ? w.row === row && col >= w.col && col < w.col + w.length
+   493→          : w.col === col && row >= w.row && row < w.row + w.length;
+   494→      });
+   495→      if (!word) return [];
+   496→      return Array.from({ length: word.length }, (_, i) => ({
+   497→        row: dir === 'across' ? word.row : word.row + i,
+   498→        col: dir === 'across' ? word.col + i : word.col,
+   499→      }));
+   500→    },
+   501→    [selectedPuzzle],
+   502→  );
+   503→
+   504→  // ── Resolve which clue is active for a cell ────────────────────────
+   505→  const resolveActiveClue = useCallback(
+   506→    (row: number, col: number, dir: 'across' | 'down') => {
+   507→      if (!selectedPuzzle) return;
+   508→      const otherDir: 'across' | 'down' = dir === 'across' ? 'down' : 'across';
+   509→
+   510→      let found = selectedPuzzle.words.find((w: WordPlacement) => {
+   511→        if (w.direction !== dir) return false;
+   512→        return dir === 'across'
+   513→          ? w.row === row && col >= w.col && col < w.col + w.length
+   514→          : w.col === col && row >= w.row && row < w.row + w.length;
+   515→      });
+   516→
+   517→      if (!found) {
+   518→        found = selectedPuzzle.words.find((w: WordPlacement) => {
+   519→          if (w.direction !== otherDir) return false;
+   520→          return otherDir === 'across'
+   521→            ? w.row === row && col >= w.col && col < w.col + w.length
+   522→            : w.col === col && row >= w.row && row < w.row + w.length;
+   523→        });
+   524→        if (found) {
+   525→          setDirection(otherDir);
+   526→          setActiveClueDirection(otherDir);
+   527→        }
+   528→      } else {
+   529→        setActiveClueDirection(dir);
+   530→      }
+   531→
+   532→      if (found) setActiveClueNumber(found.clueNumber);
+   533→    },
+   534→    [selectedPuzzle],
+   535→  );
+   536→
+   537→  // ── Handlers ─────────────────────────────────────────────────────────
+   538→
+   539→  const handleCellChange = useCallback(
+   540→    (row: number, col: number, value: string) => {
+   541→      if (isCompleted) return;
+   542→      setUserInputs((prev) => {
+   543→        const next = prev.map((r) => [...r]);
+   544→        next[row][col] = value || null;
+   545→        return next;
+   546→      });
+   547→      if (!isTimerRunning && value) setIsTimerRunning(true);
+   548→      // Only clear manual check highlights on new input (auto-check handles its own)
+   549→      if (!autoCheck) {
+   550→        setCorrectCellsManual(new Set());
+   551→        setIncorrectCellsManual(new Set());
+   552→      }
+   553→    },
+   554→    [isCompleted, isTimerRunning, autoCheck],
+   555→  );
+   556→
+   557→  const handleSelectCell = useCallback(
+   558→    (row: number, col: number) => {
+   559→      if (isCompleted) return;
+   560→      setSelectedCell({ row, col });
+   561→      resolveActiveClue(row, col, direction);
+   562→    },
+   563→    [isCompleted, direction, resolveActiveClue],
+   564→  );
+   565→
+   566→  const handleToggleDirection = useCallback(() => {
+   567→    setDirection((prev) => {
+   568→      const next: 'across' | 'down' = prev === 'across' ? 'down' : 'across';
+   569→      setActiveClueDirection(next);
+   570→      if (selectedCell) resolveActiveClue(selectedCell.row, selectedCell.col, next);
+   571→      return next;
+   572→    });
+   573→  }, [selectedCell, resolveActiveClue]);
+   574→
+   575→  const handleSelectClue = useCallback(
+   576→    (number: number, dir: 'across' | 'down') => {
+   577→      if (!selectedPuzzle) return;
+   578→      const word = selectedPuzzle.words.find(
+   579→        (w: WordPlacement) => w.clueNumber === number && w.direction === dir,
+   580→      );
+   581→      if (!word) return;
+   582→      setDirection(dir);
+   583→      setActiveClueNumber(number);
+   584→      setActiveClueDirection(dir);
+   585→      setSelectedCell({ row: word.row, col: word.col });
+   586→    },
+   587→    [selectedPuzzle],
+   588→  );
+   589→
+   590→  const handleCheck = useCallback(async () => {
+   591→    if (!puzzleId || !selectedPuzzle || isCompleted) return;
+   592→    setIsChecking(true);
+   593→    try {
+   594→      const res = await fetch('/api/puzzles/check', {
+   595→        method: 'POST',
+   596→        headers: { 'Content-Type': 'application/json' },
+   597→        body: JSON.stringify({ puzzleId, userInputs }),
+   598→      });
+   599→      if (!res.ok) throw new Error();
+   600→      const data = await res.json();
+   601→
+   602→      const incorrect = new Set<string>(
+   603→        (data.incorrectCells ?? []).map((c: { row: number; col: number }) => toCellKey(c.row, c.col)),
+   604→      );
+   605→      setIncorrectCellsManual(incorrect);
+   606→
+   607→      const correct = new Set<string>();
+   608→      for (let r = 0; r < selectedPuzzle.rows; r++) {
+   609→        for (let c = 0; c < selectedPuzzle.cols; c++) {
+   610→          if (userInputs[r][c] && !incorrect.has(toCellKey(r, c))) correct.add(toCellKey(r, c));
+   611→        }
+   612→      }
+   613→      setCorrectCellsManual(correct);
+   614→
+   615→      // Update completed clues
+   616→      const newCompleted = new Set<string>(completedClues);
+   617→      for (const word of selectedPuzzle.words) {
+   618→        const ok = Array.from({ length: word.length }, (_, i) => {
+   619→          const r = word.direction === 'across' ? word.row : word.row + i;
+   620→          const c = word.direction === 'across' ? word.col + i : word.col;
+   621→          return !!userInputs[r]?.[c] && !incorrect.has(toCellKey(r, c));
+   622→        }).every(Boolean);
+   623→        if (ok) newCompleted.add(clueKey(word.clueNumber, word.direction));
+   624→      }
+   625→      setCompletedClues(newCompleted);
+   626→
+   627→      if (data.completionPercent === 100 && data.correct) {
+   628→        setIsCompleted(true);
+   629→        setIsTimerRunning(false);
+   630→        toast.success('Bravo ! Puzzle complété !', { duration: 6000 });
+   631→      } else if (incorrect.size === 0) {
+   632→        toast.success('Tout est correct pour le moment !');
+   633→      } else {
+   634→        toast.error(`${incorrect.size} lettre${incorrect.size > 1 ? 's' : ''} incorrecte${incorrect.size > 1 ? 's' : ''}`);
+   635→      }
+   636→    } catch {
+   637→      toast.error('Erreur lors de la vérification');
+   638→    } finally {
+   639→      setIsChecking(false);
+   640→    }
+   641→  }, [puzzleId, selectedPuzzle, userInputs, isCompleted, completedClues]);
+   642→
+   643→  const handleHint = useCallback(async () => {
+   644→    if (!puzzleId || !selectedCell || !selectedPuzzle || isCompleted) return;
+   645→    try {
+   646→      const res = await fetch('/api/puzzles/hint', {
+   647→        method: 'POST',
+   648→        headers: { 'Content-Type': 'application/json' },
+   649→        body: JSON.stringify({ puzzleId, row: selectedCell.row, col: selectedCell.col }),
+   650→      });
+   651→      if (!res.ok) {
+   652→        const err = await res.json().catch(() => ({}));
+   653→        toast.error((err as { error?: string }).error || 'Indice indisponible');
+   654→        return;
+   655→      }
+   656→      const data = await res.json();
+   657→      const { row, col } = selectedCell;
+   658→      setUserInputs((prev) => {
+   659→        const next = prev.map((r) => [...r]);
+   660→        next[row][col] = data.letter;
+   661→        return next;
+   662→      });
+   663→      setRevealedCells((prev) => {
+   664→        const next = new Set(prev);
+   665→        next.add(toCellKey(row, col));
+   666→        return next;
+   667→      });
+   668→      toast.success(`Lettre révélée : ${data.letter}`);
+   669→    } catch {
+   670→      toast.error('Erreur lors de la révélation');
+   671→    }
+   672→  }, [puzzleId, selectedCell, selectedPuzzle, isCompleted]);
+   673→
+   674→  const handleClear = useCallback(() => {
+   675→    if (!selectedPuzzle || isCompleted) return;
+   676→    setUserInputs(
+   677→      Array.from({ length: selectedPuzzle.rows }, () =>
+   678→        Array.from<null>({ length: selectedPuzzle.cols }).fill(null),
+   679→      ),
+   680→    );
+   681→    setCorrectCellsManual(new Set());
+   682→    setIncorrectCellsManual(new Set());
+   683→    setRevealedCells(new Set());
+   684→    setCompletedClues(new Set());
+   685→    toast.info('Grille effacée');
+   686→  }, [selectedPuzzle, isCompleted]);
+   687→
+   688→  const handleBack = useCallback(() => {
+   689→    setIsTimerRunning(false);
+   690→    setSelectedPuzzle(null);
+   691→    setPuzzleId(null);
+   692→    setCurrentView('selection');
+   693→  }, []);
+   694→
+   695→  const handleShare = useCallback(async () => {
+   696→    if (!selectedPuzzle) return;
+   697→    const stars = '⭐'.repeat(selectedPuzzle.difficulty);
+   698→    const mins = Math.floor(timer / 60);
+   699→    const secs = timer % 60;
+   700→    const timeStr = `${mins}:${String(secs).padStart(2, '0')}`;
+   701→    const lang = selectedPuzzle.language === 'en' ? '🇬🇧' : '🇫🇷';
+   702→    const wordCount = selectedPuzzle.clues.length;
+   703→    const hints = revealedCells.size;
+   704→
+   705→    const text = [
+   706→      `🧩 Mots Croisés`,
+   707→      `${lang} ${selectedPuzzle.title}`,
+   708→      `${stars} Résolu en ${timeStr}`,
+   709→      `${wordCount} mots` + (hints > 0 ? ` • ${hints} indice${hints > 1 ? 's' : ''}` : ''),
+   710→      streak > 0 ? `🔥 Série: ${streak} jour${streak > 1 ? 's' : ''}` : '',
+   711→      ``,
+   712→      `Essaie aussi → mots-croisés.app`,
+   713→    ].filter(Boolean).join('\n');
+   714→
+   715→    if (navigator.share) {
+   716→      try {
+   717→        await navigator.share({ title: 'Mots Croisés', text });
+   718→        return;
+   719→      } catch {}
+   720→    }
+   721→
+   722→    await navigator.clipboard.writeText(text);
+   723→    toast.success('Résultat copié dans le presse-papiers !');
+   724→  }, [selectedPuzzle, timer, streak, revealedCells]);
+   725→
+   726→  // ── Derived values ───────────────────────────────────────────────────
+   727→
+   728→  // Real-time auto-validation: compare each filled cell against the answer
+   729→  const autoCorrectCells = useMemo(() => {
+   730→    const s = new Set<string>();
+   731→    if (!selectedPuzzle || !autoCheck) return s;
+   732→    for (let r = 0; r < selectedPuzzle.rows; r++) {
+   733→      for (let c = 0; c < selectedPuzzle.cols; c++) {
+   734→        const answer = selectedPuzzle.grid[r]?.[c]?.letter;
+   735→        const input = userInputs[r]?.[c];
+   736→        if (answer && input && input.toUpperCase() === answer.toUpperCase()) {
+   737→          s.add(toCellKey(r, c));
+   738→        }
+   739→      }
+   740→    }
+   741→    return s;
+   742→  }, [selectedPuzzle, userInputs, autoCheck]);
+   743→
+   744→  const autoIncorrectCells = useMemo(() => {
+   745→    const s = new Set<string>();
+   746→    if (!selectedPuzzle || !autoCheck) return s;
+   747→    for (let r = 0; r < selectedPuzzle.rows; r++) {
+   748→      for (let c = 0; c < selectedPuzzle.cols; c++) {
+   749→        const answer = selectedPuzzle.grid[r]?.[c]?.letter;
+   750→        const input = userInputs[r]?.[c];
+   751→        if (answer && input && input.toUpperCase() !== answer.toUpperCase()) {
+   752→          s.add(toCellKey(r, c));
+   753→        }
+   754→      }
+   755→    }
+   756→    return s;
+   757→  }, [selectedPuzzle, userInputs, autoCheck]);
+   758→
+   759→  // Merge auto-check + manual check sets (manual takes priority if conflicting)
+   760→  const correctCells = useMemo(() => {
+   761→    if (!autoCheck) return correctCellsManual;
+   762→    return new Set([...autoCorrectCells, ...correctCellsManual]);
+   763→  }, [autoCheck, autoCorrectCells, correctCellsManual]);
+   764→
+   765→  const incorrectCells = useMemo(() => {
+   766→    if (!autoCheck) return incorrectCellsManual;
+   767→    return new Set([...autoIncorrectCells, ...incorrectCellsManual]);
+   768→  }, [autoCheck, autoIncorrectCells, incorrectCellsManual]);
+   769→
+   770→  const activeWordCells = useMemo(() => {
+   771→    if (!selectedCell || !selectedPuzzle) return [];
+   772→    return getActiveWordCells(selectedCell.row, selectedCell.col, direction);
+   773→  }, [selectedCell, selectedPuzzle, direction, getActiveWordCells]);
+   774→
+   775→  const activeClueText = useMemo(() => {
+   776→    if (!selectedPuzzle || activeClueNumber === null) return null;
+   777→    return selectedPuzzle.clues.find(
+   778→      (c: Clue) => c.number === activeClueNumber && c.direction === activeClueDirection,
+   779→    ) ?? null;
+   780→  }, [selectedPuzzle, activeClueNumber, activeClueDirection]);
+   781→
+   782→  // ══════════════════════════════════════════════════════════════════════
+   783→  // RENDER
+   784→  // ══════════════════════════════════════════════════════════════════════
+   785→
+   786→  return (
+   787→    <div className="min-h-screen flex flex-col bg-background">
+   788→      {/* ═════════════════ PUZZLE SELECTION VIEW ═════════════════ */}
+   789→      {currentView === 'selection' && (
+   790→        <div className="flex flex-1 flex-col">
+   791→          {/* Subtle crossword grid background */}
+   792→          <div
+   793→            className="pointer-events-none fixed inset-0 -z-10 opacity-[0.025]"
+   794→            style={{
+   795→              backgroundImage:
+   796→                'linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(180deg, hsl(var(--foreground)) 1px, transparent 1px)',
+   797→              backgroundSize: '28px 28px',
+   798→            }}
+   799→          />
+   800→
+   801→          {/* ── Header ─────────────────────────────────────────── */}
+   802→          <header className="border-b bg-background/95 backdrop-blur-sm">
+   803→            <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
+   804→              <div className="flex items-center gap-3">
+   805→                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+   806→                  <Grid3X3 className="size-6" />
+   807→                </div>
+   808→                <div>
+   809→                  <h1
+   810→                    className="text-3xl font-bold tracking-tight sm:text-4xl"
+   811→                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+   812→                  >
+   813→                    Mots Croisés
+   814→                  </h1>
+   815→                  <p className="text-sm text-muted-foreground mt-0.5">
+   816→                    Gratuits &bull; Uniques &bull; Quotidiens
+   817→                  </p>
+   818→                </div>
+   819→              </div>
+   820→              {streak > 0 && (
+   821→                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1.5 shadow-sm">
+   822→                  <motion.span
+   823→                    className="text-lg"
+   824→                    animate={{ scale: [1, 1.2, 1] }}
+   825→                    transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
+   826→                  >🔥</motion.span>
+   827→                  <span className="text-sm font-bold text-orange-700 dark:text-orange-400">{streak}</span>
+   828→                  <span className="text-[10px] text-orange-600/70 dark:text-orange-400/70 hidden sm:inline">jour{streak > 1 ? 's' : ''}</span>
+   829→                </div>
+   830→              )}
+   831→              <div className="flex items-center gap-1">
+   832→                {streakData.length > 0 && (
+   833→                  <>
+   834→                    <Button
+   835→                      variant="ghost"
+   836→                      size="sm"
+   837→                      className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+   838→                      onClick={() => setStatsOpen(true)}
+   839→                    >
+   840→                      <BarChart3 className="size-3.5" />
+   841→                      <span className="hidden sm:inline">Statistiques</span>
+   842→                    </Button>
+   843→                    <Button
+   844→                      variant="ghost"
+   845→                      size="sm"
+   846→                      className="text-xs text-muted-foreground hover:text-foreground gap-1.5 relative"
+   847→                      onClick={() => setBadgesOpen(true)}
+   848→                    >
+   849→                      <Award className="size-3.5" />
+   850→                      <span className="hidden sm:inline">Badges</span>
+   851→                      {earnedBadgeIds.size > 0 && (
+   852→                        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white px-1">
+   853→                          {earnedBadgeIds.size}
+   854→                        </span>
+   855→                      )}
+   856→                    </Button>
+   857→                  </>
+   858→                )}
+   859→                <Button
+   860→                  variant="ghost"
+   861→                  size="sm"
+   862→                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+   863→                  onClick={() => setAdminOpen(true)}
+   864→                >
+   865→                  <Settings className="size-3.5" />
+   866→                  Administration
+   867→                </Button>
+   868→              </div>
+   869→            </div>
+   870→          </header>
+   871→
+   872→          {/* ── Main Content ───────────────────────────────────── */}
+   873→          <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+   874→            {/* Date display */}
+   875→            <div className="mb-6">
+   876→              <p className="text-sm text-muted-foreground capitalize">
+   877→                📅 {formatFrenchDate()}
+   878→              </p>
+   879→              <h2
+   880→                className="mt-2 text-xl font-semibold sm:text-2xl"
+   881→                style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+   882→              >
+   883→                Puzzles du jour
+   884→              </h2>
+   885→            </div>
+   886→
+   887→            {/* ── Streak stats card ── */}
+   888→            {streakData.length > 0 && (
+   889→              <motion.div
+   890→                initial={{ opacity: 0, y: -8 }}
+   891→                animate={{ opacity: 1, y: 0 }}
+   892→                className="mb-6 rounded-xl border bg-gradient-to-r from-orange-50/80 to-amber-50/80 dark:from-orange-950/20 dark:to-amber-950/20 p-4 sm:p-5"
+   893→              >
+   894→                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+   895→                  {/* Streak counter */}
+   896→                  <div className="flex items-center gap-3 shrink-0">
+   897→                    <div className="relative">
+   898→                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-lg shadow-orange-500/20">
+   899→                        <span className="text-xl">🔥</span>
+   900→                      </div>
+   901→                      {streak > 0 && (
+   902→                        <motion.div
+   903→                          initial={{ scale: 0 }}
+   904→                          animate={{ scale: 1 }}
+   905→                          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+   906→                          className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-background border shadow-sm"
+   907→                        >
+   908→                          <span className="text-[10px] font-bold text-orange-600">{streak}</span>
+   909→                        </motion.div>
+   910→                      )}
+   911→                    </div>
+   912→                    <div>
+   913→                      <p className="text-sm font-semibold">
+   914→                        {streak > 0
+   915→                          ? streak === 1
+   916→                            ? 'Série de 1 jour !'
+   917→                            : `Série de ${streak} jours !`
+   918→                          : 'Reprenez votre série !'}
+   919→                      </p>
+   920→                      <p className="text-xs text-muted-foreground">
+   921→                        {streakData.length} puzzle{streakData.length !== 1 ? 's' : ''} résolu{streakData.length !== 1 ? 's' : ''} au total
+   922→                      </p>
+   923→                    </div>
+   924→                  </div>
+   925→
+   926→                  {/* Heatmap */}
+   927→                  <div className="flex-1 min-w-0">
+   928→                    <div className="flex items-center justify-between mb-1.5">
+   929→                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">30 derniers jours</span>
+   930→                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+   931→                        <span className="flex items-center gap-0.5"><div className="h-2.5 w-2.5 rounded-sm bg-muted" /><span className="hidden sm:inline">Rien</span></span>
+   932→                        <span className="flex items-center gap-0.5"><div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /><span className="hidden sm:inline">Résolu</span></span>
+   933→                      </div>
+   934→                    </div>
+   935→                    <StreakHeatmap streakData={streakData} />
+   936→                  </div>
+   937→                </div>
+   938→              </motion.div>
+   939→            )}
+   940→
+   941→            {/* ── Filters ──────────────────────────────────────── */}
+   942→            <div className="flex flex-wrap items-center gap-3 mb-6">
+   943→              {/* Language selector */}
+   944→              <div className="flex items-center gap-2">
+   945→                <Globe className="size-4 text-muted-foreground" />
+   946→                <Select value={selectedLanguage} onValueChange={(v) => {
+   947→                  setSelectedLanguage(v);
+   948→                  setSelectedCategory('all');
+   949→                  setSelectedPack('all');
+   950→                }}>
+   951→                  <SelectTrigger className="h-9 w-40 text-sm">
+   952→                    <SelectValue placeholder="Langue" />
+   953→                  </SelectTrigger>
+   954→                  <SelectContent>
+   955→                    <SelectItem value="all">
+   956→                      <span className="flex items-center gap-1.5">
+   957→                        🌍 Toutes les langues
+   958→                      </span>
+   959→                    </SelectItem>
+   960→                    <SelectItem value="fr">
+   961→                      <span className="flex items-center gap-1.5">
+   962→                        🇫🇷 Français
+   963→                      </span>
+   964→                    </SelectItem>
+   965→                    <SelectItem value="en">
+   966→                      <span className="flex items-center gap-1.5">
+   967→                        🇬🇧 English
+   968→                      </span>
+   969→                    </SelectItem>
+   970→                  </SelectContent>
+   971→                </Select>
+   972→              </div>
+   973→
+   974→              {/* Category selector — only show if there are categories with puzzles */}
+   975→              {activeCategoryIds.size > 0 && (
+   976→                <div className="flex items-center gap-2">
+   977→                  <FolderOpen className="size-4 text-muted-foreground" />
+   978→                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+   979→                    <SelectTrigger className="h-9 w-44 text-sm">
+   980→                      <SelectValue placeholder="Catégorie" />
+   981→                    </SelectTrigger>
+   982→                    <SelectContent>
+   983→                      <SelectItem value="all">
+   984→                        <span className="flex items-center gap-1.5">
+   985→                          📋 Toutes les catégories
+   986→                        </span>
+   987→                      </SelectItem>
+   988→                      {categories
+   989→                        .filter((c) => activeCategoryIds.has(c.id))
+   990→                        .map((cat) => (
+   991→                          <SelectItem key={cat.id} value={cat.id}>
+   992→                            <span className="flex items-center gap-1.5">
+   993→                              {languageFlag(cat.language)} {cat.name}
+   994→                            </span>
+   995→                          </SelectItem>
+   996→                        ))}
+   997→                    </SelectContent>
+   998→                  </Select>
+   999→                </div>
+  1000→              )}
+  1001→
+  1002→              {/* Puzzle count */}
+  1003→              <div className="ml-auto">
+  1004→                <Badge variant="secondary" className="text-xs">
+  1005→                  <Layers className="size-3 mr-1" />
+  1006→                  {filteredPuzzles.length} puzzle{filteredPuzzles.length !== 1 ? 's' : ''}
+  1007→                </Badge>
+  1008→              </div>
+  1009→            </div>
+  1010→
+  1011→            {/* Loading state */}
+  1012→            {isLoadingPuzzles && (
+  1013→              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1014→                {Array.from({ length: 3 }).map((_, i) => (
+  1015→                  <PuzzleCardSkeleton key={i} />
+  1016→                ))}
+  1017→              </div>
+  1018→            )}
+  1019→
+  1020→            {/* Empty state */}
+  1021→            {!isLoadingPuzzles && filteredPuzzles.length === 0 && (
+  1022→              <div className="text-center py-16">
+  1023→                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+  1024→                  <Grid3X3 className="size-8 text-muted-foreground" />
+  1025→                </div>
+  1026→                <h3 className="text-lg font-medium">Aucun puzzle disponible</h3>
+  1027→                <p className="mt-1 text-sm text-muted-foreground">
+  1028→                  {selectedLanguage !== 'all' || selectedCategory !== 'all' || selectedPack !== 'all'
+  1029→                    ? 'Essayez de modifier vos filtres pour trouver des puzzles.'
+  1030→                    : 'Revenez demain pour de nouveaux puzzles !'}
+  1031→                </p>
+  1032→              </div>
+  1033→            )}
+  1034→
+  1035→            {/* Puzzle cards grid */}
+  1036→            {!isLoadingPuzzles && filteredPuzzles.length > 0 && (
+  1037→              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1038→                {filteredPuzzles.map((puzzle) => (
+  1039→                  <div key={puzzle.id}>
+  1040→                    <Card className="group relative overflow-hidden py-0 transition-shadow hover:shadow-md">
+  1041→                      {/* Difficulty accent bar */}
+  1042→                      <div
+  1043→                        className={`h-1 w-full ${
+  1044→                          puzzle.difficulty <= 1
+  1045→                            ? 'bg-emerald-500'
+  1046→                            : puzzle.difficulty <= 2
+  1047→                              ? 'bg-amber-500'
+  1048→                              : puzzle.difficulty <= 3
+  1049→                                ? 'bg-orange-500'
+  1050→                                : 'bg-red-500'
+  1051→                        }`}
+  1052→                      />
+  1053→                      <CardHeader className="gap-1.5 px-5 pt-5 pb-0">
+  1054→                        <div className="flex items-start justify-between gap-2">
+  1055→                          <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
+  1056→                          <Badge variant="outline" className="shrink-0 text-xs mt-0.5">
+  1057→                            {languageFlag(puzzle.language)} {languageName(puzzle.language)}
+  1058→                          </Badge>
+  1059→                        </div>
+  1060→                        <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+  1061→                          {puzzle.description || (puzzle.language === 'en' ? 'A crossword puzzle' : 'Un puzzle de mots croisés')}
+  1062→                        </CardDescription>
+  1063→                        {puzzle.categoryName && (
+  1064→                          <Badge variant="secondary" className="text-xs mt-1 gap-1">
+  1065→                            <span>{puzzle.categoryIcon || '🏷️'}</span>
+  1066→                            {puzzle.categoryName}
+  1067→                          </Badge>
+  1068→                        )}
+  1069→                        {puzzle.packName && (
+  1070→                          <Badge variant="outline" className="text-xs mt-1 gap-1">
+  1071→                            <span>{puzzle.packIcon || '📦'}</span>
+  1072→                            {puzzle.packName}
+  1073→                          </Badge>
+  1074→                        )}
+  1075→                      </CardHeader>
+  1076→                      <CardContent className="flex items-center justify-between px-5 pb-5 pt-4">
+  1077→                        <div className="flex items-center gap-2">
+  1078→                          <Badge className={difficultyColor(puzzle.difficulty)} variant="secondary">
+  1079→                            <Star className="size-3 mr-0.5" />
+  1080→                            {difficultyLabel(puzzle.difficulty)}
+  1081→                          </Badge>
+  1082→                          <span className="text-xs text-muted-foreground">
+  1083→                            {puzzle.rows}×{puzzle.cols}
+  1084→                          </span>
+  1085→                        </div>
+  1086→                        <Button
+  1087→                          size="sm"
+  1088→                          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+  1089→                          onClick={() => fetchPuzzle(puzzle.id)}
+  1090→                        >
+  1091→                          <Play className="size-3.5" />
+  1092→                          Jouer
+  1093→                        </Button>
+  1094→                      </CardContent>
+  1095→                      {puzzle.completed && (
+  1096→                        <div className="absolute top-3 right-3">
+  1097→                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1">
+  1098→                            <Trophy className="size-3" />
+  1099→                            Terminé
+  1100→                          </Badge>
+  1101→                        </div>
+  1102→                      )}
+  1103→                    </Card>
+  1104→                  </div>
+  1105→                ))}
+  1106→              </div>
+  1107→            )}
+  1108→
+  1109→            {/* ── Collections section ── */}
+  1110→            {packs.length > 0 && (
+  1111→              <div className="mb-8">
+  1112→                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+  1113→                  <Package className="size-5 text-muted-foreground" />
+  1114→                  Collections
+  1115→                </h2>
+  1116→                <div className="flex flex-wrap gap-2">
+  1117→                  {packs
+  1118→                    .filter((p) => !selectedLanguage || selectedLanguage === 'all' || p.language === selectedLanguage)
+  1119→                    .map((pack) => (
+  1120→                      <Button
+  1121→                        key={pack.id}
+  1122→                        variant={selectedPack === pack.id ? 'default' : 'outline'}
+  1123→                        size="sm"
+  1124→                        className="gap-1.5 text-sm"
+  1125→                        onClick={() => setSelectedPack(selectedPack === pack.id ? 'all' : pack.id)}
+  1126→                      >
+  1127→                        <span className="text-base">{pack.icon}</span>
+  1128→                        {pack.name}
+  1129→                        <Badge variant="secondary" className="ml-1 text-xs">{pack._count.puzzles}</Badge>
+  1130→                      </Button>
+  1131→                    ))}
+  1132→                </div>
+  1133→              </div>
+  1134→            )}
+  1135→          </main>
+  1136→
+  1137→          {/* ── Footer ─────────────────────────────────────────── */}
+  1138→          <footer className="mt-auto border-t py-4">
+  1139→            <p className="text-center text-xs text-muted-foreground">
+  1140→              Mots Croisés &mdash; Un puzzle unique chaque jour
+  1141→            </p>
+  1142→          </footer>
+  1143→        </div>
+  1144→      )}
+  1145→
+  1146→      {/* ═════════════════ PUZZLE SOLVING VIEW ═══════════════════ */}
+  1147→      {currentView === 'playing' && (
+  1148→        <div className="flex flex-1 flex-col">
+  1149→          {/* ── Top bar ───────────────────────────────────────── */}
+  1150→          <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-sm">
+  1151→            <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:px-4 sm:gap-3">
+  1152→              <Button
+  1153→                variant="ghost"
+  1154→                size="sm"
+  1155→                onClick={handleBack}
+  1156→                className="shrink-0 -ml-1"
+  1157→              >
+  1158→                <ArrowLeft className="size-4" />
+  1159→                <span className="hidden sm:inline">Retour</span>
+  1160→              </Button>
+  1161→
+  1162→              <Separator orientation="vertical" className="h-5 mx-1 hidden sm:block" />
+  1163→
+  1164→              <h2 className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
+  1165→                {selectedPuzzle?.title ?? 'Chargement…'}
+  1166→              </h2>
+  1167→
+  1168→              {selectedPuzzle && (
+  1169→                <Badge className={difficultyColor(selectedPuzzle.difficulty)} variant="secondary">
+  1170→                  <Star className="size-3 mr-0.5" />
+  1171→                  {difficultyLabel(selectedPuzzle.difficulty)}
+  1172→                </Badge>
+  1173→              )}
+  1174→
+  1175→              {/* Timer */}
+  1176→              <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-sm tabular-nums">
+  1177→                <Clock className="size-3.5 text-muted-foreground" />
+  1178→                <span className="font-medium">{formatTimer(timer)}</span>
+  1179→              </div>
+  1180→              {selectedPuzzle && (
+  1181→                <Button
+  1182→                  variant="ghost"
+  1183→                  size="sm"
+  1184→                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+  1185→                  onClick={() => {
+  1186→                    if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
+  1187→                    toast.success('PDF téléchargé !');
+  1188→                  }}
+  1189→                >
+  1190→                  <Download className="size-3.5" />
+  1191→                  <span className="hidden sm:inline">PDF</span>
+  1192→                </Button>
+  1193→              )}
+  1194→            </div>
+  1195→          </header>
+  1196→
+  1197→          {/* ── Main area ──────────────────────────────────────── */}
+  1198→          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-4">
+  1199→            {/* Loading state */}
+  1200→            {isLoadingPuzzle && !selectedPuzzle && (
+  1201→              <div className="flex flex-col items-center justify-center py-20 gap-4">
+  1202→                <Skeleton className="h-8 w-64" />
+  1203→                <Skeleton className="h-[320px] w-[320px] rounded-lg" />
+  1204→              </div>
+  1205→            )}
+  1206→
+  1207→            {selectedPuzzle && (
+  1208→              <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
+  1209→                {/* ── Left: Grid + Controls ──────────────────── */}
+  1210→                <div className="flex flex-col items-center gap-3 lg:w-auto lg:min-w-0 lg:flex-1">
+  1211→                  {/* Active clue banner */}
+  1212→                  {activeClueText && (
+  1213→                    <div
+  1214→                      key={`${activeClueText.number}-${activeClueText.direction}`}
+  1215→                      className="w-full rounded-lg border bg-card px-4 py-2.5 shadow-sm"
+  1216→                    >
+  1217→                      <div className="flex items-start gap-2">
+  1218→                        <Badge
+  1219→                          variant="outline"
+  1220→                          className="mt-0.5 shrink-0 text-xs font-bold"
+  1221→                        >
+  1222→                          {activeClueText.number}
+  1223→                          {activeClueText.direction === 'across' ? 'H' : 'V'}
+  1224→                        </Badge>
+  1225→                        <p className="text-sm leading-relaxed">
+  1226→                          {activeClueText.text}
+  1227→                        </p>
+  1228→                      </div>
+  1229→                    </div>
+  1230→                  )}
+  1231→
+  1232→                  {/* Action buttons row */}
+  1233→                  <div className="flex flex-wrap items-center justify-center gap-2">
+  1234→                    {/* Auto-check toggle */}
+  1235→                    <div className="flex items-center gap-1.5 rounded-md border bg-muted/30 px-2.5 py-1">
+  1236→                      <Switch
+  1237→                        id="auto-check"
+  1238→                        checked={autoCheck}
+  1239→                        onCheckedChange={setAutoCheck}
+  1240→                        className="scale-90"
+  1241→                      />
+  1242→                      <Label htmlFor="auto-check" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+  1243→                        Validation auto
+  1244→                      </Label>
+  1245→                    </div>
+  1246→                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
+  1247→                    <Button
+  1248→                      variant="outline"
+  1249→                      size="sm"
+  1250→                      onClick={handleCheck}
+  1251→                      disabled={isChecking || isCompleted}
+  1252→                    >
+  1253→                      <CheckCircle2 className="size-4 text-emerald-600" />
+  1254→                      Vérifier
+  1255→                    </Button>
+  1256→                    <Button
+  1257→                      variant="outline"
+  1258→                      size="sm"
+  1259→                      onClick={handleHint}
+  1260→                      disabled={!selectedCell || isCompleted}
+  1261→                    >
+  1262→                      <Lightbulb className="size-4 text-amber-500" />
+  1263→                      Indice
+  1264→                    </Button>
+  1265→                    <Button
+  1266→                      variant="outline"
+  1267→                      size="sm"
+  1268→                      onClick={handleClear}
+  1269→                      disabled={isCompleted}
+  1270→                    >
+  1271→                      <Trash2 className="size-4 text-red-500" />
+  1272→                      Effacer
+  1273→                    </Button>
+  1274→                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
+  1275→                    <Button
+  1276→                      variant="outline"
+  1277→                      size="sm"
+  1278→                      onClick={() => {
+  1279→                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
+  1280→                        toast.success('PDF téléchargé !');
+  1281→                      }}
+  1282→                    >
+  1283→                      <Download className="size-4 text-emerald-600" />
+  1284→                      <span className="hidden sm:inline">PDF</span>
+  1285→                    </Button>
+  1286→                    <Button
+  1287→                      variant="outline"
+  1288→                      size="sm"
+  1289→                      onClick={() => {
+  1290→                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle, { withAnswers: true });
+  1291→                        toast.success('PDF avec réponses téléchargé !');
+  1292→                      }}
+  1293→                    >
+  1294→                      <FileText className="size-4 text-amber-500" />
+  1295→                      <span className="hidden sm:inline">PDF + Réponses</span>
+  1296→                    </Button>
+  1297→                  </div>
+  1298→
+  1299→                  {/* The crossword grid */}
+  1300→                  <div className="overflow-x-auto w-full flex justify-center">
+  1301→                    <CrosswordGrid
+  1302→                      puzzle={selectedPuzzle}
+  1303→                      userInputs={userInputs}
+  1304→                      onCellChange={handleCellChange}
+  1305→                      selectedCell={selectedCell}
+  1306→                      onSelectCell={handleSelectCell}
+  1307→                      direction={direction}
+  1308→                      onToggleDirection={handleToggleDirection}
+  1309→                      activeWordCells={activeWordCells}
+  1310→                      revealedCells={revealedCells}
+  1311→                      correctCells={correctCells}
+  1312→                      incorrectCells={incorrectCells}
+  1313→                    />
+  1314→                  </div>
+  1315→
+  1316→                  {/* Keyboard shortcuts hint */}
+  1317→                  <p className="text-center text-[11px] text-muted-foreground mt-1">
+  1318→                    Tab pour changer de direction &bull; Flèches pour naviguer &bull; Backspace pour effacer
+  1319→                  </p>
+  1320→                </div>
+  1321→
+  1322→                {/* ── Right: Clue panel (desktop) ──────────── */}
+  1323→                <div className="w-full lg:w-[340px] xl:w-[380px] lg:shrink-0">
+  1324→                  <div className="rounded-xl border bg-card shadow-sm">
+  1325→                    <div className="border-b px-4 py-3">
+  1326→                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+  1327→                        Indications
+  1328→                      </h3>
+  1329→                    </div>
+  1330→                    <div className="p-1.5">
+  1331→                      <ClueList
+  1332→                        clues={selectedPuzzle.clues}
+  1333→                        activeClueNumber={activeClueNumber}
+  1334→                        activeClueDirection={activeClueDirection}
+  1335→                        onSelectClue={handleSelectClue}
+  1336→                        completedClues={completedClues}
+  1337→                      />
+  1338→                    </div>
+  1339→                  </div>
+  1340→                </div>
+  1341→              </div>
+  1342→            )}
+  1343→          </main>
+  1344→
+  1345→          {/* ── Footer ─────────────────────────────────────────── */}
+  1346→          <footer className="mt-auto border-t py-3">
+  1347→            <p className="text-center text-[11px] text-muted-foreground">
+  1348→              Mots Croisés &mdash; Un puzzle unique chaque jour
+  1349→            </p>
+  1350→          </footer>
+  1351→
+  1352→          {/* ── Completion celebration ─────────────────────────── */}
+  1353→          {isCompleted && (
+  1354→            <>
+  1355→              <ConfettiOverlay />
+  1356→              <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+  1357→                <motion.div
+  1358→                  initial={{ scale: 0.8, opacity: 0 }}
+  1359→                  animate={{ scale: 1, opacity: 1 }}
+  1360→                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+  1361→                  className="mx-4 rounded-2xl bg-card p-8 text-center shadow-2xl sm:p-12 max-w-md w-full"
+  1362→                >
+  1363→                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+  1364→                    <Trophy className="size-8 text-emerald-600 dark:text-emerald-400" />
+  1365→                  </div>
+  1366→                  <h2
+  1367→                    className="text-2xl font-bold sm:text-3xl"
+  1368→                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+  1369→                  >
+  1370→                    Félicitations !
+  1371→                  </h2>
+  1372→                  <p className="mt-2 text-muted-foreground">
+  1373→                    Vous avez résolu « <span className="font-semibold text-foreground">{selectedPuzzle?.title}</span> » en{' '}
+  1374→                    <span className="font-semibold text-foreground">{formatTimer(timer)}</span>.
+  1375→                  </p>
+  1376→                  <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+  1377→                    <div className="flex items-center gap-1.5">
+  1378→                      <span>⭐</span>
+  1379→                      <span className="text-muted-foreground">{selectedPuzzle?.clues.length} mots</span>
+  1380→                    </div>
+  1381→                    <div className="flex items-center gap-1.5">
+  1382→                      <span>💡</span>
+  1383→                      <span className="text-muted-foreground">{revealedCells.size} indices</span>
+  1384→                    </div>
+  1385→                    {streak > 0 && (
+  1386→                      <div className="flex items-center gap-1.5">
+  1387→                        <span>🔥</span>
+  1388→                        <span className="text-muted-foreground">Série: {streak}</span>
+  1389→                      </div>
+  1390→                    )}
+  1391→                  </div>
+  1392→                  <div className="mt-6 flex items-center justify-center gap-3">
+  1393→                    <Button variant="outline" onClick={handleShare}>
+  1394→                      <Share2 className="size-4" />
+  1395→                      Partager
+  1396→                    </Button>
+  1397→                    <Button variant="outline" onClick={handleBack}>
+  1398→                      <ArrowLeft className="size-4" />
+  1399→                      Retour
+  1400→                    </Button>
+  1401→                  </div>
+  1402→                </motion.div>
+  1403→              </div>
+  1404→            </>
+  1405→          )}
+  1406→        </div>
+  1407→      )}
+  1408→
+  1409→      {/* ── Admin Panel Dialog ──────────────────────────────── */}
+  1410→      <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} />
+  1411→
+  1412→      {/* ── Stats Panel Dialog ────────────────────────────────── */}
+  1413→      <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />
+  1414→
+  1415→      {/* ── Badge Panel Dialog ────────────────────────────────── */}
+  1416→      <BadgePanel open={badgesOpen} onOpenChange={setBadgesOpen} />
+  1417→
+  1418→      {/* ── Badge Notification ────────────────────────────────── */}
+  1419→      <BadgeNotification badge={newBadge} onDismiss={() => setNewBadge(null)} />
+  1420→    </div>
+  1421→  );
+  1422→}
+  1423→
