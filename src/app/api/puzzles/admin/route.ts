@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { puzzleToDbFormat } from '@/lib/crossword/utils';
 import type { CrosswordPuzzleData } from '@/lib/crossword/types';
+import { requireRole } from '@/lib/auth-guard';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -35,6 +36,9 @@ function validateBody(body: unknown): body is PuzzleBody {
 // ── GET: List all puzzles + categories ──────────────────────────────────
 
 export async function GET() {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const puzzles = await db.crosswordPuzzle.findMany({
       orderBy: { createdAt: 'desc' },
@@ -111,6 +115,9 @@ export async function GET() {
 // ── POST: Create a new puzzle ───────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const { error: authErr, session } = await requireRole('CREATOR');
+  if (authErr) return authErr;
+
   try {
     const body = await request.json();
 
@@ -159,6 +166,7 @@ export async function POST(request: NextRequest) {
         language,
         categoryId,
         packId,
+        creatorId: session!.user.id,
         rows: body.rows,
         cols: body.cols,
         gridData: dbFormat.gridData,
@@ -179,6 +187,9 @@ export async function POST(request: NextRequest) {
 // ── PUT: Update an existing puzzle ───────────────────────────────────────
 
 export async function PUT(request: NextRequest) {
+  const { error: authErr } = await requireRole('CREATOR');
+  if (authErr) return authErr;
+
   try {
     const body = await request.json();
 
@@ -285,6 +296,9 @@ export async function PUT(request: NextRequest) {
 // ── DELETE: Delete a puzzle ────────────────────────────────────────────
 
 export async function DELETE(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

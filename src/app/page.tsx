@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { useSession, signOut } from 'next-auth/react';
 import {
   ArrowLeft,
   Clock,
@@ -24,6 +25,11 @@ import {
   Download,
   FileText,
   Award,
+  LogIn,
+  LogOut,
+  Shield,
+  PenTool,
+  User as UserIcon,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -54,6 +60,7 @@ import AdminPanel from '@/components/crossword/AdminPanel';
 import { StatsPanel } from '@/components/crossword/StatsPanel';
 import { BadgePanel } from '@/components/crossword/BadgePanel';
 import { BadgeNotification } from '@/components/crossword/BadgeNotification';
+import { AuthModal } from '@/components/crossword/AuthModal';
 import { exportPuzzleToPdf } from '@/lib/crossword/pdf-export';
 import { evaluateBadges, getNewBadges, type EarnedBadge } from '@/lib/crossword/badges';
 import { cn } from '@/lib/utils';
@@ -254,6 +261,13 @@ function PuzzleCardSkeleton() {
 // ════════════════════════════════════════════════════════════════════════
 
 export default function Home() {
+  // ── Auth ───────────────────────────────────────────────────────────
+  const { data: session, status } = useSession();
+  const [authOpen, setAuthOpen] = useState(false);
+  const userRole = (session?.user?.role as string) || null;
+  const isCreator = userRole === 'CREATOR' || userRole === 'ADMIN';
+  const isAdmin = userRole === 'ADMIN';
+
   // ── View state ──────────────────────────────────────────────────────
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
   const [adminOpen, setAdminOpen] = useState(false);
@@ -856,15 +870,59 @@ export default function Home() {
                     </Button>
                   </>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                  onClick={() => setAdminOpen(true)}
-                >
-                  <Settings className="size-3.5" />
-                  Administration
-                </Button>
+                {/* ── Auth / User area ──────────────────────────── */}
+                <div className="flex items-center gap-1.5">
+                  {session?.user ? (
+                    <>
+                      {/* Role badge + User menu */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <UserIcon className="size-3.5" />
+                          </div>
+                          <div className="hidden sm:flex flex-col leading-none">
+                            <span className="text-xs font-medium max-w-[120px] truncate">{session.user.name}</span>
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              {isAdmin && <><Shield className="size-2.5 text-orange-500" />Administrateur</>}
+                              {isCreator && !isAdmin && <><PenTool className="size-2.5 text-emerald-500" />Créateur</>}
+                              {!isCreator && <><UserIcon className="size-2.5" />Joueur</>}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground hover:text-destructive gap-1"
+                          onClick={() => signOut({ callbackUrl: '/' })}
+                        >
+                          <LogOut className="size-3.5" />
+                          <span className="hidden sm:inline">Déconnexion</span>
+                        </Button>
+                      </div>
+                      {(isAdmin || isCreator) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                          onClick={() => setAdminOpen(true)}
+                        >
+                          <Settings className="size-3.5" />
+                          <span className="hidden sm:inline">Administration</span>
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+                      onClick={() => setAuthOpen(true)}
+                    >
+                      <LogIn className="size-3.5" />
+                      <span className="hidden sm:inline">Connexion</span>
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </header>
@@ -1421,7 +1479,7 @@ export default function Home() {
       )}
 
       {/* ── Admin Panel Dialog ──────────────────────────────── */}
-      <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} />
+      <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} isAdmin={isAdmin} isCreator={isCreator} />
 
       {/* ── Stats Panel Dialog ────────────────────────────────── */}
       <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />
@@ -1431,6 +1489,9 @@ export default function Home() {
 
       {/* ── Badge Notification ────────────────────────────────── */}
       <BadgeNotification badge={newBadge} onDismiss={() => setNewBadge(null)} />
+
+      {/* ── Auth Modal ────────────────────────────────────────── */}
+      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
     </div>
   );
 }

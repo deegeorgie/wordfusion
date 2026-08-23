@@ -556,3 +556,36 @@ Stage Summary:
 - Both requested features (grid size presets + badges) were already implemented from previous session
 - Footer updated with author attribution: © 2026 Georges BODIONG | deebodiong@gmail.com | +226 74 91 15 38
 - All verification passed cleanly
+---
+Task ID: rbac-implementation
+Agent: Main Coordinator
+Task: Implement role-based access control (USER/CREATOR/ADMIN)
+
+Work Log:
+- Updated Prisma schema: added password, role to User model; added creatorId to CrosswordPuzzle; removed Post model
+- Set up NextAuth v4 with Credentials provider, JWT strategy, role in session/token
+- Created /src/lib/auth.ts (auth config with role declarations)
+- Created /src/lib/auth-guard.ts (requireAuth, requireRole helpers)
+- Created /api/auth/[...nextauth]/route.ts (NextAuth handler)
+- Created /api/auth/register/route.ts (public registration, always USER role)
+- Created /src/components/providers/AuthProvider.tsx (SessionProvider wrapper)
+- Created /src/components/crossword/AuthModal.tsx (login/register modal with tabs)
+- Protected ALL admin API routes with requireRole:
+  - /api/puzzles/admin: GET=ADMIN, POST=CREATOR, PUT=CREATOR, DELETE=ADMIN
+  - /api/puzzles/admin/publish: POST=ADMIN
+  - /api/puzzles/admin/schedule: POST=ADMIN
+  - /api/categories: POST/PUT/DELETE=ADMIN
+  - /api/packs: POST/PUT/DELETE=ADMIN
+  - /api/puzzles/generate: POST=CREATOR
+- Updated page.tsx: added useSession, role-based header UI (login/user+role/logout)
+- Updated AdminPanel: accepts isAdmin/isCreator props, conditionally shows tabs
+- Seeded 2 users: Georges BODIONG (ADMIN, deebodiong@gmail.com), Marie Créatrice (CREATOR, creator@test.com)
+- Updated layout.tsx: added AuthProvider wrapper, author metadata
+
+Stage Summary:
+- 3 roles: USER (player), CREATOR (create puzzles), ADMIN (full control)
+- Unauthenticated users can browse and play puzzles freely
+- Admin panel tabs dynamically shown based on role (ADMIN sees all 5, CREATOR sees 2)
+- Login credentials: admin=deebodiong@gmail.com / Admin@2024, creator=creator@test.com / Creator@2024
+- Clean ESLint pass
+- Server starts and responds correctly (verified via curl)

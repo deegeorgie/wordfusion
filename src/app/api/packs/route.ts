@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireRole } from '@/lib/auth-guard';
 
 // ── GET: List all packs ──────────────────────────────────────────────────
 
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
 // ── POST: Create a new pack ──────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const body = await request.json();
     const { name, description, icon = '📦', language = 'fr' } = body;
@@ -59,6 +63,9 @@ export async function POST(request: NextRequest) {
 // ── PUT: Update a pack ──────────────────────────────────────────────────
 
 export async function PUT(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const body = await request.json();
     const { id, name, description, icon, language } = body;
@@ -105,6 +112,9 @@ export async function PUT(request: NextRequest) {
 // ── DELETE: Delete a pack ─────────────────────────────────────────────────
 
 export async function DELETE(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

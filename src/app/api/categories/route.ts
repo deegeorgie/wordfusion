@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireRole } from '@/lib/auth-guard';
 
 // ── GET: List all categories ──────────────────────────────────────────────
 
@@ -28,6 +29,9 @@ export async function GET(request: NextRequest) {
 // ── POST: Create a new category ───────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const body = await request.json();
     const { name, language = 'fr', icon = '🏷️' } = body;
@@ -73,6 +77,9 @@ export async function POST(request: NextRequest) {
 // ── PUT: Update a category ────────────────────────────────────────────────
 
 export async function PUT(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const body = await request.json();
     const { id, name, language, icon } = body;
@@ -121,6 +128,9 @@ export async function PUT(request: NextRequest) {
 // ── DELETE: Delete a category ──────────────────────────────────────────────
 
 export async function DELETE(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

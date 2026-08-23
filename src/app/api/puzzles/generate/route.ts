@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { createPuzzle, puzzleToDbFormat } from '@/lib/crossword/utils';
 import { placeWords, type RawWord } from '@/lib/crossword/placement';
 import ZAI from 'z-ai-web-dev-sdk';
+import { requireRole } from '@/lib/auth-guard';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -154,6 +155,9 @@ Respond ONLY with valid JSON in this format, no other text:
 // ── POST: Generate a puzzle automatically ─────────────────────────────
 
 export async function POST(request: NextRequest) {
+  const { error: authErr, session } = await requireRole('CREATOR');
+  if (authErr) return authErr;
+
   try {
     const body: GenerateRequest = await request.json();
     const {
@@ -263,6 +267,7 @@ export async function POST(request: NextRequest) {
         language,
         categoryId: categoryId || null,
         packId: packId || null,
+        creatorId: session!.user.id,
         rows: placement.rows,
         cols: placement.cols,
         gridData: dbFormat.gridData,

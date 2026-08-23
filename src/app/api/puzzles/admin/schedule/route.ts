@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireRole } from '@/lib/auth-guard';
 
 interface ScheduleRequestBody {
   puzzlesPerDay: number;
@@ -7,6 +8,9 @@ interface ScheduleRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const body: ScheduleRequestBody = await request.json();
     const { puzzlesPerDay, isActive } = body;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { requireRole } from '@/lib/auth-guard';
 
 interface PublishRequestBody {
   puzzleId: string;
@@ -8,6 +9,9 @@ interface PublishRequestBody {
 }
 
 export async function POST(request: NextRequest) {
+  const { error: authErr } = await requireRole('ADMIN');
+  if (authErr) return authErr;
+
   try {
     const body: PublishRequestBody = await request.json();
     const { puzzleId, published, publishDate } = body;

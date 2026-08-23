@@ -7,22 +7,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ── Role enum as constant strings ──────────────────────────────────────
+// USER     = Simple player (can browse & play puzzles)
+// CREATOR  = Can create/manage own puzzles + generate with AI
+// ADMIN    = Full control: publish/unpublish, categories, packs, schedule
+
 model User {
   id        String   @id @default(cuid())
+  name      String
   email     String   @unique
-  name      String?
+  password  String   // bcrypt hash
+  role      String   @default("USER") // "USER" | "CREATOR" | "ADMIN"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  puzzles   CrosswordPuzzle[]
 }
 
 model Pack {
@@ -59,6 +58,8 @@ model CrosswordPuzzle {
   category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   packId      String?
   pack        Pack?     @relation(fields: [packId], references: [id], onDelete: SetNull)
+  creatorId   String?
+  creator     User?     @relation(fields: [creatorId], references: [id], onDelete: SetNull)
   gridData    String   // JSON string of the grid layout
   wordsData   String   // JSON string of word placements
   cluesData   String   // JSON string of clues

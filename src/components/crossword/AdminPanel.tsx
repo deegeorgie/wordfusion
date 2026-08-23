@@ -79,6 +79,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import PuzzleEditor from '@/components/crossword/PuzzleEditor';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 
@@ -136,6 +137,8 @@ interface AdminData {
 interface AdminPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isAdmin?: boolean;
+  isCreator?: boolean;
 }
 
 // --- Helpers ---
@@ -1040,7 +1043,7 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
 
 // --- Main AdminPanel Component ---
 
-export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
+export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCreator = false }: AdminPanelProps) {
   // Data state
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1278,32 +1281,45 @@ export default function AdminPanel({ open, onOpenChange }: AdminPanelProps) {
           </DialogHeader>
 
           <div className="p-6 space-y-6">
-            <Tabs defaultValue="categories" className="w-full">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
-                  <FolderOpen className="size-3.5" />
-                  <span className="hidden sm:inline">Catégories</span>
-                  <span className="sm:hidden">Catég.</span>
-                </TabsTrigger>
-                <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
-                  <Package className="size-3.5" />
-                  <span className="hidden sm:inline">Collections</span>
-                  <span className="sm:hidden">Coll.</span>
-                </TabsTrigger>
-                <TabsTrigger value="puzzles" className="text-xs sm:text-sm gap-1.5">
-                  <Grid3X3 className="size-3.5" />
-                  Puzzles
-                </TabsTrigger>
-                <TabsTrigger value="generator" className="text-xs sm:text-sm gap-1.5">
-                  <Sparkles className="size-3.5" />
-                  <span className="hidden sm:inline">Générateur</span>
-                  <span className="sm:hidden">Gén.</span>
-                </TabsTrigger>
-                <TabsTrigger value="schedule" className="text-xs sm:text-sm gap-1.5">
-                  <CalendarDays className="size-3.5" />
-                  <span className="hidden sm:inline">Programme</span>
-                  <span className="sm:hidden">Prog.</span>
-                </TabsTrigger>
+            <Tabs defaultValue={isCreator && !isAdmin ? 'generator' : 'categories'} className="w-full">
+              <TabsList className={cn(
+                'grid w-full',
+                isAdmin ? 'grid-cols-5' : isCreator ? 'grid-cols-2' : 'grid-cols-1'
+              )}>
+                {isAdmin && (
+                  <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
+                    <FolderOpen className="size-3.5" />
+                    <span className="hidden sm:inline">Catégories</span>
+                    <span className="sm:hidden">Catég.</span>
+                  </TabsTrigger>
+                )}
+                {isAdmin && (
+                  <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
+                    <Package className="size-3.5" />
+                    <span className="hidden sm:inline">Collections</span>
+                    <span className="sm:hidden">Coll.</span>
+                  </TabsTrigger>
+                )}
+                {(isAdmin || isCreator) && (
+                  <TabsTrigger value="puzzles" className="text-xs sm:text-sm gap-1.5">
+                    <Grid3X3 className="size-3.5" />
+                    Puzzles
+                  </TabsTrigger>
+                )}
+                {(isAdmin || isCreator) && (
+                  <TabsTrigger value="generator" className="text-xs sm:text-sm gap-1.5">
+                    <Sparkles className="size-3.5" />
+                    <span className="hidden sm:inline">Générateur</span>
+                    <span className="sm:hidden">Gén.</span>
+                  </TabsTrigger>
+                )}
+                {isAdmin && (
+                  <TabsTrigger value="schedule" className="text-xs sm:text-sm gap-1.5">
+                    <CalendarDays className="size-3.5" />
+                    <span className="hidden sm:inline">Programme</span>
+                    <span className="sm:hidden">Prog.</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {/* ── Categories Tab ── */}
