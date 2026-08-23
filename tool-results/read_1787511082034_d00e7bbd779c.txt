@@ -1,0 +1,628 @@
+  1088→      const json: AdminData = await res.json();
+  1089→      setData(json);
+  1090→      setSchedulePuzzlesPerDay(json.schedule.puzzlesPerDay);
+  1091→      setScheduleIsActive(json.schedule.isActive);
+  1092→    } catch (err) {
+  1093→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1094→    } finally {
+  1095→      setLoading(false);
+  1096→    }
+  1097→  }, []);
+  1098→
+  1099→  useEffect(() => {
+  1100→    if (open) {
+  1101→      fetchData();
+  1102→    }
+  1103→  }, [open, fetchData]);
+  1104→
+  1105→  // Reset state when dialog opens/closes
+  1106→  useEffect(() => {
+  1107→    if (!open) {
+  1108→      setDatePickerPuzzleId(null);
+  1109→      setSelectedDate(undefined);
+  1110→    }
+  1111→  }, [open]);
+  1112→
+  1113→  // --- Handlers ---
+  1114→
+  1115→  const handleSaveSchedule = async () => {
+  1116→    setSavingSchedule(true);
+  1117→    try {
+  1118→      const res = await fetch('/api/puzzles/admin/schedule', {
+  1119→        method: 'POST',
+  1120→        headers: { 'Content-Type': 'application/json' },
+  1121→        body: JSON.stringify({
+  1122→          puzzlesPerDay: schedulePuzzlesPerDay,
+  1123→          isActive: scheduleIsActive,
+  1124→        }),
+  1125→      });
+  1126→      if (!res.ok) throw new Error('Erreur lors de la sauvegarde');
+  1127→      toast.success('Programme de publication mis à jour');
+  1128→      await fetchData();
+  1129→    } catch (err) {
+  1130→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1131→    } finally {
+  1132→      setSavingSchedule(false);
+  1133→    }
+  1134→  };
+  1135→
+  1136→  const handleTogglePublish = async (puzzle: PuzzleSummary) => {
+  1137→    const puzzleId = puzzle.id;
+  1138→    const newPublished = !puzzle.published;
+  1139→
+  1140→    setTogglingPuzzleIds((prev) => new Set(prev).add(puzzleId));
+  1141→    setData((prev) =>
+  1142→      prev
+  1143→        ? {
+  1144→            ...prev,
+  1145→            puzzles: prev.puzzles.map((p) =>
+  1146→              p.id === puzzleId
+  1147→                ? {
+  1148→                    ...p,
+  1149→                    published: newPublished,
+  1150→                    publishDate: newPublished
+  1151→                      ? p.publishDate || new Date().toISOString()
+  1152→                      : null,
+  1153→                  }
+  1154→                : p
+  1155→            ),
+  1156→          }
+  1157→        : prev
+  1158→    );
+  1159→
+  1160→    try {
+  1161→      const res = await fetch('/api/puzzles/admin/publish', {
+  1162→        method: 'POST',
+  1163→        headers: { 'Content-Type': 'application/json' },
+  1164→        body: JSON.stringify({ puzzleId, published: newPublished }),
+  1165→      });
+  1166→      if (!res.ok) throw new Error('Erreur lors de la modification');
+  1167→      toast.success(newPublished ? 'Puzzle publié avec succès' : 'Puzzle dépublié avec succès');
+  1168→      await fetchData();
+  1169→    } catch (err) {
+  1170→      setData((prev) =>
+  1171→        prev
+  1172→          ? {
+  1173→              ...prev,
+  1174→              puzzles: prev.puzzles.map((p) =>
+  1175→                p.id === puzzleId
+  1176→                  ? { ...p, published: !newPublished, publishDate: puzzle.publishDate }
+  1177→                  : p
+  1178→              ),
+  1179→            }
+  1180→          : prev
+  1181→      );
+  1182→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1183→    } finally {
+  1184→      setTogglingPuzzleIds((prev) => {
+  1185→        const next = new Set(prev);
+  1186→        next.delete(puzzleId);
+  1187→        return next;
+  1188→      });
+  1189→    }
+  1190→  };
+  1191→
+  1192→  const handleOpenDatePicker = (puzzle: PuzzleSummary) => {
+  1193→    setDatePickerPuzzleId(puzzle.id);
+  1194→    setSelectedDate(puzzle.publishDate ? new Date(puzzle.publishDate) : undefined);
+  1195→  };
+  1196→
+  1197→  const handleSaveDate = async () => {
+  1198→    if (!datePickerPuzzleId || !selectedDate) return;
+  1199→    setSavingDate(true);
+  1200→    try {
+  1201→      const res = await fetch('/api/puzzles/admin/publish', {
+  1202→        method: 'POST',
+  1203→        headers: { 'Content-Type': 'application/json' },
+  1204→        body: JSON.stringify({
+  1205→          puzzleId: datePickerPuzzleId,
+  1206→          published: true,
+  1207→          publishDate: selectedDate.toISOString(),
+  1208→        }),
+  1209→      });
+  1210→      if (!res.ok) throw new Error('Erreur lors de la mise à jour de la date');
+  1211→      toast.success('Date de publication mise à jour');
+  1212→      setDatePickerPuzzleId(null);
+  1213→      setSelectedDate(undefined);
+  1214→      await fetchData();
+  1215→    } catch (err) {
+  1216→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1217→    } finally {
+  1218→      setSavingDate(false);
+  1219→    }
+  1220→  };
+  1221→
+  1222→  const handleDelete = async () => {
+  1223→    if (!deleteTarget) return;
+  1224→    setDeleting(true);
+  1225→    try {
+  1226→      const res = await fetch(`/api/puzzles/admin?id=${deleteTarget.id}`, { method: 'DELETE' });
+  1227→      if (!res.ok) throw new Error('Erreur lors de la suppression');
+  1228→      toast.success(`« ${deleteTarget.title} » supprimé`);
+  1229→      setDeleteTarget(null);
+  1230→      await fetchData();
+  1231→    } catch (err) {
+  1232→      toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
+  1233→    } finally {
+  1234→      setDeleting(false);
+  1235→    }
+  1236→  };
+  1237→
+  1238→  const handlePuzzlesPerDayChange = (value: string) => {
+  1239→    const num = parseInt(value, 10);
+  1240→    if (!isNaN(num) && num >= 1 && num <= 10) {
+  1241→      setSchedulePuzzlesPerDay(num);
+  1242→    }
+  1243→  };
+  1244→
+  1245→  const openEditor = (puzzleId?: string) => {
+  1246→    setEditPuzzleId(puzzleId ?? null);
+  1247→    setEditorOpen(true);
+  1248→  };
+  1249→
+  1250→  const handleEditorSaved = () => {
+  1251→    fetchData();
+  1252→  };
+  1253→
+  1254→  // Filtered puzzles
+  1255→  const filteredPuzzles = useMemo(() => {
+  1256→    if (!data) return [];
+  1257→    let filtered = data.puzzles;
+  1258→    if (categoryFilter !== 'all') {
+  1259→      filtered = filtered.filter((p) => p.categoryId === categoryFilter);
+  1260→    }
+  1261→    if (packFilter !== 'all') {
+  1262→      filtered = filtered.filter((p) => p.packId === packFilter);
+  1263→    }
+  1264→    if (languageFilter !== 'all') {
+  1265→      filtered = filtered.filter((p) => p.language === languageFilter);
+  1266→    }
+  1267→    return filtered;
+  1268→  }, [data, categoryFilter, packFilter, languageFilter]);
+  1269→
+  1270→  // --- Render ---
+  1271→
+  1272→  return (
+  1273→    <>
+  1274→      <Dialog open={open} onOpenChange={onOpenChange}>
+  1275→        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+  1276→          <DialogHeader className="p-6 pb-0">
+  1277→            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+  1278→              <Settings className="size-5" />
+  1279→              Administration
+  1280→            </DialogTitle>
+  1281→            <DialogDescription>
+  1282→              Gérez vos catégories, collections, puzzles et programme de publication.
+  1283→            </DialogDescription>
+  1284→          </DialogHeader>
+  1285→
+  1286→          <div className="p-6 space-y-6">
+  1287→            <Tabs defaultValue={isCreator && !isAdmin ? 'generator' : 'categories'} className="w-full">
+  1288→              <TabsList className={cn(
+  1289→                'grid w-full',
+  1290→                isAdmin ? 'grid-cols-5' : isCreator ? 'grid-cols-2' : 'grid-cols-1'
+  1291→              )}>
+  1292→                {isAdmin && (
+  1293→                  <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
+  1294→                    <FolderOpen className="size-3.5" />
+  1295→                    <span className="hidden sm:inline">Catégories</span>
+  1296→                    <span className="sm:hidden">Catég.</span>
+  1297→                  </TabsTrigger>
+  1298→                )}
+  1299→                {isAdmin && (
+  1300→                  <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
+  1301→                    <Package className="size-3.5" />
+  1302→                    <span className="hidden sm:inline">Collections</span>
+  1303→                    <span className="sm:hidden">Coll.</span>
+  1304→                  </TabsTrigger>
+  1305→                )}
+  1306→                {(isAdmin || isCreator) && (
+  1307→                  <TabsTrigger value="puzzles" className="text-xs sm:text-sm gap-1.5">
+  1308→                    <Grid3X3 className="size-3.5" />
+  1309→                    Puzzles
+  1310→                  </TabsTrigger>
+  1311→                )}
+  1312→                {(isAdmin || isCreator) && (
+  1313→                  <TabsTrigger value="generator" className="text-xs sm:text-sm gap-1.5">
+  1314→                    <Sparkles className="size-3.5" />
+  1315→                    <span className="hidden sm:inline">Générateur</span>
+  1316→                    <span className="sm:hidden">Gén.</span>
+  1317→                  </TabsTrigger>
+  1318→                )}
+  1319→                {isAdmin && (
+  1320→                  <TabsTrigger value="schedule" className="text-xs sm:text-sm gap-1.5">
+  1321→                    <CalendarDays className="size-3.5" />
+  1322→                    <span className="hidden sm:inline">Programme</span>
+  1323→                    <span className="sm:hidden">Prog.</span>
+  1324→                  </TabsTrigger>
+  1325→                )}
+  1326→              </TabsList>
+  1327→
+  1328→              {/* ── Categories Tab ── */}
+  1329→              <TabsContent value="categories" className="mt-4">
+  1330→                <section className="rounded-lg border bg-muted/30 p-4">
+  1331→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1332→                    <Tag className="size-4 text-muted-foreground" />
+  1333→                    Gestion des Catégories
+  1334→                    <Badge variant="secondary" className="ml-1">
+  1335→                      {data?.categories.length ?? 0}
+  1336→                    </Badge>
+  1337→                  </h3>
+  1338→
+  1339→                  {loading && !data ? (
+  1340→                    <CategorySkeleton />
+  1341→                  ) : data ? (
+  1342→                    <CategoryManager
+  1343→                      categories={data.categories}
+  1344→                      onRefresh={fetchData}
+  1345→                    />
+  1346→                  ) : null}
+  1347→                </section>
+  1348→              </TabsContent>
+  1349→
+  1350→              {/* ── Packs Tab ── */}
+  1351→              <TabsContent value="packs" className="mt-4">
+  1352→                <section className="rounded-lg border bg-muted/30 p-4">
+  1353→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1354→                    <Package className="size-4 text-muted-foreground" />
+  1355→                    Gestion des Collections
+  1356→                    <Badge variant="secondary" className="ml-1">
+  1357→                      {data?.packs.length ?? 0}
+  1358→                    </Badge>
+  1359→                  </h3>
+  1360→
+  1361→                  {loading && !data ? (
+  1362→                    <CategorySkeleton />
+  1363→                  ) : data ? (
+  1364→                    <PackManager
+  1365→                      packs={data.packs}
+  1366→                      onRefresh={fetchData}
+  1367→                    />
+  1368→                  ) : null}
+  1369→                </section>
+  1370→              </TabsContent>
+  1371→
+  1372→              {/* ── Puzzles Tab ── */}
+  1373→              <TabsContent value="puzzles" className="mt-4">
+  1374→                <section>
+  1375→                  {/* Filters and create button */}
+  1376→                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+  1377→                    <h3 className="text-sm font-semibold flex items-center gap-2">
+  1378→                      <CalendarIcon className="size-4 text-muted-foreground" />
+  1379→                      Tous les Puzzles
+  1380→                      <Badge variant="secondary" className="ml-1">
+  1381→                        {filteredPuzzles.length}
+  1382→                      </Badge>
+  1383→                    </h3>
+  1384→
+  1385→                    <div className="flex items-center gap-2">
+  1386→                      <Select value={languageFilter} onValueChange={setLanguageFilter}>
+  1387→                        <SelectTrigger className="h-8 text-xs w-28">
+  1388→                          <Languages className="size-3 mr-1" />
+  1389→                          <SelectValue placeholder="Langue" />
+  1390→                        </SelectTrigger>
+  1391→                        <SelectContent>
+  1392→                          <SelectItem value="all">Toutes</SelectItem>
+  1393→                          <SelectItem value="fr">🇫🇷 Français</SelectItem>
+  1394→                          <SelectItem value="en">🇬🇧 English</SelectItem>
+  1395→                        </SelectContent>
+  1396→                      </Select>
+  1397→
+  1398→                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+  1399→                        <SelectTrigger className="h-8 text-xs w-36">
+  1400→                          <FolderOpen className="size-3 mr-1" />
+  1401→                          <SelectValue placeholder="Catégorie" />
+  1402→                        </SelectTrigger>
+  1403→                        <SelectContent>
+  1404→                          <SelectItem value="all">Toutes</SelectItem>
+  1405→                          {data?.categories.map((cat) => (
+  1406→                            <SelectItem key={cat.id} value={cat.id}>
+  1407→                              {cat.icon || '🏷️'} {cat.name}
+  1408→                            </SelectItem>
+  1409→                          ))}
+  1410→                        </SelectContent>
+  1411→                      </Select>
+  1412→
+  1413→                      <Select value={packFilter} onValueChange={setPackFilter}>
+  1414→                        <SelectTrigger className="h-8 text-xs w-36">
+  1415→                          <Package className="size-3 mr-1" />
+  1416→                          <SelectValue placeholder="Collection" />
+  1417→                        </SelectTrigger>
+  1418→                        <SelectContent>
+  1419→                          <SelectItem value="all">Toutes</SelectItem>
+  1420→                          {data?.packs.map((pack) => (
+  1421→                            <SelectItem key={pack.id} value={pack.id}>
+  1422→                              {pack.icon || '📦'} {pack.name}
+  1423→                            </SelectItem>
+  1424→                          ))}
+  1425→                        </SelectContent>
+  1426→                      </Select>
+  1427→
+  1428→                      <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => openEditor()}>
+  1429→                        <Plus className="size-3.5" />
+  1430→                        Créer
+  1431→                      </Button>
+  1432→                    </div>
+  1433→                  </div>
+  1434→
+  1435→                  {loading && !data ? (
+  1436→                    <TableSkeleton />
+  1437→                  ) : filteredPuzzles.length === 0 ? (
+  1438→                    <div className="text-center py-8 text-muted-foreground text-sm">
+  1439→                      Aucun puzzle ne correspond aux filtres.
+  1440→                    </div>
+  1441→                  ) : (
+  1442→                    <div className="rounded-md border max-h-96 overflow-y-auto">
+  1443→                      <Table>
+  1444→                        <TableHeader>
+  1445→                          <TableRow className="hover:bg-transparent">
+  1446→                            <TableHead className="pl-3">Titre</TableHead>
+  1447→                            <TableHead>Catégorie</TableHead>
+  1448→                            <TableHead>Collection</TableHead>
+  1449→                            <TableHead>Langue</TableHead>
+  1450→                            <TableHead>Difficulté</TableHead>
+  1451→                            <TableHead className="hidden md:table-cell">Taille</TableHead>
+  1452→                            <TableHead className="hidden lg:table-cell">Date</TableHead>
+  1453→                            <TableHead>Statut</TableHead>
+  1454→                            <TableHead className="text-right pr-3">Actions</TableHead>
+  1455→                          </TableRow>
+  1456→                        </TableHeader>
+  1457→                        <TableBody>
+  1458→                          {filteredPuzzles.map((puzzle) => {
+  1459→                            const isToggling = togglingPuzzleIds.has(puzzle.id);
+  1460→                            const isDatePicking = datePickerPuzzleId === puzzle.id;
+  1461→
+  1462→                            return (
+  1463→                              <TableRow key={puzzle.id}>
+  1464→                                <TableCell className="font-medium pl-3 max-w-[140px] truncate">
+  1465→                                  {puzzle.title}
+  1466→                                </TableCell>
+  1467→
+  1468→                                <TableCell>
+  1469→                                  {puzzle.categoryName ? (
+  1470→                                    <Badge variant="outline" className="text-xs gap-1">
+  1471→                                      <span>{puzzle.categoryIcon || '🏷️'}</span>
+  1472→                                      {puzzle.categoryName}
+  1473→                                    </Badge>
+  1474→                                  ) : (
+  1475→                                    <span className="text-xs text-muted-foreground">—</span>
+  1476→                                  )}
+  1477→                                </TableCell>
+  1478→
+  1479→                                <TableCell>
+  1480→                                  {puzzle.packName ? (
+  1481→                                    <Badge variant="outline" className="text-xs gap-1">
+  1482→                                      <span>{puzzle.packIcon || '📦'}</span>
+  1483→                                      {puzzle.packName}
+  1484→                                    </Badge>
+  1485→                                  ) : (
+  1486→                                    <span className="text-xs text-muted-foreground">—</span>
+  1487→                                  )}
+  1488→                                </TableCell>
+  1489→
+  1490→                                <TableCell>
+  1491→                                  <Badge variant="outline" className="text-xs">
+  1492→                                    {languageLabel(puzzle.language)}
+  1493→                                  </Badge>
+  1494→                                </TableCell>
+  1495→
+  1496→                                <TableCell>{renderStars(puzzle.difficulty)}</TableCell>
+  1497→
+  1498→                                <TableCell className="hidden md:table-cell text-muted-foreground text-xs">
+  1499→                                  {puzzle.rows}×{puzzle.cols}
+  1500→                                </TableCell>
+  1501→
+  1502→                                <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+  1503→                                  {isDatePicking ? (
+  1504→                                    <Popover open={isDatePicking} onOpenChange={(o) => !o && setDatePickerPuzzleId(null)}>
+  1505→                                      <PopoverTrigger asChild>
+  1506→                                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 font-normal">
+  1507→                                          <CalendarIcon className="size-3" />
+  1508→                                          {selectedDate ? format(selectedDate, 'dd MMM yyyy', { locale: fr }) : 'Choisir…'}
+  1509→                                        </Button>
+  1510→                                      </PopoverTrigger>
+  1511→                                      <PopoverContent className="w-auto p-0" align="start">
+  1512→                                        <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
+  1513→                                        <div className="flex justify-end gap-2 border-t p-2">
+  1514→                                          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDatePickerPuzzleId(null)}>
+  1515→                                            Annuler
+  1516→                                          </Button>
+  1517→                                          <Button size="sm" className="h-7 text-xs" onClick={handleSaveDate} disabled={!selectedDate || savingDate}>
+  1518→                                            {savingDate ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+  1519→                                            OK
+  1520→                                          </Button>
+  1521→                                        </div>
+  1522→                                      </PopoverContent>
+  1523→                                    </Popover>
+  1524→                                  ) : (
+  1525→                                    <span>{formatDate(puzzle.publishDate)}</span>
+  1526→                                  )}
+  1527→                                </TableCell>
+  1528→
+  1529→                                <TableCell>
+  1530→                                  {puzzle.published ? (
+  1531→                                    <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent gap-1">
+  1532→                                      <CheckCircle2 className="size-3" />
+  1533→                                      <span className="hidden sm:inline">Publié</span>
+  1534→                                    </Badge>
+  1535→                                  ) : (
+  1536→                                    <Badge variant="secondary" className="gap-1 text-muted-foreground">
+  1537→                                      <CircleOff className="size-3" />
+  1538→                                      <span className="hidden sm:inline">Brouillon</span>
+  1539→                                    </Badge>
+  1540→                                  )}
+  1541→                                </TableCell>
+  1542→
+  1543→                                <TableCell className="text-right pr-3">
+  1544→                                  <div className="flex items-center justify-end gap-1">
+  1545→                                    <Button
+  1546→                                      variant="ghost"
+  1547→                                      size="sm"
+  1548→                                      className="h-7 text-xs gap-1.5"
+  1549→                                      onClick={() => openEditor(puzzle.id)}
+  1550→                                      title="Modifier"
+  1551→                                    >
+  1552→                                      <Pencil className="size-3" />
+  1553→                                      <span className="hidden xl:inline">Modifier</span>
+  1554→                                    </Button>
+  1555→                                    <Button
+  1556→                                      variant={puzzle.published ? 'outline' : 'default'}
+  1557→                                      size="sm"
+  1558→                                      className="h-7 text-xs gap-1.5"
+  1559→                                      onClick={() => handleTogglePublish(puzzle)}
+  1560→                                      disabled={isToggling}
+  1561→                                    >
+  1562→                                      {isToggling ? (
+  1563→                                        <Loader2 className="size-3 animate-spin" />
+  1564→                                      ) : puzzle.published ? (
+  1565→                                        <EyeOff className="size-3" />
+  1566→                                      ) : (
+  1567→                                        <Eye className="size-3" />
+  1568→                                      )}
+  1569→                                      <span className="hidden xl:inline">{puzzle.published ? 'Dépublier' : 'Publier'}</span>
+  1570→                                    </Button>
+  1571→                                    <Button
+  1572→                                      variant="ghost"
+  1573→                                      size="sm"
+  1574→                                      className="h-7 text-xs gap-1.5"
+  1575→                                      onClick={() => handleOpenDatePicker(puzzle)}
+  1576→                                      disabled={isToggling || isDatePicking}
+  1577→                                      title="Date"
+  1578→                                    >
+  1579→                                      <CalendarDays className="size-3" />
+  1580→                                    </Button>
+  1581→                                    <Button
+  1582→                                      variant="ghost"
+  1583→                                      size="sm"
+  1584→                                      className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive"
+  1585→                                      onClick={() => setDeleteTarget(puzzle)}
+  1586→                                    >
+  1587→                                      <Trash2 className="size-3" />
+  1588→                                    </Button>
+  1589→                                  </div>
+  1590→                                </TableCell>
+  1591→                              </TableRow>
+  1592→                            );
+  1593→                          })}
+  1594→                        </TableBody>
+  1595→                      </Table>
+  1596→                    </div>
+  1597→                  )}
+  1598→                </section>
+  1599→              </TabsContent>
+  1600→
+  1601→              {/* ── Generator Tab ── */}
+  1602→              <TabsContent value="generator" className="mt-4">
+  1603→                <section className="rounded-lg border bg-muted/30 p-4">
+  1604→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1605→                    <Sparkles className="size-4 text-emerald-500" />
+  1606→                    Générateur Automatique
+  1607→                    <Badge variant="secondary" className="ml-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+  1608→                      IA
+  1609→                    </Badge>
+  1610→                  </h3>
+  1611→                  <p className="text-xs text-muted-foreground mb-4">
+  1612→                    Générez un puzzle de mots croisés automatiquement grâce à l'intelligence artificielle.
+  1613→                    Entrez un thème et l'IA créera les mots et indices, puis construira la grille.
+  1614→                  </p>
+  1615→
+  1616→                  {loading && !data ? (
+  1617→                    <div className="flex items-center justify-center py-8">
+  1618→                      <Loader2 className="size-6 animate-spin text-muted-foreground" />
+  1619→                    </div>
+  1620→                  ) : data ? (
+  1621→                    <PuzzleGenerator
+  1622→                      categories={data.categories}
+  1623→                      packs={data.packs}
+  1624→                      onGenerated={fetchData}
+  1625→                    />
+  1626→                  ) : null}
+  1627→                </section>
+  1628→              </TabsContent>
+  1629→
+  1630→              {/* ── Schedule Tab ── */}
+  1631→              <TabsContent value="schedule" className="mt-4">
+  1632→                <section className="rounded-lg border bg-muted/30 p-4">
+  1633→                  <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+  1634→                    <CalendarDays className="size-4 text-muted-foreground" />
+  1635→                    Programme de Publication
+  1636→                  </h3>
+  1637→
+  1638→                  <div className="space-y-4">
+  1639→                    <div className="flex items-center justify-between">
+  1640→                      <Label htmlFor="schedule-active" className="text-sm font-medium">
+  1641→                        Publication automatique active
+  1642→                      </Label>
+  1643→                      <Switch
+  1644→                        id="schedule-active"
+  1645→                        checked={scheduleIsActive}
+  1646→                        onCheckedChange={setScheduleIsActive}
+  1647→                      />
+  1648→                    </div>
+  1649→
+  1650→                    <div className="flex items-center gap-3">
+  1651→                      <Label htmlFor="puzzles-per-day" className="text-sm font-medium whitespace-nowrap">
+  1652→                        Puzzles par jour
+  1653→                      </Label>
+  1654→                      <Input
+  1655→                        id="puzzles-per-day"
+  1656→                        type="number"
+  1657→                        min={1}
+  1658→                        max={10}
+  1659→                        value={schedulePuzzlesPerDay}
+  1660→                        onChange={(e) => handlePuzzlesPerDayChange(e.target.value)}
+  1661→                        className="w-20 h-9 text-center"
+  1662→                        disabled={!scheduleIsActive}
+  1663→                      />
+  1664→                    </div>
+  1665→
+  1666→                    <div className="flex justify-end pt-1">
+  1667→                      <Button size="sm" onClick={handleSaveSchedule} disabled={savingSchedule}>
+  1668→                        {savingSchedule ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+  1669→                        Enregistrer
+  1670→                      </Button>
+  1671→                    </div>
+  1672→                  </div>
+  1673→                </section>
+  1674→              </TabsContent>
+  1675→            </Tabs>
+  1676→          </div>
+  1677→        </DialogContent>
+  1678→      </Dialog>
+  1679→
+  1680→      {/* ── Puzzle Editor Dialog ──────────────────────────────── */}
+  1681→      <PuzzleEditor
+  1682→        open={editorOpen}
+  1683→        onOpenChange={setEditorOpen}
+  1684→        editPuzzleId={editPuzzleId}
+  1685→        onSaved={handleEditorSaved}
+  1686→      />
+  1687→
+  1688→      {/* ── Delete Confirmation Dialog ────────────────────────── */}
+  1689→      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+  1690→        <AlertDialogContent>
+  1691→          <AlertDialogHeader>
+  1692→            <AlertDialogTitle>Supprimer le puzzle</AlertDialogTitle>
+  1693→            <AlertDialogDescription>
+  1694→              Êtes-vous sûr de vouloir supprimer « {deleteTarget?.title} » ? Cette action est irréversible.
+  1695→            </AlertDialogDescription>
+  1696→          </AlertDialogHeader>
+  1697→          <AlertDialogFooter>
+  1698→            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+  1699→            <AlertDialogAction
+  1700→              onClick={handleDelete}
+  1701→              disabled={deleting}
+  1702→              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+  1703→            >
+  1704→              {deleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+  1705→              Supprimer
+  1706→            </AlertDialogAction>
+  1707→          </AlertDialogFooter>
+  1708→        </AlertDialogContent>
+  1709→      </AlertDialog>
+  1710→    </>
+  1711→  );
+  1712→}
+  1713→
+  1714→
+  1715→

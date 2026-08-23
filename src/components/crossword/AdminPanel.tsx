@@ -1074,11 +1074,14 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
   const [packFilter, setPackFilter] = useState<string>('all');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
 
+  // Determine the correct API endpoint based on role
+  const dataEndpoint = isAdmin ? '/api/puzzles/admin' : '/api/creator/data';
+
   // Expose fetchData for editor callback
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/puzzles/admin');
+      const res = await fetch(dataEndpoint);
       if (!res.ok) {
         throw new Error('Erreur lors du chargement des données');
       }
@@ -1091,7 +1094,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dataEndpoint]);
 
   useEffect(() => {
     if (open) {
@@ -1273,10 +1276,12 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Settings className="size-5" />
-              Administration
+              {isAdmin ? 'Administration' : 'Espace Créateur'}
             </DialogTitle>
             <DialogDescription>
-              Gérez vos catégories, collections, puzzles et programme de publication.
+              {isAdmin
+                ? 'Gérez vos catégories, collections, puzzles et programme de publication.'
+                : 'Créez et gérez vos puzzles de mots croisés.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1549,40 +1554,46 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                                       <Pencil className="size-3" />
                                       <span className="hidden xl:inline">Modifier</span>
                                     </Button>
-                                    <Button
-                                      variant={puzzle.published ? 'outline' : 'default'}
-                                      size="sm"
-                                      className="h-7 text-xs gap-1.5"
-                                      onClick={() => handleTogglePublish(puzzle)}
-                                      disabled={isToggling}
-                                    >
-                                      {isToggling ? (
-                                        <Loader2 className="size-3 animate-spin" />
-                                      ) : puzzle.published ? (
-                                        <EyeOff className="size-3" />
-                                      ) : (
-                                        <Eye className="size-3" />
-                                      )}
-                                      <span className="hidden xl:inline">{puzzle.published ? 'Dépublier' : 'Publier'}</span>
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 text-xs gap-1.5"
-                                      onClick={() => handleOpenDatePicker(puzzle)}
-                                      disabled={isToggling || isDatePicking}
-                                      title="Date"
-                                    >
-                                      <CalendarDays className="size-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive"
-                                      onClick={() => setDeleteTarget(puzzle)}
-                                    >
-                                      <Trash2 className="size-3" />
-                                    </Button>
+                                    {isAdmin && (
+                                      <Button
+                                        variant={puzzle.published ? 'outline' : 'default'}
+                                        size="sm"
+                                        className="h-7 text-xs gap-1.5"
+                                        onClick={() => handleTogglePublish(puzzle)}
+                                        disabled={isToggling}
+                                      >
+                                        {isToggling ? (
+                                          <Loader2 className="size-3 animate-spin" />
+                                        ) : puzzle.published ? (
+                                          <EyeOff className="size-3" />
+                                        ) : (
+                                          <Eye className="size-3" />
+                                        )}
+                                        <span className="hidden xl:inline">{puzzle.published ? 'Dépublier' : 'Publier'}</span>
+                                      </Button>
+                                    )}
+                                    {isAdmin && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs gap-1.5"
+                                        onClick={() => handleOpenDatePicker(puzzle)}
+                                        disabled={isToggling || isDatePicking}
+                                        title="Date"
+                                      >
+                                        <CalendarDays className="size-3" />
+                                      </Button>
+                                    )}
+                                    {isAdmin && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs gap-1.5 text-destructive hover:text-destructive"
+                                        onClick={() => setDeleteTarget(puzzle)}
+                                      >
+                                        <Trash2 className="size-3" />
+                                      </Button>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>

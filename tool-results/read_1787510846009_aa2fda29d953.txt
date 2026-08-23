@@ -1,0 +1,1089 @@
+     1→"use client";
+     2→
+     3→import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→import { toast } from "sonner";
+     5→
+     6→import { Button } from "@/components/ui/button";
+     7→import {
+     8→  Dialog,
+     9→  DialogContent,
+    10→  DialogHeader,
+    11→  DialogTitle,
+    12→  DialogDescription,
+    13→} from "@/components/ui/dialog";
+    14→import { Input } from "@/components/ui/input";
+    15→import { Label } from "@/components/ui/label";
+    16→import { Textarea } from "@/components/ui/textarea";
+    17→import {
+    18→  Select,
+    19→  SelectContent,
+    20→  SelectItem,
+    21→  SelectTrigger,
+    22→  SelectValue,
+    23→} from "@/components/ui/select";
+    24→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    25→import { Skeleton } from "@/components/ui/skeleton";
+    26→import { ScrollArea } from "@/components/ui/scroll-area";
+    27→import { Separator } from "@/components/ui/separator";
+    28→import { Badge } from "@/components/ui/badge";
+    29→
+    30→import { Languages, FolderOpen, Package, Grid2X2, Grid3X3, LayoutGrid } from "lucide-react";
+    31→
+    32→import type {
+    33→  CrosswordCell,
+    34→  CrosswordPuzzleData,
+    35→  WordPlacement,
+    36→  Clue,
+    37→} from "@/lib/crossword/types";
+    38→
+    39→// ── Props ─────────────────────────────────────────────────────────────
+    40→
+    41→interface PuzzleEditorProps {
+    42→  open: boolean;
+    43→  onOpenChange: (open: boolean) => void;
+    44→  editPuzzleId?: string | null;
+    45→  onSaved?: () => void;
+    46→}
+    47→
+    48→// ── Types ─────────────────────────────────────────────────────────────
+    49→
+    50→interface EditorClue extends Clue {
+    51→  word: string;
+    52→  row: number;
+    53→  col: number;
+    54→}
+    55→
+    56→interface CategoryOption {
+    57→  id: string;
+    58→  name: string;
+    59→  slug: string;
+    60→  language: string;
+    61→  icon?: string;
+    62→}
+    63→
+    64→interface PackOption {
+    65→  id: string;
+    66→  name: string;
+    67→  icon: string;
+    68→  language: string;
+    69→}
+    70→
+    71→const noneCategory = "__none__";
+    72→const nonePack = "__none__";
+    73→
+    74→const gridSizePresets = [
+    75→  { id: '5x5', label: '5×5', icon: Grid2X2 },
+    76→  { id: '8x8', label: '8×8', icon: Grid2X2 },
+    77→  { id: '10x10', label: '10×10', icon: Grid3X3 },
+    78→  { id: '13x13', label: '13×13', icon: Grid3X3 },
+    79→  { id: '15x15', label: '15×15', icon: LayoutGrid },
+    80→  { id: '20x20', label: '20×20', icon: LayoutGrid },
+    81→];
+    82→
+    83→// ── Helpers ───────────────────────────────────────────────────────────
+    84→
+    85→/** Create an empty grid of all-black cells */
+    86→function createEmptyGrid(rows: number, cols: number): CrosswordCell[][] {
+    87→  const grid: CrosswordCell[][] = [];
+    88→  for (let r = 0; r < rows; r++) {
+    89→    grid[r] = [];
+    90→    for (let c = 0; c < cols; c++) {
+    91→      grid[r][c] = { letter: "", number: null, isBlack: true, row: r, col: c };
+    92→    }
+    93→  }
+    94→  return grid;
+    95→}
+    96→
+    97→/** Deep-clone a grid */
+    98→function cloneGrid(grid: CrosswordCell[][]): CrosswordCell[][] {
+    99→  return grid.map((row) => row.map((cell) => ({ ...cell })));
+   100→}
+   101→
+   102→/** Detect all words (2+ consecutive non-black cells with at least one letter) and assign numbers */
+   103→function detectWordsAndNumbers(
+   104→  grid: CrosswordCell[][]
+   105→): { words: WordPlacement[]; clues: EditorClue[] } {
+   106→  const rows = grid.length;
+   107→  const cols = grid[0]?.length ?? 0;
+   108→
+   109→  // First pass: assign numbers
+   110→  let clueNum = 1;
+   111→  const numberMap = new Map<string, number>();
+   112→
+   113→  for (let r = 0; r < rows; r++) {
+   114→    for (let c = 0; c < cols; c++) {
+   115→      if (grid[r][c].isBlack) continue;
+   116→      const key = `${r},${c}`;
+   117→      if (numberMap.has(key)) continue;
+   118→
+   119→      const startsAcross =
+   120→        (c === 0 || grid[r][c - 1].isBlack) &&
+   121→        c + 1 < cols &&
+   122→        !grid[r][c + 1].isBlack;
+   123→      const startsDown =
+   124→        (r === 0 || grid[r - 1][c].isBlack) &&
+   125→        r + 1 < rows &&
+   126→        !grid[r + 1][c].isBlack;
+   127→
+   128→      if (startsAcross || startsDown) {
+   129→        numberMap.set(key, clueNum);
+   130→        clueNum++;
+   131→      }
+   132→    }
+   133→  }
+   134→
+   135→  // Build number grid for quick lookup
+   136→  const numGrid: (number | null)[][] = [];
+   137→  for (let r = 0; r < rows; r++) {
+   138→    numGrid[r] = [];
+   139→    for (let c = 0; c < cols; c++) {
+   140→      numGrid[r][c] = grid[r][c].isBlack ? null : (numberMap.get(`${r},${c}`) ?? null);
+   141→    }
+   142→  }
+   143→
+   144→  const words: WordPlacement[] = [];
+   145→  const clues: EditorClue[] = [];
+   146→
+   147→  // Detect across words
+   148→  for (let r = 0; r < rows; r++) {
+   149→    let c = 0;
+   150→    while (c < cols) {
+   151→      if (grid[r][c].isBlack) {
+   152→        c++;
+   153→        continue;
+   154→      }
+   155→      // Start of a horizontal run
+   156→      const startC = c;
+   157→      let wordStr = "";
+   158→      while (c < cols && !grid[r][c].isBlack) {
+   159→        wordStr += grid[r][c].letter;
+   160→        c++;
+   161→      }
+   162→      if (wordStr.length >= 2) {
+   163→        const num = numGrid[r][startC];
+   164→        if (num !== null) {
+   165→          words.push({
+   166→            word: wordStr,
+   167→            clueNumber: num,
+   168→            direction: "across",
+   169→            row: r,
+   170→            col: startC,
+   171→            length: wordStr.length,
+   172→          });
+   173→          clues.push({
+   174→            number: num,
+   175→            direction: "across",
+   176→            text: "",
+   177→            word: wordStr,
+   178→            row: r,
+   179→            col: startC,
+   180→          });
+   181→        }
+   182→      }
+   183→    }
+   184→  }
+   185→
+   186→  // Detect down words
+   187→  for (let c = 0; c < cols; c++) {
+   188→    let r = 0;
+   189→    while (r < rows) {
+   190→      if (grid[r][c].isBlack) {
+   191→        r++;
+   192→        continue;
+   193→      }
+   194→      const startR = r;
+   195→      let wordStr = "";
+   196→      while (r < rows && !grid[r][c].isBlack) {
+   197→        wordStr += grid[r][c].letter;
+   198→        r++;
+   199→      }
+   200→      if (wordStr.length >= 2) {
+   201→        const num = numGrid[startR][c];
+   202→        if (num !== null) {
+   203→          words.push({
+   204→            word: wordStr,
+   205→            clueNumber: num,
+   206→            direction: "down",
+   207→            row: startR,
+   208→            col: c,
+   209→            length: wordStr.length,
+   210→          });
+   211→          clues.push({
+   212→            number: num,
+   213→            direction: "down",
+   214→            text: "",
+   215→            word: wordStr,
+   216→            row: startR,
+   217→            col: c,
+   218→          });
+   219→        }
+   220→      }
+   221→    }
+   222→  }
+   223→
+   224→  return { words, clues };
+   225→}
+   226→
+   227→/** Update grid numbers from numberMap */
+   228→function applyNumbersToGrid(
+   229→  grid: CrosswordCell[][],
+   230→  words: WordPlacement[]
+   231→): CrosswordCell[][] {
+   232→  const newGrid = cloneGrid(grid);
+   233→  // Clear all numbers
+   234→  for (let r = 0; r < newGrid.length; r++) {
+   235→    for (let c = 0; c < newGrid[0].length; c++) {
+   236→      newGrid[r][c].number = null;
+   237→    }
+   238→  }
+   239→  // Set numbers from word placements
+   240→  for (const w of words) {
+   241→    if (newGrid[w.row]?.[w.col]) {
+   242→      newGrid[w.row][w.col].number = w.clueNumber;
+   243→    }
+   244→  }
+   245→  return newGrid;
+   246→}
+   247→
+   248→// ── Component ──────────────────────────────────────────────────────────
+   249→
+   250→export default function PuzzleEditor({
+   251→  open,
+   252→  onOpenChange,
+   253→  editPuzzleId,
+   254→  onSaved,
+   255→}: PuzzleEditorProps) {
+   256→  // ── State ────────────────────────────────────────────────────────
+   257→  const [title, setTitle] = useState("");
+   258→  const [description, setDescription] = useState("");
+   259→  const [difficulty, setDifficulty] = useState<string>("2");
+   260→  const [language, setLanguage] = useState<string>("fr");
+   261→  const [categoryId, setCategoryId] = useState<string>(noneCategory);
+   262→  const [packId, setPackId] = useState<string>(nonePack);
+   263→  const [categories, setCategories] = useState<CategoryOption[]>([]);
+   264→  const [packs, setPacks] = useState<PackOption[]>([]);
+   265→  const [rowsInput, setRowsInput] = useState(10);
+   266→  const [colsInput, setColsInput] = useState(10);
+   267→  const [grid, setGrid] = useState<CrosswordCell[][]>(createEmptyGrid(10, 10));
+   268→  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+   269→  const [words, setWords] = useState<WordPlacement[]>([]);
+   270→  const [clues, setClues] = useState<EditorClue[]>([]);
+   271→  const [loading, setLoading] = useState(false);
+   272→  const [saving, setSaving] = useState(false);
+   273→  const [activeClueTab, setActiveClueTab] = useState<string>("across");
+   274→
+   275→  const gridRef = useRef<HTMLDivElement>(null);
+   276→  const isEditing = !!editPuzzleId;
+   277→
+   278→  // ── Load categories & packs ─────────────────────────────────────
+   279→  useEffect(() => {
+   280→    if (!open) return;
+   281→    fetch('/api/categories')
+   282→      .then((res) => res.json())
+   283→      .then((data) => {
+   284→        setCategories(data.categories ?? []);
+   285→      })
+   286→      .catch(() => {});
+   287→    fetch('/api/packs')
+   288→      .then((res) => res.json())
+   289→      .then((data) => {
+   290→        setPacks(data.packs ?? []);
+   291→      })
+   292→      .catch(() => {});
+   293→  }, [open]);
+   294→
+   295→  // ── Derived: number grid for display ─────────────────────────────
+   296→  const numberGrid = useMemo(() => {
+   297→    const ng: (number | null)[][] = [];
+   298→    for (let r = 0; r < grid.length; r++) {
+   299→      ng[r] = [];
+   300→      for (let c = 0; c < (grid[0]?.length ?? 0); c++) {
+   301→        ng[r][c] = grid[r][c].number;
+   302→      }
+   303→    }
+   304→    return ng;
+   305→  }, [grid]);
+   306→
+   307→  const acrossClues = useMemo(
+   308→    () => clues.filter((c) => c.direction === "across").sort((a, b) => a.number - b.number),
+   309→    [clues]
+   310→  );
+   311→  const downClues = useMemo(
+   312→    () => clues.filter((c) => c.direction === "down").sort((a, b) => a.number - b.number),
+   313→    [clues]
+   314→  );
+   315→
+   316→  // ── Recompute words/clues from grid ──────────────────────────────
+   317→  const recomputeWords = useCallback(
+   318→    (g: CrosswordCell[][], preserveClueTexts: boolean = true) => {
+   319→      const { words: newWords, clues: newClues } = detectWordsAndNumbers(g);
+   320→      setWords(newWords);
+   321→      if (preserveClueTexts) {
+   322→        // Merge existing clue texts into new clues
+   323→        const clueMap = new Map<string, string>();
+   324→        for (const c of clues) {
+   325→          clueMap.set(`${c.number}-${c.direction}`, c.text);
+   326→        }
+   327→        const merged = newClues.map((nc) => ({
+   328→          ...nc,
+   329→          text: clueMap.get(`${nc.number}-${nc.direction}`) ?? "",
+   330→        }));
+   331→        setClues(merged);
+   332→      } else {
+   333→        setClues(newClues);
+   334→      }
+   335→      // Update grid numbers
+   336→      const updatedGrid = applyNumbersToGrid(g, newWords);
+   337→      setGrid(updatedGrid);
+   338→    },
+   339→    [clues]
+   340→  );
+   341→
+   342→  // ── Load puzzle for editing ──────────────────────────────────────
+   343→  useEffect(() => {
+   344→    if (!open) return;
+   345→    if (!editPuzzleId) {
+   346→      // New puzzle: reset everything
+   347→      setTitle("");
+   348→      setDescription("");
+   349→      setDifficulty("2");
+   350→      setLanguage("fr");
+   351→      setCategoryId(noneCategory);
+   352→      setPackId(nonePack);
+   353→      setRowsInput(10);
+   354→      setColsInput(10);
+   355→      const emptyGrid = createEmptyGrid(10, 10);
+   356→      setGrid(emptyGrid);
+   357→      setSelectedCell(null);
+   358→      setWords([]);
+   359→      setClues([]);
+   360→      setLoading(false);
+   361→      return;
+   362→    }
+   363→
+   364→    // Fetch puzzle data
+   365→    let cancelled = false;
+   366→    setLoading(true);
+   367→    fetch(`/api/puzzles/${editPuzzleId}`)
+   368→      .then((res) => {
+   369→        if (!res.ok) throw new Error("Erreur de chargement");
+   370→        return res.json();
+   371→      })
+   372→      .then((data) => {
+   373→        if (cancelled) return;
+   374→        const p: CrosswordPuzzleData = data.puzzle;
+   375→        setTitle(p.title);
+   376→        setDescription(p.description ?? "");
+   377→        setDifficulty(String(p.difficulty));
+   378→        // Load language and category from puzzle metadata
+   379→        if (data.language) setLanguage(data.language);
+   380→        if (data.categoryId) setCategoryId(data.categoryId);
+   381→        else setCategoryId(noneCategory);
+   382→        if (data.packId) setPackId(data.packId);
+   383→        else setPackId(nonePack);
+   384→        setRowsInput(p.rows);
+   385→        setColsInput(p.cols);
+   386→        setGrid(cloneGrid(p.grid));
+   387→        setSelectedCell(null);
+   388→        // Build words and clues from loaded data
+   389→        const editorClues: EditorClue[] = p.clues.map((cl) => {
+   390→          const w = p.words.find(
+   391→            (pw) => pw.clueNumber === cl.number && pw.direction === cl.direction
+   392→          );
+   393→          return {
+   394→            ...cl,
+   395→            word: w?.word ?? "",
+   396→            row: w?.row ?? 0,
+   397→            col: w?.col ?? 0,
+   398→          };
+   399→        });
+   400→        setWords(p.words);
+   401→        setClues(editorClues);
+   402→        setLoading(false);
+   403→      })
+   404→      .catch((err) => {
+   405→        if (cancelled) return;
+   406→        console.error(err);
+   407→        toast.error("Erreur lors du chargement du puzzle");
+   408→        setLoading(false);
+   409→      });
+   410→
+   411→    return () => {
+   412→      cancelled = true;
+   413→    };
+   414→  }, [open, editPuzzleId]);
+   415→
+   416→  // ── Grid cell click ──────────────────────────────────────────────
+   417→  const handleCellClick = useCallback(
+   418→    (r: number, c: number) => {
+   419→      const cell = grid[r]?.[c];
+   420→      if (!cell) return;
+   421→
+   422→      // If clicking the SAME selected cell again, toggle black/white
+   423→      if (
+   424→        selectedCell &&
+   425→        selectedCell.row === r &&
+   426→        selectedCell.col === c
+   427→      ) {
+   428→        if (!cell.isBlack && cell.letter === "") {
+   429→          // White empty cell → toggle to black
+   430→          const newGrid = cloneGrid(grid);
+   431→          newGrid[r][c] = { ...newGrid[r][c], isBlack: true, letter: "" };
+   432→          recomputeWords(newGrid);
+   433→          setSelectedCell(null);
+   434→          return;
+   435→        }
+   436→        if (cell.isBlack) {
+   437→          // Black cell → toggle to white
+   438→          const newGrid = cloneGrid(grid);
+   439→          newGrid[r][c] = { ...newGrid[r][c], isBlack: false, letter: "" };
+   440→          recomputeWords(newGrid);
+   441→          // Keep it selected so user can start typing
+   442→          return;
+   443→        }
+   444→        // Has a letter — just keep selected
+   445→        return;
+   446→      }
+   447→
+   448→      // Clicking an unselected BLACK cell → toggle to white and select (draw mode)
+   449→      if (cell.isBlack) {
+   450→        const newGrid = cloneGrid(grid);
+   451→        newGrid[r][c] = { ...newGrid[r][c], isBlack: false, letter: "" };
+   452→        recomputeWords(newGrid);
+   453→        setSelectedCell({ row: r, col: c });
+   454→        return;
+   455→      }
+   456→
+   457→      // Otherwise just select the cell
+   458→      setSelectedCell({ row: r, col: c });
+   459→    },
+   460→    [grid, selectedCell, recomputeWords]
+   461→  );
+   462→
+   463→  // ── Keyboard handler ─────────────────────────────────────────────
+   464→  useEffect(() => {
+   465→    if (!selectedCell) return;
+   466→
+   467→    const handleKeyDown = (e: KeyboardEvent) => {
+   468→      const { row, col } = selectedCell;
+   469→      const maxRow = grid.length - 1;
+   470→      const maxCol = (grid[0]?.length ?? 1) - 1;
+   471→
+   472→      // Prevent default for keys we handle
+   473→      if (
+   474→        e.key.startsWith("Arrow") ||
+   475→        e.key === "Backspace" ||
+   476→        e.key === "Delete" ||
+   477→        (/^[a-zA-ZéèêëàâùûîïôçÉÈÊËÀÂÙÛÎÏÔÇ]$/.test(e.key))
+   478→      ) {
+   479→        e.preventDefault();
+   480→      }
+   481→
+   482→      if (e.key === "ArrowUp") {
+   483→        setSelectedCell((prev) =>
+   484→          prev && prev.row > 0 ? { row: prev.row - 1, col: prev.col } : prev
+   485→        );
+   486→      } else if (e.key === "ArrowDown") {
+   487→        setSelectedCell((prev) =>
+   488→          prev && prev.row < maxRow ? { row: prev.row + 1, col: prev.col } : prev
+   489→        );
+   490→      } else if (e.key === "ArrowLeft") {
+   491→        setSelectedCell((prev) =>
+   492→          prev && prev.col > 0 ? { row: prev.row, col: prev.col - 1 } : prev
+   493→        );
+   494→      } else if (e.key === "ArrowRight") {
+   495→        setSelectedCell((prev) =>
+   496→          prev && prev.col < maxCol ? { row: prev.row, col: prev.col + 1 } : prev
+   497→        );
+   498→      } else if (e.key === "Backspace" || e.key === "Delete") {
+   499→        const cell = grid[row]?.[col];
+   500→        if (cell && !cell.isBlack && cell.letter !== "") {
+   501→          const newGrid = cloneGrid(grid);
+   502→          newGrid[row][col] = { ...newGrid[row][col], letter: "" };
+   503→          recomputeWords(newGrid);
+   504→        } else if (e.key === "Backspace") {
+   505→          // Move back
+   506→          if (col > 0) {
+   507→            setSelectedCell({ row, col: col - 1 });
+   508→          } else if (row > 0) {
+   509→            setSelectedCell({ row: row - 1, col: maxCol });
+   510→          }
+   511→        }
+   512→      } else if (/^[a-zA-Z]$/.test(e.key)) {
+   513→        const cell = grid[row]?.[col];
+   514→        if (cell && !cell.isBlack) {
+   515→          const newGrid = cloneGrid(grid);
+   516→          newGrid[row][col] = {
+   517→            ...newGrid[row][col],
+   518→            letter: e.key.toUpperCase(),
+   519→          };
+   520→          recomputeWords(newGrid);
+   521→          // Auto-advance
+   522→          if (col < maxCol && !newGrid[row][col + 1].isBlack) {
+   523→            setSelectedCell({ row, col: col + 1 });
+   524→          } else if (row < maxRow) {
+   525→            // Try to move to next row
+   526→            setSelectedCell({ row: row + 1, col: 0 });
+   527→          }
+   528→        }
+   529→      } else if (e.key === "Escape") {
+   530→        setSelectedCell(null);
+   531→      }
+   532→    };
+   533→
+   534→    window.addEventListener("keydown", handleKeyDown);
+   535→    return () => window.removeEventListener("keydown", handleKeyDown);
+   536→  }, [selectedCell, grid, recomputeWords]);
+   537→
+   538→  // ── Resize grid ──────────────────────────────────────────────────
+   539→  const applyGridSize = useCallback((rows: number, cols: number) => {
+   540→    const r = Math.max(2, Math.min(20, rows));
+   541→    const c = Math.max(2, Math.min(20, cols));
+   542→    const newGrid = createEmptyGrid(r, c);
+   543→    // Preserve existing data
+   544→    for (let row = 0; row < Math.min(r, grid.length); row++) {
+   545→      for (let col = 0; col < Math.min(c, (grid[0]?.length ?? 0)); col++) {
+   546→        newGrid[row][col] = { ...grid[row][col], row, col };
+   547→      }
+   548→    }
+   549→    setRowsInput(r);
+   550→    setColsInput(c);
+   551→    setGrid(newGrid);
+   552→    setSelectedCell(null);
+   553→    recomputeWords(newGrid);
+   554→  }, [grid, recomputeWords]);
+   555→
+   556→  const handleResizeGrid = useCallback(() => {
+   557→    applyGridSize(rowsInput, colsInput);
+   558→  }, [rowsInput, colsInput, applyGridSize]);
+   559→
+   560→  const handlePresetGridSize = useCallback((presetId: string) => {
+   561→    const [rows, cols] = presetId.split('x').map(Number);
+   562→    applyGridSize(rows, cols);
+   563→  }, [applyGridSize]);
+   564→
+   565→  // ── Clear all ────────────────────────────────────────────────────
+   566→  const handleClearAll = useCallback(() => {
+   567→    const newGrid = createEmptyGrid(grid.length, grid[0]?.length ?? 0);
+   568→    setGrid(newGrid);
+   569→    setSelectedCell(null);
+   570→    setWords([]);
+   571→    setClues([]);
+   572→  }, [grid]);
+   573→
+   574→  // ── Clear letters only ───────────────────────────────────────────
+   575→  const handleClearLetters = useCallback(() => {
+   576→    const newGrid = cloneGrid(grid);
+   577→    for (let r = 0; r < newGrid.length; r++) {
+   578→      for (let c = 0; c < newGrid[0].length; c++) {
+   579→        newGrid[r][c].letter = "";
+   580→      }
+   581→    }
+   582→    setGrid(newGrid);
+   583→    recomputeWords(newGrid);
+   584→  }, [grid, recomputeWords]);
+   585→
+   586→  // ── Update clue text ─────────────────────────────────────────────
+   587→  const handleClueTextChange = useCallback(
+   588→    (number: number, direction: "across" | "down", text: string) => {
+   589→      setClues((prev) =>
+   590→        prev.map((c) =>
+   591→          c.number === number && c.direction === direction ? { ...c, text } : c
+   592→        )
+   593→      );
+   594→    },
+   595→    []
+   596→  );
+   597→
+   598→  // ── Update word text → update grid cells ─────────────────────────
+   599→  const handleWordChange = useCallback(
+   600→    (
+   601→      number: number,
+   602→      direction: "across" | "down",
+   603→      newWord: string,
+   604→      row: number,
+   605→      col: number
+   606→    ) => {
+   607→      const newGrid = cloneGrid(grid);
+   608→      const oldWord = words.find(
+   609→        (w) => w.clueNumber === number && w.direction === direction
+   610→      );
+   611→      const oldLen = oldWord?.length ?? newWord.length;
+   612→
+   613→      // Update grid cells
+   614→      for (let i = 0; i < Math.max(oldLen, newWord.length); i++) {
+   615→        const r = direction === "across" ? row : row + i;
+   616→        const c = direction === "across" ? col + i : col;
+   617→        if (r < newGrid.length && c < (newGrid[0]?.length ?? 0)) {
+   618→          if (i < newWord.length) {
+   619→            newGrid[r][c] = {
+   620→              ...newGrid[r][c],
+   621→              letter: newWord[i].toUpperCase(),
+   622→              isBlack: false,
+   623→            };
+   624→          } else if (i >= newWord.length && i < oldLen) {
+   625→            // Clear extra letters but keep cell white
+   626→            newGrid[r][c] = { ...newGrid[r][c], letter: "" };
+   627→          }
+   628→        }
+   629→      }
+   630→
+   631→      setGrid(newGrid);
+   632→      recomputeWords(newGrid);
+   633→    },
+   634→    [grid, words, recomputeWords]
+   635→  );
+   636→
+   637→  // ── Save ─────────────────────────────────────────────────────────
+   638→  const handleSave = useCallback(async () => {
+   639→    if (!title.trim()) {
+   640→      toast.error("Le titre est requis");
+   641→      return;
+   642→    }
+   643→
+   644→    const finalClues: Clue[] = clues.map(({ number, direction, text }) => ({
+   645→      number,
+   646→      direction,
+   647→      text,
+   648→    }));
+   649→
+   650→    setSaving(true);
+   651→    try {
+   652→      const body = {
+   653→        title: title.trim(),
+   654→        description: description.trim() || undefined,
+   655→        difficulty: Number(difficulty),
+   656→        language,
+   657→        categoryId: categoryId === noneCategory ? null : categoryId,
+   658→        packId: packId === nonePack ? null : packId,
+   659→        rows: grid.length,
+   660→        cols: grid[0]?.length ?? 0,
+   661→        grid,
+   662→        words,
+   663→        clues: finalClues,
+   664→      };
+   665→
+   666→      const url = isEditing ? "/api/puzzles/admin" : "/api/puzzles/admin";
+   667→      const method = isEditing ? "PUT" : "POST";
+   668→      const payload = isEditing ? { ...body, id: editPuzzleId } : body;
+   669→
+   670→      const res = await fetch(url, {
+   671→        method,
+   672→        headers: { "Content-Type": "application/json" },
+   673→        body: JSON.stringify(payload),
+   674→      });
+   675→
+   676→      if (!res.ok) {
+   677→        const data = await res.json().catch(() => ({}));
+   678→        throw new Error(data.error ?? "Erreur lors de la sauvegarde");
+   679→      }
+   680→
+   681→      toast.success(
+   682→        isEditing ? "Puzzle mis à jour avec succès" : "Puzzle créé avec succès"
+   683→      );
+   684→
+   685→      onSaved?.();
+   686→
+   687→      if (isEditing) {
+   688→        onOpenChange(false);
+   689→      } else {
+   690→        // Reset for new puzzle
+   691→        setTitle("");
+   692→        setDescription("");
+   693→        setDifficulty("2");
+   694→        setLanguage("fr");
+   695→        setCategoryId(noneCategory);
+   696→        setPackId(nonePack);
+   697→        setRowsInput(10);
+   698→        setColsInput(10);
+   699→        setGrid(createEmptyGrid(10, 10));
+   700→        setSelectedCell(null);
+   701→        setWords([]);
+   702→        setClues([]);
+   703→      }
+   704→    } catch (err) {
+   705→      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+   706→    } finally {
+   707→      setSaving(false);
+   708→    }
+   709→  }, [title, description, difficulty, language, categoryId, packId, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+   710→
+   711→  // ── Render helpers ───────────────────────────────────────────────
+   712→  const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
+   713→
+   714→  const renderGrid = () => {
+   715→    if (loading) {
+   716→      return (
+   717→        <div className="flex flex-col items-center gap-1">
+   718→          {Array.from({ length: Math.min(rowsInput, 8) }).map((_, r) => (
+   719→            <div key={r} className="flex gap-1">
+   720→              {Array.from({ length: Math.min(colsInput, 8) }).map((_, c) => (
+   721→                <Skeleton key={c} className="w-9 h-9 sm:w-10 sm:h-10 rounded-sm" />
+   722→              ))}
+   723→            </div>
+   724→          ))}
+   725→        </div>
+   726→      );
+   727→    }
+   728→
+   729→    return (
+   730→      <div
+   731→        ref={gridRef}
+   732→        className="inline-grid gap-px bg-border rounded-md overflow-hidden"
+   733→        style={{
+   734→          gridTemplateColumns: `repeat(${grid[0]?.length ?? 0}, minmax(0, 1fr))`,
+   735→        }}
+   736→        tabIndex={0}
+   737→        onClick={() => gridRef.current?.focus()}
+   738→      >
+   739→        {grid.map((row, r) =>
+   740→          row.map((cell, c) => {
+   741→            const isSelected =
+   742→              selectedCell?.row === r && selectedCell?.col === c;
+   743→            return (
+   744→              <div
+   745→                key={`${r}-${c}`}
+   746→                className={[
+   747→                  cellSize,
+   748→                  "relative flex items-center justify-center select-none cursor-pointer transition-colors",
+   749→                  cell.isBlack
+   750→                    ? "bg-black/90 hover:bg-black/80"
+   751→                    : "bg-white hover:bg-gray-50",
+   752→                  isSelected && !cell.isBlack && "ring-2 ring-blue-500 ring-inset z-10",
+   753→                  isSelected && cell.isBlack && "ring-2 ring-blue-500 ring-inset z-10",
+   754→                ].join(" ")}
+   755→                onClick={() => handleCellClick(r, c)}
+   756→                onMouseEnter={() => {
+   757→                  // Hover preview for future drag-to-paint
+   758→                }}
+   759→              >
+   760→                {cell.number !== null && (
+   761→                  <span className="absolute top-0 left-0.5 text-[9px] sm:text-[10px] font-bold text-gray-500 leading-none">
+   762→                    {cell.number}
+   763→                  </span>
+   764→                )}
+   765→                {cell.letter && (
+   766→                  <span className="font-bold text-black">{cell.letter}</span>
+   767→                )}
+   768→              </div>
+   769→            );
+   770→          })
+   771→        )}
+   772→      </div>
+   773→    );
+   774→  };
+   775→
+   776→  const renderClueList = (
+   777→    direction: "across" | "down",
+   778→    list: EditorClue[]
+   779→  ) => {
+   780→    if (list.length === 0) {
+   781→      return (
+   782→        <p className="text-sm text-muted-foreground italic py-4">
+   783→          Aucun mot détecté. Entrez des lettres sur la grille pour former des mots de 2+ lettres.
+   784→        </p>
+   785→      );
+   786→    }
+   787→    return (
+   788→      <div className="space-y-3">
+   789→        {list.map((clue) => (
+   790→          <div
+   791→            key={`${clue.number}-${clue.direction}`}
+   792→            className="space-y-1.5 p-3 rounded-lg border bg-card"
+   793→          >
+   794→            <div className="flex items-center gap-2">
+   795→              <Badge variant="outline" className="shrink-0 text-xs">
+   796→                {clue.number}
+   797→              </Badge>
+   798→              <span className="text-xs text-muted-foreground">
+   799→                ({clue.row + 1},{clue.col + 1})
+   800→              </span>
+   801→            </div>
+   802→            <div className="space-y-1">
+   803→              <Label className="text-xs text-muted-foreground">Mot</Label>
+   804→              <Input
+   805→                value={clue.word}
+   806→                onChange={(e) =>
+   807→                  handleWordChange(
+   808→                    clue.number,
+   809→                    clue.direction,
+   810→                    e.target.value,
+   811→                    clue.row,
+   812→                    clue.col
+   813→                  )
+   814→                }
+   815→                placeholder="Entrez le mot"
+   816→                className="h-8 text-sm font-mono uppercase"
+   817→                maxLength={20}
+   818→              />
+   819→            </div>
+   820→            <div className="space-y-1">
+   821→              <Label className="text-xs text-muted-foreground">Indice</Label>
+   822→              <Textarea
+   823→                value={clue.text}
+   824→                onChange={(e) =>
+   825→                  handleClueTextChange(clue.number, clue.direction, e.target.value)
+   826→                }
+   827→                placeholder="Entrez l'indice"
+   828→                className="text-sm min-h-[60px] resize-y"
+   829→                rows={2}
+   830→              />
+   831→            </div>
+   832→          </div>
+   833→        ))}
+   834→      </div>
+   835→    );
+   836→  };
+   837→
+   838→  // ── Main render ──────────────────────────────────────────────────
+   839→  return (
+   840→    <Dialog open={open} onOpenChange={onOpenChange}>
+   841→      <DialogContent
+   842→        className="
+   843→          max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] md:max-w-[95vw] lg:max-w-[90vw]
+   844→          h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)]
+   845→          flex flex-col p-0 gap-0 overflow-hidden
+   846→        "
+   847→        showCloseButton
+   848→      >
+   849→        <DialogHeader className="px-4 pt-4 pb-2 shrink-0">
+   850→          <DialogTitle>
+   851→            {isEditing ? "Modifier le puzzle" : "Nouveau puzzle"}
+   852→          </DialogTitle>
+   853→          <DialogDescription>
+   854→            {isEditing
+   855→              ? "Modifiez la grille, les mots et les indices du puzzle."
+   856→              : "Créez un nouveau mots croisés en dessinant la grille et en entrant les mots."}
+   857→          </DialogDescription>
+   858→        </DialogHeader>
+   859→
+   860→        {/* ── Puzzle settings ─────────────────────────────────────── */}
+   861→        <div className="px-4 pb-2 shrink-0 space-y-2">
+   862→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+   863→            <div className="space-y-1">
+   864→              <Label htmlFor="puzzle-title" className="text-xs">
+   865→                Titre *
+   866→              </Label>
+   867→              <Input
+   868→                id="puzzle-title"
+   869→                value={title}
+   870→                onChange={(e) => setTitle(e.target.value)}
+   871→                placeholder="Titre du puzzle"
+   872→                className="h-8 text-sm"
+   873→              />
+   874→            </div>
+   875→            <div className="space-y-1">
+   876→              <Label htmlFor="puzzle-desc" className="text-xs">
+   877→                Description
+   878→              </Label>
+   879→              <Input
+   880→                id="puzzle-desc"
+   881→                value={description}
+   882→                onChange={(e) => setDescription(e.target.value)}
+   883→                placeholder="Description optionnelle"
+   884→                className="h-8 text-sm"
+   885→              />
+   886→            </div>
+   887→            <div className="space-y-1">
+   888→              <Label className="text-xs">Langue</Label>
+   889→              <Select value={language} onValueChange={setLanguage}>
+   890→                <SelectTrigger className="h-8 text-sm w-full">
+   891→                  <Languages className="size-3 mr-1" />
+   892→                  <SelectValue />
+   893→                </SelectTrigger>
+   894→                <SelectContent>
+   895→                  <SelectItem value="fr">🇫🇷 Français</SelectItem>
+   896→                  <SelectItem value="en">🇬🇧 English</SelectItem>
+   897→                </SelectContent>
+   898→              </Select>
+   899→            </div>
+   900→            <div className="space-y-1">
+   901→              <Label className="text-xs">Catégorie</Label>
+   902→              <Select value={categoryId} onValueChange={setCategoryId}>
+   903→                <SelectTrigger className="h-8 text-sm w-full">
+   904→                  <FolderOpen className="size-3 mr-1" />
+   905→                  <SelectValue placeholder="Sans catégorie" />
+   906→                </SelectTrigger>
+   907→                <SelectContent>
+   908→                  <SelectItem value={noneCategory}>Sans catégorie</SelectItem>
+   909→                  {categories.map((cat) => (
+   910→                    <SelectItem key={cat.id} value={cat.id}>
+   911→                      {cat.icon || "🏷️"} {cat.language === "en" ? "🇬🇧" : "🇫🇷"} {cat.name}
+   912→                    </SelectItem>
+   913→                  ))}
+   914→                </SelectContent>
+   915→              </Select>
+   916→            </div>
+   917→            <div className="space-y-1">
+   918→              <Label className="text-xs">Collection</Label>
+   919→              <Select value={packId} onValueChange={setPackId}>
+   920→                <SelectTrigger className="h-8 text-sm w-full">
+   921→                  <Package className="size-3 mr-1" />
+   922→                  <SelectValue placeholder="Sans collection" />
+   923→                </SelectTrigger>
+   924→                <SelectContent>
+   925→                  <SelectItem value={nonePack}>Sans collection</SelectItem>
+   926→                  {packs.map((pack) => (
+   927→                    <SelectItem key={pack.id} value={pack.id}>
+   928→                      {pack.icon || "📦"} {pack.language === "en" ? "🇬🇧" : "🇫🇷"} {pack.name}
+   929→                    </SelectItem>
+   930→                  ))}
+   931→                </SelectContent>
+   932→              </Select>
+   933→            </div>
+   934→            <div className="space-y-1">
+   935→              <Label className="text-xs">Difficulté</Label>
+   936→              <Select value={difficulty} onValueChange={setDifficulty}>
+   937→                <SelectTrigger className="h-8 text-sm w-full">
+   938→                  <SelectValue />
+   939→                </SelectTrigger>
+   940→                <SelectContent>
+   941→                  <SelectItem value="1">Facile</SelectItem>
+   942→                  <SelectItem value="2">Moyen</SelectItem>
+   943→                  <SelectItem value="3">Difficile</SelectItem>
+   944→                </SelectContent>
+   945→              </Select>
+   946→            </div>
+   947→          </div>
+   948→        </div>
+   949→
+   950→        <Separator className="shrink-0" />
+   951→
+   952→        {/* ── Grid size + toolbar ────────────────────────────────── */}
+   953→        <div className="px-4 py-2 shrink-0 space-y-2">
+   954→          {/* Grid size presets */}
+   955→          <div className="flex flex-wrap items-center gap-1.5">
+   956→            {gridSizePresets.map((preset) => {
+   957→              const Icon = preset.icon;
+   958→              const isActive = rowsInput === parseInt(preset.id.split('x')[0], 10) && colsInput === parseInt(preset.id.split('x')[1], 10);
+   959→              return (
+   960→                <button
+   961→                  key={preset.id}
+   962→                  type="button"
+   963→                  onClick={() => handlePresetGridSize(preset.id)}
+   964→                  className={`flex items-center gap-1 border rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+   965→                    isActive
+   966→                      ? 'bg-primary text-primary-foreground border-primary'
+   967→                      : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground'
+   968→                  }`}
+   969→                >
+   970→                  <Icon className="size-3" />
+   971→                  {preset.label}
+   972→                </button>
+   973→              );
+   974→            })}
+   975→            <div className="flex items-center gap-1.5 ml-auto">
+   976→              <Label className="text-xs whitespace-nowrap">Lignes</Label>
+   977→              <Input
+   978→                type="number"
+   979→                min={2}
+   980→                max={20}
+   981→                value={rowsInput}
+   982→                onChange={(e) => setRowsInput(Number(e.target.value))}
+   983→                className="h-7 w-14 text-sm text-center"
+   984→              />
+   985→            </div>
+   986→            <div className="flex items-center gap-1.5">
+   987→              <Label className="text-xs whitespace-nowrap">Colonnes</Label>
+   988→              <Input
+   989→                type="number"
+   990→                min={2}
+   991→                max={20}
+   992→                value={colsInput}
+   993→                onChange={(e) => setColsInput(Number(e.target.value))}
+   994→                className="h-7 w-14 text-sm text-center"
+   995→              />
+   996→            </div>
+   997→            <Button
+   998→              variant="outline"
+   999→              size="sm"
+  1000→              className="h-7 text-xs"
+  1001→              onClick={handleResizeGrid}
+  1002→            >
+  1003→              Appliquer
+  1004→            </Button>
+  1005→          </div>
+  1006→          {/* Action buttons */}
+  1007→          <div className="flex items-center gap-1.5">
+  1008→            <Button
+  1009→              variant="outline"
+  1010→              size="sm"
+  1011→              className="h-7 text-xs"
+  1012→              onClick={handleClearLetters}
+  1013→            >
+  1014→              Grille vide
+  1015→            </Button>
+  1016→            <Button
+  1017→              variant="outline"
+  1018→              size="sm"
+  1019→              className="h-7 text-xs text-destructive hover:text-destructive"
+  1020→              onClick={handleClearAll}
+  1021→            >
+  1022→              Effacer tout
+  1023→            </Button>
+  1024→            <Button
+  1025→              size="sm"
+  1026→              className="h-7 text-xs"
+  1027→              disabled={saving || !title.trim()}
+  1028→              onClick={handleSave}
+  1029→            >
+  1030→              {saving ? "Sauvegarde…" : "Sauvegarder"}
+  1031→            </Button>
+  1032→          </div>
+  1033→        </div>
+  1034→
+  1035→        <Separator className="shrink-0" />
+  1036→
+  1037→        {/* ── Main content: grid + clues ──────────────────────────── */}
+  1038→        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row min-h-0">
+  1039→          {/* Grid area */}
+  1040→          <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
+  1041→            <div className="shrink-0">
+  1042→              {renderGrid()}
+  1043→            </div>
+  1044→          </div>
+  1045→
+  1046→          {/* Clue editor sidebar (right on desktop, below on mobile) */}
+  1047→          <div className="lg:w-[360px] xl:w-[400px] border-t lg:border-t-0 lg:border-l overflow-hidden flex flex-col min-h-0">
+  1048→            <Tabs
+  1049→              value={activeClueTab}
+  1050→              onValueChange={setActiveClueTab}
+  1051→              className="flex flex-col h-full"
+  1052→            >
+  1053→              <div className="shrink-0 px-2 pt-2">
+  1054→                <TabsList className="w-full">
+  1055→                  <TabsTrigger value="across" className="flex-1 text-xs">
+  1056→                    Horizontal ({acrossClues.length})
+  1057→                  </TabsTrigger>
+  1058→                  <TabsTrigger value="down" className="flex-1 text-xs">
+  1059→                    Vertical ({downClues.length})
+  1060→                  </TabsTrigger>
+  1061→                </TabsList>
+  1062→              </div>
+  1063→              <TabsContent value="across" className="flex-1 overflow-auto mt-0 p-2">
+  1064→                <ScrollArea className="h-full max-h-[calc(100vh-22rem)] lg:max-h-[calc(100vh-22rem)]">
+  1065→                  {renderClueList("across", acrossClues)}
+  1066→                </ScrollArea>
+  1067→              </TabsContent>
+  1068→              <TabsContent value="down" className="flex-1 overflow-auto mt-0 p-2">
+  1069→                <ScrollArea className="h-full max-h-[calc(100vh-22rem)] lg:max-h-[calc(100vh-22rem)]">
+  1070→                  {renderClueList("down", downClues)}
+  1071→                </ScrollArea>
+  1072→              </TabsContent>
+  1073→            </Tabs>
+  1074→          </div>
+  1075→        </div>
+  1076→
+  1077→        {/* ── Help text ───────────────────────────────────────────── */}
+  1078→        <div className="px-4 py-2 shrink-0 border-t">
+  1079→          <p className="text-[10px] sm:text-xs text-muted-foreground">
+  1080→            Cliquez sur une case noire pour la blanchir, ou sur une case blanche pour la sélectionner.
+  1081→            Tapez une lettre pour la remplir. Recliquez sur la case sélectionnée pour la rendre noire.
+  1082→            Utilisez les flèches pour naviguer, Retour pour effacer.
+  1083→          </p>
+  1084→        </div>
+  1085→      </DialogContent>
+  1086→    </Dialog>
+  1087→  );
+  1088→}
+  1089→

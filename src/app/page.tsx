@@ -907,7 +907,7 @@ export default function Home() {
                           onClick={() => setAdminOpen(true)}
                         >
                           <Settings className="size-3.5" />
-                          <span className="hidden sm:inline">Administration</span>
+                          <span className="hidden sm:inline">{isAdmin ? 'Administration' : 'Créateur'}</span>
                         </Button>
                       )}
                     </>

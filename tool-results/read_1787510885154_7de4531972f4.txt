@@ -1,0 +1,604 @@
+   895→                          className="text-xs text-muted-foreground hover:text-destructive gap-1"
+   896→                          onClick={() => signOut({ callbackUrl: '/' })}
+   897→                        >
+   898→                          <LogOut className="size-3.5" />
+   899→                          <span className="hidden sm:inline">Déconnexion</span>
+   900→                        </Button>
+   901→                      </div>
+   902→                      {(isAdmin || isCreator) && (
+   903→                        <Button
+   904→                          variant="ghost"
+   905→                          size="sm"
+   906→                          className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+   907→                          onClick={() => setAdminOpen(true)}
+   908→                        >
+   909→                          <Settings className="size-3.5" />
+   910→                          <span className="hidden sm:inline">Administration</span>
+   911→                        </Button>
+   912→                      )}
+   913→                    </>
+   914→                  ) : (
+   915→                    <Button
+   916→                      variant="ghost"
+   917→                      size="sm"
+   918→                      className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+   919→                      onClick={() => setAuthOpen(true)}
+   920→                    >
+   921→                      <LogIn className="size-3.5" />
+   922→                      <span className="hidden sm:inline">Connexion</span>
+   923→                    </Button>
+   924→                  )}
+   925→                </div>
+   926→              </div>
+   927→            </div>
+   928→          </header>
+   929→
+   930→          {/* ── Main Content ───────────────────────────────────── */}
+   931→          <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+   932→            {/* Date display */}
+   933→            <div className="mb-6">
+   934→              <p className="text-sm text-muted-foreground capitalize">
+   935→                📅 {formatFrenchDate()}
+   936→              </p>
+   937→              <h2
+   938→                className="mt-2 text-xl font-semibold sm:text-2xl"
+   939→                style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+   940→              >
+   941→                Puzzles du jour
+   942→              </h2>
+   943→            </div>
+   944→
+   945→            {/* ── Streak stats card ── */}
+   946→            {streakData.length > 0 && (
+   947→              <motion.div
+   948→                initial={{ opacity: 0, y: -8 }}
+   949→                animate={{ opacity: 1, y: 0 }}
+   950→                className="mb-6 rounded-xl border bg-gradient-to-r from-orange-50/80 to-amber-50/80 dark:from-orange-950/20 dark:to-amber-950/20 p-4 sm:p-5"
+   951→              >
+   952→                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+   953→                  {/* Streak counter */}
+   954→                  <div className="flex items-center gap-3 shrink-0">
+   955→                    <div className="relative">
+   956→                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-lg shadow-orange-500/20">
+   957→                        <span className="text-xl">🔥</span>
+   958→                      </div>
+   959→                      {streak > 0 && (
+   960→                        <motion.div
+   961→                          initial={{ scale: 0 }}
+   962→                          animate={{ scale: 1 }}
+   963→                          transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+   964→                          className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-background border shadow-sm"
+   965→                        >
+   966→                          <span className="text-[10px] font-bold text-orange-600">{streak}</span>
+   967→                        </motion.div>
+   968→                      )}
+   969→                    </div>
+   970→                    <div>
+   971→                      <p className="text-sm font-semibold">
+   972→                        {streak > 0
+   973→                          ? streak === 1
+   974→                            ? 'Série de 1 jour !'
+   975→                            : `Série de ${streak} jours !`
+   976→                          : 'Reprenez votre série !'}
+   977→                      </p>
+   978→                      <p className="text-xs text-muted-foreground">
+   979→                        {streakData.length} puzzle{streakData.length !== 1 ? 's' : ''} résolu{streakData.length !== 1 ? 's' : ''} au total
+   980→                      </p>
+   981→                    </div>
+   982→                  </div>
+   983→
+   984→                  {/* Heatmap */}
+   985→                  <div className="flex-1 min-w-0">
+   986→                    <div className="flex items-center justify-between mb-1.5">
+   987→                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium">30 derniers jours</span>
+   988→                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+   989→                        <span className="flex items-center gap-0.5"><div className="h-2.5 w-2.5 rounded-sm bg-muted" /><span className="hidden sm:inline">Rien</span></span>
+   990→                        <span className="flex items-center gap-0.5"><div className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /><span className="hidden sm:inline">Résolu</span></span>
+   991→                      </div>
+   992→                    </div>
+   993→                    <StreakHeatmap streakData={streakData} />
+   994→                  </div>
+   995→                </div>
+   996→              </motion.div>
+   997→            )}
+   998→
+   999→            {/* ── Filters ──────────────────────────────────────── */}
+  1000→            <div className="flex flex-wrap items-center gap-3 mb-6">
+  1001→              {/* Language selector */}
+  1002→              <div className="flex items-center gap-2">
+  1003→                <Globe className="size-4 text-muted-foreground" />
+  1004→                <Select value={selectedLanguage} onValueChange={(v) => {
+  1005→                  setSelectedLanguage(v);
+  1006→                  setSelectedCategory('all');
+  1007→                  setSelectedPack('all');
+  1008→                }}>
+  1009→                  <SelectTrigger className="h-9 w-40 text-sm">
+  1010→                    <SelectValue placeholder="Langue" />
+  1011→                  </SelectTrigger>
+  1012→                  <SelectContent>
+  1013→                    <SelectItem value="all">
+  1014→                      <span className="flex items-center gap-1.5">
+  1015→                        🌍 Toutes les langues
+  1016→                      </span>
+  1017→                    </SelectItem>
+  1018→                    <SelectItem value="fr">
+  1019→                      <span className="flex items-center gap-1.5">
+  1020→                        🇫🇷 Français
+  1021→                      </span>
+  1022→                    </SelectItem>
+  1023→                    <SelectItem value="en">
+  1024→                      <span className="flex items-center gap-1.5">
+  1025→                        🇬🇧 English
+  1026→                      </span>
+  1027→                    </SelectItem>
+  1028→                  </SelectContent>
+  1029→                </Select>
+  1030→              </div>
+  1031→
+  1032→              {/* Category selector — only show if there are categories with puzzles */}
+  1033→              {activeCategoryIds.size > 0 && (
+  1034→                <div className="flex items-center gap-2">
+  1035→                  <FolderOpen className="size-4 text-muted-foreground" />
+  1036→                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+  1037→                    <SelectTrigger className="h-9 w-44 text-sm">
+  1038→                      <SelectValue placeholder="Catégorie" />
+  1039→                    </SelectTrigger>
+  1040→                    <SelectContent>
+  1041→                      <SelectItem value="all">
+  1042→                        <span className="flex items-center gap-1.5">
+  1043→                          📋 Toutes les catégories
+  1044→                        </span>
+  1045→                      </SelectItem>
+  1046→                      {categories
+  1047→                        .filter((c) => activeCategoryIds.has(c.id))
+  1048→                        .map((cat) => (
+  1049→                          <SelectItem key={cat.id} value={cat.id}>
+  1050→                            <span className="flex items-center gap-1.5">
+  1051→                              {languageFlag(cat.language)} {cat.name}
+  1052→                            </span>
+  1053→                          </SelectItem>
+  1054→                        ))}
+  1055→                    </SelectContent>
+  1056→                  </Select>
+  1057→                </div>
+  1058→              )}
+  1059→
+  1060→              {/* Puzzle count */}
+  1061→              <div className="ml-auto">
+  1062→                <Badge variant="secondary" className="text-xs">
+  1063→                  <Layers className="size-3 mr-1" />
+  1064→                  {filteredPuzzles.length} puzzle{filteredPuzzles.length !== 1 ? 's' : ''}
+  1065→                </Badge>
+  1066→              </div>
+  1067→            </div>
+  1068→
+  1069→            {/* Loading state */}
+  1070→            {isLoadingPuzzles && (
+  1071→              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1072→                {Array.from({ length: 3 }).map((_, i) => (
+  1073→                  <PuzzleCardSkeleton key={i} />
+  1074→                ))}
+  1075→              </div>
+  1076→            )}
+  1077→
+  1078→            {/* Empty state */}
+  1079→            {!isLoadingPuzzles && filteredPuzzles.length === 0 && (
+  1080→              <div className="text-center py-16">
+  1081→                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+  1082→                  <Grid3X3 className="size-8 text-muted-foreground" />
+  1083→                </div>
+  1084→                <h3 className="text-lg font-medium">Aucun puzzle disponible</h3>
+  1085→                <p className="mt-1 text-sm text-muted-foreground">
+  1086→                  {selectedLanguage !== 'all' || selectedCategory !== 'all' || selectedPack !== 'all'
+  1087→                    ? 'Essayez de modifier vos filtres pour trouver des puzzles.'
+  1088→                    : 'Revenez demain pour de nouveaux puzzles !'}
+  1089→                </p>
+  1090→              </div>
+  1091→            )}
+  1092→
+  1093→            {/* Puzzle cards grid */}
+  1094→            {!isLoadingPuzzles && filteredPuzzles.length > 0 && (
+  1095→              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  1096→                {filteredPuzzles.map((puzzle) => (
+  1097→                  <div key={puzzle.id}>
+  1098→                    <Card className="group relative overflow-hidden py-0 transition-shadow hover:shadow-md">
+  1099→                      {/* Difficulty accent bar */}
+  1100→                      <div
+  1101→                        className={`h-1 w-full ${
+  1102→                          puzzle.difficulty <= 1
+  1103→                            ? 'bg-emerald-500'
+  1104→                            : puzzle.difficulty <= 2
+  1105→                              ? 'bg-amber-500'
+  1106→                              : puzzle.difficulty <= 3
+  1107→                                ? 'bg-orange-500'
+  1108→                                : 'bg-red-500'
+  1109→                        }`}
+  1110→                      />
+  1111→                      <CardHeader className="gap-1.5 px-5 pt-5 pb-0">
+  1112→                        <div className="flex items-start justify-between gap-2">
+  1113→                          <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
+  1114→                          <Badge variant="outline" className="shrink-0 text-xs mt-0.5">
+  1115→                            {languageFlag(puzzle.language)} {languageName(puzzle.language)}
+  1116→                          </Badge>
+  1117→                        </div>
+  1118→                        <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+  1119→                          {puzzle.description || (puzzle.language === 'en' ? 'A crossword puzzle' : 'Un puzzle de mots croisés')}
+  1120→                        </CardDescription>
+  1121→                        {puzzle.categoryName && (
+  1122→                          <Badge variant="secondary" className="text-xs mt-1 gap-1">
+  1123→                            <span>{puzzle.categoryIcon || '🏷️'}</span>
+  1124→                            {puzzle.categoryName}
+  1125→                          </Badge>
+  1126→                        )}
+  1127→                        {puzzle.packName && (
+  1128→                          <Badge variant="outline" className="text-xs mt-1 gap-1">
+  1129→                            <span>{puzzle.packIcon || '📦'}</span>
+  1130→                            {puzzle.packName}
+  1131→                          </Badge>
+  1132→                        )}
+  1133→                      </CardHeader>
+  1134→                      <CardContent className="flex items-center justify-between px-5 pb-5 pt-4">
+  1135→                        <div className="flex items-center gap-2">
+  1136→                          <Badge className={difficultyColor(puzzle.difficulty)} variant="secondary">
+  1137→                            <Star className="size-3 mr-0.5" />
+  1138→                            {difficultyLabel(puzzle.difficulty)}
+  1139→                          </Badge>
+  1140→                          <span className="text-xs text-muted-foreground">
+  1141→                            {puzzle.rows}×{puzzle.cols}
+  1142→                          </span>
+  1143→                        </div>
+  1144→                        <Button
+  1145→                          size="sm"
+  1146→                          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+  1147→                          onClick={() => fetchPuzzle(puzzle.id)}
+  1148→                        >
+  1149→                          <Play className="size-3.5" />
+  1150→                          Jouer
+  1151→                        </Button>
+  1152→                      </CardContent>
+  1153→                      {puzzle.completed && (
+  1154→                        <div className="absolute top-3 right-3">
+  1155→                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1">
+  1156→                            <Trophy className="size-3" />
+  1157→                            Terminé
+  1158→                          </Badge>
+  1159→                        </div>
+  1160→                      )}
+  1161→                    </Card>
+  1162→                  </div>
+  1163→                ))}
+  1164→              </div>
+  1165→            )}
+  1166→
+  1167→            {/* ── Collections section ── */}
+  1168→            {packs.length > 0 && (
+  1169→              <div className="mb-8">
+  1170→                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+  1171→                  <Package className="size-5 text-muted-foreground" />
+  1172→                  Collections
+  1173→                </h2>
+  1174→                <div className="flex flex-wrap gap-2">
+  1175→                  {packs
+  1176→                    .filter((p) => !selectedLanguage || selectedLanguage === 'all' || p.language === selectedLanguage)
+  1177→                    .map((pack) => (
+  1178→                      <Button
+  1179→                        key={pack.id}
+  1180→                        variant={selectedPack === pack.id ? 'default' : 'outline'}
+  1181→                        size="sm"
+  1182→                        className="gap-1.5 text-sm"
+  1183→                        onClick={() => setSelectedPack(selectedPack === pack.id ? 'all' : pack.id)}
+  1184→                      >
+  1185→                        <span className="text-base">{pack.icon}</span>
+  1186→                        {pack.name}
+  1187→                        <Badge variant="secondary" className="ml-1 text-xs">{pack._count.puzzles}</Badge>
+  1188→                      </Button>
+  1189→                    ))}
+  1190→                </div>
+  1191→              </div>
+  1192→            )}
+  1193→          </main>
+  1194→
+  1195→          {/* ── Footer ─────────────────────────────────────────── */}
+  1196→          <footer className="mt-auto border-t py-4">
+  1197→            <div className="mx-auto max-w-4xl flex flex-col items-center gap-1.5 text-[11px] text-muted-foreground">
+  1198→              <p className="font-medium">Mots Croisés &mdash; Un puzzle unique chaque jour</p>
+  1199→              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
+  1200→                <span>© {new Date().getFullYear()} <a href="https://deebodiong.quarto.pub" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">Georges BODIONG</a></span>
+  1201→                <span className="hidden sm:inline">·</span>
+  1202→                <a href="mailto:deebodiong@gmail.com" className="hover:text-foreground transition-colors">deebodiong@gmail.com</a>
+  1203→                <span className="hidden sm:inline">·</span>
+  1204→                <span className="hidden sm:inline">+226 74 91 15 38</span>
+  1205→              </div>
+  1206→            </div>
+  1207→          </footer>
+  1208→        </div>
+  1209→      )}
+  1210→
+  1211→      {/* ═════════════════ PUZZLE SOLVING VIEW ═══════════════════ */}
+  1212→      {currentView === 'playing' && (
+  1213→        <div className="flex flex-1 flex-col">
+  1214→          {/* ── Top bar ───────────────────────────────────────── */}
+  1215→          <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur-sm">
+  1216→            <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:px-4 sm:gap-3">
+  1217→              <Button
+  1218→                variant="ghost"
+  1219→                size="sm"
+  1220→                onClick={handleBack}
+  1221→                className="shrink-0 -ml-1"
+  1222→              >
+  1223→                <ArrowLeft className="size-4" />
+  1224→                <span className="hidden sm:inline">Retour</span>
+  1225→              </Button>
+  1226→
+  1227→              <Separator orientation="vertical" className="h-5 mx-1 hidden sm:block" />
+  1228→
+  1229→              <h2 className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
+  1230→                {selectedPuzzle?.title ?? 'Chargement…'}
+  1231→              </h2>
+  1232→
+  1233→              {selectedPuzzle && (
+  1234→                <Badge className={difficultyColor(selectedPuzzle.difficulty)} variant="secondary">
+  1235→                  <Star className="size-3 mr-0.5" />
+  1236→                  {difficultyLabel(selectedPuzzle.difficulty)}
+  1237→                </Badge>
+  1238→              )}
+  1239→
+  1240→              {/* Timer */}
+  1241→              <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-sm tabular-nums">
+  1242→                <Clock className="size-3.5 text-muted-foreground" />
+  1243→                <span className="font-medium">{formatTimer(timer)}</span>
+  1244→              </div>
+  1245→              {selectedPuzzle && (
+  1246→                <Button
+  1247→                  variant="ghost"
+  1248→                  size="sm"
+  1249→                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
+  1250→                  onClick={() => {
+  1251→                    if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
+  1252→                    toast.success('PDF téléchargé !');
+  1253→                  }}
+  1254→                >
+  1255→                  <Download className="size-3.5" />
+  1256→                  <span className="hidden sm:inline">PDF</span>
+  1257→                </Button>
+  1258→              )}
+  1259→            </div>
+  1260→          </header>
+  1261→
+  1262→          {/* ── Main area ──────────────────────────────────────── */}
+  1263→          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-4">
+  1264→            {/* Loading state */}
+  1265→            {isLoadingPuzzle && !selectedPuzzle && (
+  1266→              <div className="flex flex-col items-center justify-center py-20 gap-4">
+  1267→                <Skeleton className="h-8 w-64" />
+  1268→                <Skeleton className="h-[320px] w-[320px] rounded-lg" />
+  1269→              </div>
+  1270→            )}
+  1271→
+  1272→            {selectedPuzzle && (
+  1273→              <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
+  1274→                {/* ── Left: Grid + Controls ──────────────────── */}
+  1275→                <div className="flex flex-col items-center gap-3 lg:w-auto lg:min-w-0 lg:flex-1">
+  1276→                  {/* Active clue banner */}
+  1277→                  {activeClueText && (
+  1278→                    <div
+  1279→                      key={`${activeClueText.number}-${activeClueText.direction}`}
+  1280→                      className="w-full rounded-lg border bg-card px-4 py-2.5 shadow-sm"
+  1281→                    >
+  1282→                      <div className="flex items-start gap-2">
+  1283→                        <Badge
+  1284→                          variant="outline"
+  1285→                          className="mt-0.5 shrink-0 text-xs font-bold"
+  1286→                        >
+  1287→                          {activeClueText.number}
+  1288→                          {activeClueText.direction === 'across' ? 'H' : 'V'}
+  1289→                        </Badge>
+  1290→                        <p className="text-sm leading-relaxed">
+  1291→                          {activeClueText.text}
+  1292→                        </p>
+  1293→                      </div>
+  1294→                    </div>
+  1295→                  )}
+  1296→
+  1297→                  {/* Action buttons row */}
+  1298→                  <div className="flex flex-wrap items-center justify-center gap-2">
+  1299→                    {/* Auto-check toggle */}
+  1300→                    <div className="flex items-center gap-1.5 rounded-md border bg-muted/30 px-2.5 py-1">
+  1301→                      <Switch
+  1302→                        id="auto-check"
+  1303→                        checked={autoCheck}
+  1304→                        onCheckedChange={setAutoCheck}
+  1305→                        className="scale-90"
+  1306→                      />
+  1307→                      <Label htmlFor="auto-check" className="text-xs text-muted-foreground cursor-pointer select-none whitespace-nowrap">
+  1308→                        Validation auto
+  1309→                      </Label>
+  1310→                    </div>
+  1311→                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
+  1312→                    <Button
+  1313→                      variant="outline"
+  1314→                      size="sm"
+  1315→                      onClick={handleCheck}
+  1316→                      disabled={isChecking || isCompleted}
+  1317→                    >
+  1318→                      <CheckCircle2 className="size-4 text-emerald-600" />
+  1319→                      Vérifier
+  1320→                    </Button>
+  1321→                    <Button
+  1322→                      variant="outline"
+  1323→                      size="sm"
+  1324→                      onClick={handleHint}
+  1325→                      disabled={!selectedCell || isCompleted}
+  1326→                    >
+  1327→                      <Lightbulb className="size-4 text-amber-500" />
+  1328→                      Indice
+  1329→                    </Button>
+  1330→                    <Button
+  1331→                      variant="outline"
+  1332→                      size="sm"
+  1333→                      onClick={handleClear}
+  1334→                      disabled={isCompleted}
+  1335→                    >
+  1336→                      <Trash2 className="size-4 text-red-500" />
+  1337→                      Effacer
+  1338→                    </Button>
+  1339→                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
+  1340→                    <Button
+  1341→                      variant="outline"
+  1342→                      size="sm"
+  1343→                      onClick={() => {
+  1344→                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
+  1345→                        toast.success('PDF téléchargé !');
+  1346→                      }}
+  1347→                    >
+  1348→                      <Download className="size-4 text-emerald-600" />
+  1349→                      <span className="hidden sm:inline">PDF</span>
+  1350→                    </Button>
+  1351→                    <Button
+  1352→                      variant="outline"
+  1353→                      size="sm"
+  1354→                      onClick={() => {
+  1355→                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle, { withAnswers: true });
+  1356→                        toast.success('PDF avec réponses téléchargé !');
+  1357→                      }}
+  1358→                    >
+  1359→                      <FileText className="size-4 text-amber-500" />
+  1360→                      <span className="hidden sm:inline">PDF + Réponses</span>
+  1361→                    </Button>
+  1362→                  </div>
+  1363→
+  1364→                  {/* The crossword grid */}
+  1365→                  <div className="overflow-x-auto w-full flex justify-center">
+  1366→                    <CrosswordGrid
+  1367→                      puzzle={selectedPuzzle}
+  1368→                      userInputs={userInputs}
+  1369→                      onCellChange={handleCellChange}
+  1370→                      selectedCell={selectedCell}
+  1371→                      onSelectCell={handleSelectCell}
+  1372→                      direction={direction}
+  1373→                      onToggleDirection={handleToggleDirection}
+  1374→                      activeWordCells={activeWordCells}
+  1375→                      revealedCells={revealedCells}
+  1376→                      correctCells={correctCells}
+  1377→                      incorrectCells={incorrectCells}
+  1378→                    />
+  1379→                  </div>
+  1380→
+  1381→                  {/* Keyboard shortcuts hint */}
+  1382→                  <p className="text-center text-[11px] text-muted-foreground mt-1">
+  1383→                    Tab pour changer de direction &bull; Flèches pour naviguer &bull; Backspace pour effacer
+  1384→                  </p>
+  1385→                </div>
+  1386→
+  1387→                {/* ── Right: Clue panel (desktop) ──────────── */}
+  1388→                <div className="w-full lg:w-[340px] xl:w-[380px] lg:shrink-0">
+  1389→                  <div className="rounded-xl border bg-card shadow-sm">
+  1390→                    <div className="border-b px-4 py-3">
+  1391→                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+  1392→                        Indications
+  1393→                      </h3>
+  1394→                    </div>
+  1395→                    <div className="p-1.5">
+  1396→                      <ClueList
+  1397→                        clues={selectedPuzzle.clues}
+  1398→                        activeClueNumber={activeClueNumber}
+  1399→                        activeClueDirection={activeClueDirection}
+  1400→                        onSelectClue={handleSelectClue}
+  1401→                        completedClues={completedClues}
+  1402→                      />
+  1403→                    </div>
+  1404→                  </div>
+  1405→                </div>
+  1406→              </div>
+  1407→            )}
+  1408→          </main>
+  1409→
+  1410→          {/* ── Footer ─────────────────────────────────────────── */}
+  1411→          <footer className="mt-auto border-t py-3">
+  1412→            <div className="mx-auto max-w-4xl flex flex-col items-center gap-1 text-[11px] text-muted-foreground">
+  1413→              <p className="font-medium">Mots Croisés &mdash; Un puzzle unique chaque jour</p>
+  1414→              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
+  1415→                <span>© {new Date().getFullYear()} <a href="https://deebodiong.quarto.pub" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">Georges BODIONG</a></span>
+  1416→                <span className="hidden sm:inline">·</span>
+  1417→                <a href="mailto:deebodiong@gmail.com" className="hover:text-foreground transition-colors">deebodiong@gmail.com</a>
+  1418→                <span className="hidden sm:inline">·</span>
+  1419→                <span className="hidden sm:inline">+226 74 91 15 38</span>
+  1420→              </div>
+  1421→            </div>
+  1422→          </footer>
+  1423→
+  1424→          {/* ── Completion celebration ─────────────────────────── */}
+  1425→          {isCompleted && (
+  1426→            <>
+  1427→              <ConfettiOverlay />
+  1428→              <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+  1429→                <motion.div
+  1430→                  initial={{ scale: 0.8, opacity: 0 }}
+  1431→                  animate={{ scale: 1, opacity: 1 }}
+  1432→                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+  1433→                  className="mx-4 rounded-2xl bg-card p-8 text-center shadow-2xl sm:p-12 max-w-md w-full"
+  1434→                >
+  1435→                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+  1436→                    <Trophy className="size-8 text-emerald-600 dark:text-emerald-400" />
+  1437→                  </div>
+  1438→                  <h2
+  1439→                    className="text-2xl font-bold sm:text-3xl"
+  1440→                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+  1441→                  >
+  1442→                    Félicitations !
+  1443→                  </h2>
+  1444→                  <p className="mt-2 text-muted-foreground">
+  1445→                    Vous avez résolu « <span className="font-semibold text-foreground">{selectedPuzzle?.title}</span> » en{' '}
+  1446→                    <span className="font-semibold text-foreground">{formatTimer(timer)}</span>.
+  1447→                  </p>
+  1448→                  <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+  1449→                    <div className="flex items-center gap-1.5">
+  1450→                      <span>⭐</span>
+  1451→                      <span className="text-muted-foreground">{selectedPuzzle?.clues.length} mots</span>
+  1452→                    </div>
+  1453→                    <div className="flex items-center gap-1.5">
+  1454→                      <span>💡</span>
+  1455→                      <span className="text-muted-foreground">{revealedCells.size} indices</span>
+  1456→                    </div>
+  1457→                    {streak > 0 && (
+  1458→                      <div className="flex items-center gap-1.5">
+  1459→                        <span>🔥</span>
+  1460→                        <span className="text-muted-foreground">Série: {streak}</span>
+  1461→                      </div>
+  1462→                    )}
+  1463→                  </div>
+  1464→                  <div className="mt-6 flex items-center justify-center gap-3">
+  1465→                    <Button variant="outline" onClick={handleShare}>
+  1466→                      <Share2 className="size-4" />
+  1467→                      Partager
+  1468→                    </Button>
+  1469→                    <Button variant="outline" onClick={handleBack}>
+  1470→                      <ArrowLeft className="size-4" />
+  1471→                      Retour
+  1472→                    </Button>
+  1473→                  </div>
+  1474→                </motion.div>
+  1475→              </div>
+  1476→            </>
+  1477→          )}
+  1478→        </div>
+  1479→      )}
+  1480→
+  1481→      {/* ── Admin Panel Dialog ──────────────────────────────── */}
+  1482→      <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} isAdmin={isAdmin} isCreator={isCreator} />
+  1483→
+  1484→      {/* ── Stats Panel Dialog ────────────────────────────────── */}
+  1485→      <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />
+  1486→
+  1487→      {/* ── Badge Panel Dialog ────────────────────────────────── */}
+  1488→      <BadgePanel open={badgesOpen} onOpenChange={setBadgesOpen} />
+  1489→
+  1490→      {/* ── Badge Notification ────────────────────────────────── */}
+  1491→      <BadgeNotification badge={newBadge} onDismiss={() => setNewBadge(null)} />
+  1492→
+  1493→      {/* ── Auth Modal ────────────────────────────────────────── */}
+  1494→      <AuthModal open={authOpen} onOpenChange={setAuthOpen} />
+  1495→    </div>
+  1496→  );
+  1497→}
+  1498→
