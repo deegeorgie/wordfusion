@@ -1,0 +1,245 @@
+     1→▲ Next.js 16.1.3 (Turbopack)
+     2→- Local:         http://localhost:3000
+     3→- Network:       http://0.0.0.0:3000
+     4→- Environments: .env
+     5→
+     6→✓ Starting...
+     7→Attention: Next.js now collects completely anonymous telemetry regarding usage.
+     8→This information is used to shape Next.js' roadmap and prioritize features.
+     9→You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+    10→https://nextjs.org/telemetry
+    11→
+    12→✓ Ready in 695ms
+    13→○ Compiling / ...
+    14→ GET / 200 in 5.5s (compile: 5.3s, render: 197ms)
+    15→ GET / 200 in 17.5s (compile: 16.8s, render: 755ms)
+    16→ GET / 200 in 43ms (compile: 4ms, render: 39ms)
+    17→ GET / 200 in 48ms (compile: 6ms, render: 42ms)
+    18→prisma:query SELECT `main`.`PublishingSchedule`.`id`, `main`.`PublishingSchedule`.`puzzlesPerDay`, `main`.`PublishingSchedule`.`isActive`, `main`.`PublishingSchedule`.`createdAt`, `main`.`PublishingSchedule`.`updatedAt` FROM `main`.`PublishingSchedule` WHERE 1=1 ORDER BY `main`.`PublishingSchedule`.`createdAt` DESC LIMIT ? OFFSET ?
+    19→prisma:query BEGIN IMMEDIATE
+    20→prisma:query UPDATE `main`.`CrosswordPuzzle` SET `published` = ?, `updatedAt` = ? WHERE (`main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?)
+    21→prisma:query COMMIT
+    22→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`publishDate` >= ? AND `main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?) ORDER BY `main`.`CrosswordPuzzle`.`publishDate` ASC LIMIT ? OFFSET ?
+    23→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon` FROM `main`.`Category` WHERE `main`.`Category`.`id` IN (?) LIMIT ? OFFSET ?
+    24→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`icon` FROM `main`.`Pack` WHERE `main`.`Pack`.`id` IN (?,?) LIMIT ? OFFSET ?
+    25→ GET /api/puzzles/daily 200 in 1453ms (compile: 1382ms, render: 71ms)
+    26→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon`, `main`.`Category`.`language`, `main`.`Category`.`createdAt`, `main`.`Category`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Category` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`categoryId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`categoryId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Category`.`id` = `aggr_selection_0_CrosswordPuzzle`.`categoryId`) WHERE 1=1 ORDER BY `main`.`Category`.`language` ASC, `main`.`Category`.`name` ASC LIMIT ? OFFSET ?
+    27→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`description`, `main`.`Pack`.`icon`, `main`.`Pack`.`language`, `main`.`Pack`.`createdAt`, `main`.`Pack`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Pack` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`packId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`packId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Pack`.`id` = `aggr_selection_0_CrosswordPuzzle`.`packId`) WHERE 1=1 ORDER BY `main`.`Pack`.`language` ASC, `main`.`Pack`.`createdAt` DESC LIMIT ? OFFSET ?
+    28→ GET /api/categories 200 in 2.1s (compile: 2.1s, render: 46ms)
+    29→ GET /api/packs 200 in 2.2s (compile: 2.1s, render: 12ms)
+    30→[next-auth][warn][NEXTAUTH_URL] 
+    31→https://next-auth.js.org/warnings#nextauth_url
+    32→[next-auth][warn][NO_SECRET] 
+    33→https://next-auth.js.org/warnings#no_secret
+    34→ GET /api/auth/session 200 in 2.7s (compile: 2.6s, render: 45ms)
+    35→ GET / 200 in 71ms (compile: 7ms, render: 64ms)
+    36→ GET /api/packs 200 in 10ms (compile: 3ms, render: 7ms)
+    37→prisma:query SELECT 1
+    38→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`description`, `main`.`Pack`.`icon`, `main`.`Pack`.`language`, `main`.`Pack`.`createdAt`, `main`.`Pack`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Pack` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`packId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`packId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Pack`.`id` = `aggr_selection_0_CrosswordPuzzle`.`packId`) WHERE 1=1 ORDER BY `main`.`Pack`.`language` ASC, `main`.`Pack`.`createdAt` DESC LIMIT ? OFFSET ?
+    39→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon`, `main`.`Category`.`language`, `main`.`Category`.`createdAt`, `main`.`Category`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Category` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`categoryId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`categoryId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Category`.`id` = `aggr_selection_0_CrosswordPuzzle`.`categoryId`) WHERE 1=1 ORDER BY `main`.`Category`.`language` ASC, `main`.`Category`.`name` ASC LIMIT ? OFFSET ?
+    40→ GET /api/categories 200 in 7ms (compile: 1693µs, render: 5ms)
+    41→prisma:query SELECT `main`.`PublishingSchedule`.`id`, `main`.`PublishingSchedule`.`puzzlesPerDay`, `main`.`PublishingSchedule`.`isActive`, `main`.`PublishingSchedule`.`createdAt`, `main`.`PublishingSchedule`.`updatedAt` FROM `main`.`PublishingSchedule` WHERE 1=1 ORDER BY `main`.`PublishingSchedule`.`createdAt` DESC LIMIT ? OFFSET ?
+    42→prisma:query BEGIN IMMEDIATE
+    43→prisma:query UPDATE `main`.`CrosswordPuzzle` SET `published` = ?, `updatedAt` = ? WHERE (`main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?)
+    44→prisma:query COMMIT
+    45→ GET /api/puzzles/daily 200 in 44ms (compile: 3ms, render: 41ms)
+    46→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`publishDate` >= ? AND `main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?) ORDER BY `main`.`CrosswordPuzzle`.`publishDate` ASC LIMIT ? OFFSET ?
+    47→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon` FROM `main`.`Category` WHERE `main`.`Category`.`id` IN (?) LIMIT ? OFFSET ?
+    48→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`icon` FROM `main`.`Pack` WHERE `main`.`Pack`.`id` IN (?,?) LIMIT ? OFFSET ?
+    49→ GET /api/auth/session 200 in 42ms (compile: 28ms, render: 13ms)
+    50→ GET / 200 in 55ms (compile: 4ms, render: 51ms)
+    51→prisma:query SELECT 1
+    52→ GET /api/categories 200 in 13ms (compile: 3ms, render: 10ms)
+    53→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon`, `main`.`Category`.`language`, `main`.`Category`.`createdAt`, `main`.`Category`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Category` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`categoryId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`categoryId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Category`.`id` = `aggr_selection_0_CrosswordPuzzle`.`categoryId`) WHERE 1=1 ORDER BY `main`.`Category`.`language` ASC, `main`.`Category`.`name` ASC LIMIT ? OFFSET ?
+    54→ GET /api/auth/session 200 in 48ms (compile: 33ms, render: 15ms)
+    55→prisma:query SELECT `main`.`PublishingSchedule`.`id`, `main`.`PublishingSchedule`.`puzzlesPerDay`, `main`.`PublishingSchedule`.`isActive`, `main`.`PublishingSchedule`.`createdAt`, `main`.`PublishingSchedule`.`updatedAt` FROM `main`.`PublishingSchedule` WHERE 1=1 ORDER BY `main`.`PublishingSchedule`.`createdAt` DESC LIMIT ? OFFSET ?
+    56→prisma:query BEGIN IMMEDIATE
+    57→prisma:query UPDATE `main`.`CrosswordPuzzle` SET `published` = ?, `updatedAt` = ? WHERE (`main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?)
+    58→prisma:query COMMIT
+    59→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`description`, `main`.`Pack`.`icon`, `main`.`Pack`.`language`, `main`.`Pack`.`createdAt`, `main`.`Pack`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Pack` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`packId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`packId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Pack`.`id` = `aggr_selection_0_CrosswordPuzzle`.`packId`) WHERE 1=1 ORDER BY `main`.`Pack`.`language` ASC, `main`.`Pack`.`createdAt` DESC LIMIT ? OFFSET ?
+    60→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`publishDate` >= ? AND `main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?) ORDER BY `main`.`CrosswordPuzzle`.`publishDate` ASC LIMIT ? OFFSET ?
+    61→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon` FROM `main`.`Category` WHERE `main`.`Category`.`id` IN (?) LIMIT ? OFFSET ?
+    62→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`icon` FROM `main`.`Pack` WHERE `main`.`Pack`.`id` IN (?,?) LIMIT ? OFFSET ?
+    63→ GET /api/packs 200 in 13ms (compile: 4ms, render: 9ms)
+    64→ GET /api/puzzles/daily 200 in 28ms (compile: 8ms, render: 20ms)
+    65→ GET / 200 in 115ms (compile: 4ms, render: 112ms)
+    66→prisma:query SELECT 1
+    67→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`description`, `main`.`Pack`.`icon`, `main`.`Pack`.`language`, `main`.`Pack`.`createdAt`, `main`.`Pack`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Pack` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`packId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`packId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Pack`.`id` = `aggr_selection_0_CrosswordPuzzle`.`packId`) WHERE 1=1 ORDER BY `main`.`Pack`.`language` ASC, `main`.`Pack`.`createdAt` DESC LIMIT ? OFFSET ?
+    68→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon`, `main`.`Category`.`language`, `main`.`Category`.`createdAt`, `main`.`Category`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Category` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`categoryId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`categoryId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Category`.`id` = `aggr_selection_0_CrosswordPuzzle`.`categoryId`) WHERE 1=1 ORDER BY `main`.`Category`.`language` ASC, `main`.`Category`.`name` ASC LIMIT ? OFFSET ?
+    69→ GET /api/packs 200 in 55ms (compile: 6ms, render: 50ms)
+    70→ GET /api/categories 200 in 57ms (compile: 11ms, render: 46ms)
+    71→ GET /api/auth/session 200 in 61ms (compile: 45ms, render: 16ms)
+    72→prisma:query SELECT `main`.`PublishingSchedule`.`id`, `main`.`PublishingSchedule`.`puzzlesPerDay`, `main`.`PublishingSchedule`.`isActive`, `main`.`PublishingSchedule`.`createdAt`, `main`.`PublishingSchedule`.`updatedAt` FROM `main`.`PublishingSchedule` WHERE 1=1 ORDER BY `main`.`PublishingSchedule`.`createdAt` DESC LIMIT ? OFFSET ?
+    73→prisma:query BEGIN IMMEDIATE
+    74→prisma:query UPDATE `main`.`CrosswordPuzzle` SET `published` = ?, `updatedAt` = ? WHERE (`main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?)
+    75→prisma:query COMMIT
+    76→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`publishDate` >= ? AND `main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?) ORDER BY `main`.`CrosswordPuzzle`.`publishDate` ASC LIMIT ? OFFSET ?
+    77→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon` FROM `main`.`Category` WHERE `main`.`Category`.`id` IN (?) LIMIT ? OFFSET ?
+    78→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`icon` FROM `main`.`Pack` WHERE `main`.`Pack`.`id` IN (?,?) LIMIT ? OFFSET ?
+    79→ GET /api/puzzles/daily 200 in 16ms (compile: 3ms, render: 13ms)
+    80→ GET /api/auth/providers 200 in 36ms (compile: 29ms, render: 7ms)
+    81→ GET /api/auth/csrf 200 in 10ms (compile: 3ms, render: 8ms)
+    82→prisma:query SELECT 1
+    83→prisma:query SELECT `main`.`User`.`id`, `main`.`User`.`name`, `main`.`User`.`email`, `main`.`User`.`password`, `main`.`User`.`role`, `main`.`User`.`createdAt`, `main`.`User`.`updatedAt` FROM `main`.`User` WHERE (`main`.`User`.`email` = ? AND 1=1) LIMIT ? OFFSET ?
+    84→ POST /api/auth/callback/credentials 200 in 427ms (compile: 28ms, render: 399ms)
+    85→ GET /api/auth/session 200 in 44ms (compile: 29ms, render: 15ms)
+    86→[next-auth][error][JWT_SESSION_ERROR] 
+    87→https://next-auth.js.org/errors#jwt_session_error decryption operation failed {
+    88→  message: 'decryption operation failed',
+    89→  stack: 'JWEDecryptionFailed: decryption operation failed\n' +
+    90→    '    at gcmDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:734:15)\n' +
+    91→    '    at decrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:757:20)\n' +
+    92→    '    at flattenedDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:2254:52)\n' +
+    93→    '    at async compactDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:2308:23)\n' +
+    94→    '    at async jwtDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:3770:23)\n' +
+    95→    '    at async Object.decode (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:725:25)\n' +
+    96→    '    at async Object.session (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:2038:34)\n' +
+    97→    '    at async AuthHandler (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:3184:37)\n' +
+    98→    '    at async getServerSession (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:3576:21)\n' +
+    99→    '    at async requireAuth (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8e150403._.js:208:21)\n' +
+   100→    '    at async requireRole (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8e150403._.js:225:32)\n' +
+   101→    '    at async GET (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__f07a335f._.js:426:32)\n' +
+   102→    '    at async AppRouteRouteModule.do (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:5:37866)\n' +
+   103→    '    at async AppRouteRouteModule.handle (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:5:45156)\n' +
+   104→    '    at async responseGenerator (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16028:38)\n' +
+   105→    '    at async AppRouteRouteModule.handleResponse (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:1:187713)\n' +
+   106→    '    at async handleResponse (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16091:32)\n' +
+   107→    '    at async Module.handler (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16144:13)\n' +
+   108→    '    at async DevServer.renderToResponseWithComponentsImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1422:9)\n' +
+   109→    '    at async DevServer.renderPageComponent (/home/z/my-project/node_modules/next/dist/server/base-server.js:1474:24)\n' +
+   110→    '    at async DevServer.renderToResponseImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1524:32)\n' +
+   111→    '    at async DevServer.pipeImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1018:25)\n' +
+   112→    '    at async NextNodeServer.handleCatchallRenderRequest (/home/z/my-project/node_modules/next/dist/server/next-server.js:395:17)\n' +
+   113→    '    at async DevServer.handleRequestImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:909:17)\n' +
+   114→    '    at async /home/z/my-project/node_modules/next/dist/server/dev/next-dev-server.js:387:20\n' +
+   115→    '    at async Span.traceAsyncFn (/home/z/my-project/node_modules/next/dist/trace/trace.js:157:20)\n' +
+   116→    '    at async DevServer.handleRequest (/home/z/my-project/node_modules/next/dist/server/dev/next-dev-server.js:383:24)\n' +
+   117→    '    at async invokeRender (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:248:21)\n' +
+   118→    '    at async handleRequest (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:447:24)\n' +
+   119→    '    at async requestHandlerImpl (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:496:13)\n' +
+   120→    '    at async Server.requestListener (/home/z/my-project/node_modules/next/dist/server/lib/start-server.js:226:13)',
+   121→  name: 'JWEDecryptionFailed'
+   122→}
+   123→ GET /api/puzzles/admin 401 in 298ms (compile: 285ms, render: 13ms)
+   124→prisma:query SELECT 1
+   125→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId`, `main`.`CrosswordPuzzle`.`creatorId`, `main`.`CrosswordPuzzle`.`gridData`, `main`.`CrosswordPuzzle`.`wordsData`, `main`.`CrosswordPuzzle`.`cluesData`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`published`, `main`.`CrosswordPuzzle`.`createdAt`, `main`.`CrosswordPuzzle`.`updatedAt` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`id` = ? AND 1=1) LIMIT ? OFFSET ?
+   126→prisma:query SELECT `main`.`UserProgress`.`id`, `main`.`UserProgress`.`puzzleId`, `main`.`UserProgress`.`userId`, `main`.`UserProgress`.`completed`, `main`.`UserProgress`.`timeSpent`, `main`.`UserProgress`.`hintsUsed`, `main`.`UserProgress`.`progress`, `main`.`UserProgress`.`completedAt`, `main`.`UserProgress`.`createdAt`, `main`.`UserProgress`.`updatedAt` FROM `main`.`UserProgress` WHERE ((`main`.`UserProgress`.`puzzleId` = ? AND `main`.`UserProgress`.`userId` = ?) AND 1=1) LIMIT ? OFFSET ?
+   127→prisma:query SELECT COUNT(*) AS `_count$_all` FROM (SELECT `main`.`CrosswordPuzzle`.`id` FROM `main`.`CrosswordPuzzle` WHERE `main`.`CrosswordPuzzle`.`published` = ? LIMIT ? OFFSET ?) AS `sub`
+   128→ GET /api/puzzles/cmsmzcsuj0001nrtt4njhp1yx 200 in 701ms (compile: 664ms, render: 37ms)
+   129→ GET / 200 in 66ms (compile: 5ms, render: 62ms)
+   130→prisma:query SELECT 1
+   131→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon`, `main`.`Category`.`language`, `main`.`Category`.`createdAt`, `main`.`Category`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Category` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`categoryId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`categoryId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Category`.`id` = `aggr_selection_0_CrosswordPuzzle`.`categoryId`) WHERE 1=1 ORDER BY `main`.`Category`.`language` ASC, `main`.`Category`.`name` ASC LIMIT ? OFFSET ?
+   132→ GET /api/auth/session 200 in 56ms (compile: 36ms, render: 21ms)
+   133→ GET /api/categories 200 in 22ms (compile: 5ms, render: 17ms)
+   134→prisma:query SELECT `main`.`PublishingSchedule`.`id`, `main`.`PublishingSchedule`.`puzzlesPerDay`, `main`.`PublishingSchedule`.`isActive`, `main`.`PublishingSchedule`.`createdAt`, `main`.`PublishingSchedule`.`updatedAt` FROM `main`.`PublishingSchedule` WHERE 1=1 ORDER BY `main`.`PublishingSchedule`.`createdAt` DESC LIMIT ? OFFSET ?
+   135→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`description`, `main`.`Pack`.`icon`, `main`.`Pack`.`language`, `main`.`Pack`.`createdAt`, `main`.`Pack`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Pack` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`packId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`packId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Pack`.`id` = `aggr_selection_0_CrosswordPuzzle`.`packId`) WHERE 1=1 ORDER BY `main`.`Pack`.`language` ASC, `main`.`Pack`.`createdAt` DESC LIMIT ? OFFSET ?
+   136→ GET /api/packs 200 in 27ms (compile: 14ms, render: 12ms)
+   137→prisma:query BEGIN IMMEDIATE
+   138→prisma:query UPDATE `main`.`CrosswordPuzzle` SET `published` = ?, `updatedAt` = ? WHERE (`main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?)
+   139→prisma:query COMMIT
+   140→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`publishDate` >= ? AND `main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?) ORDER BY `main`.`CrosswordPuzzle`.`publishDate` ASC LIMIT ? OFFSET ?
+   141→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon` FROM `main`.`Category` WHERE `main`.`Category`.`id` IN (?) LIMIT ? OFFSET ?
+   142→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`icon` FROM `main`.`Pack` WHERE `main`.`Pack`.`id` IN (?,?) LIMIT ? OFFSET ?
+   143→ GET /api/puzzles/daily 200 in 31ms (compile: 11ms, render: 21ms)
+   144→ GET /api/auth/session 200 in 46ms (compile: 31ms, render: 15ms)
+   145→[next-auth][error][JWT_SESSION_ERROR] 
+   146→https://next-auth.js.org/errors#jwt_session_error decryption operation failed {
+   147→  message: 'decryption operation failed',
+   148→  stack: 'JWEDecryptionFailed: decryption operation failed\n' +
+   149→    '    at gcmDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:734:15)\n' +
+   150→    '    at decrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:757:20)\n' +
+   151→    '    at flattenedDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:2254:52)\n' +
+   152→    '    at async compactDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:2308:23)\n' +
+   153→    '    at async jwtDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:3770:23)\n' +
+   154→    '    at async Object.decode (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:725:25)\n' +
+   155→    '    at async Object.session (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:2038:34)\n' +
+   156→    '    at async AuthHandler (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:3184:37)\n' +
+   157→    '    at async getServerSession (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:3576:21)\n' +
+   158→    '    at async requireAuth (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8e150403._.js:208:21)\n' +
+   159→    '    at async requireRole (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8e150403._.js:225:32)\n' +
+   160→    '    at async GET (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__f07a335f._.js:426:32)\n' +
+   161→    '    at async AppRouteRouteModule.do (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:5:37866)\n' +
+   162→    '    at async AppRouteRouteModule.handle (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:5:45156)\n' +
+   163→    '    at async responseGenerator (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16028:38)\n' +
+   164→    '    at async AppRouteRouteModule.handleResponse (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:1:187713)\n' +
+   165→    '    at async handleResponse (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16091:32)\n' +
+   166→    '    at async Module.handler (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16144:13)\n' +
+   167→    '    at async DevServer.renderToResponseWithComponentsImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1422:9)\n' +
+   168→    '    at async DevServer.renderPageComponent (/home/z/my-project/node_modules/next/dist/server/base-server.js:1474:24)\n' +
+   169→    '    at async DevServer.renderToResponseImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1524:32)\n' +
+   170→    '    at async DevServer.pipeImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1018:25)\n' +
+   171→    '    at async NextNodeServer.handleCatchallRenderRequest (/home/z/my-project/node_modules/next/dist/server/next-server.js:395:17)\n' +
+   172→    '    at async DevServer.handleRequestImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:909:17)\n' +
+   173→    '    at async /home/z/my-project/node_modules/next/dist/server/dev/next-dev-server.js:387:20\n' +
+   174→    '    at async Span.traceAsyncFn (/home/z/my-project/node_modules/next/dist/trace/trace.js:157:20)\n' +
+   175→    '    at async DevServer.handleRequest (/home/z/my-project/node_modules/next/dist/server/dev/next-dev-server.js:383:24)\n' +
+   176→    '    at async invokeRender (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:248:21)\n' +
+   177→    '    at async handleRequest (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:447:24)\n' +
+   178→    '    at async requestHandlerImpl (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:496:13)\n' +
+   179→    '    at async Server.requestListener (/home/z/my-project/node_modules/next/dist/server/lib/start-server.js:226:13)',
+   180→  name: 'JWEDecryptionFailed'
+   181→}
+   182→ GET /api/puzzles/admin 401 in 11ms (compile: 3ms, render: 8ms)
+   183→ GET /api/auth/session 200 in 51ms (compile: 34ms, render: 17ms)
+   184→ GET /api/auth/csrf 200 in 43ms (compile: 33ms, render: 10ms)
+   185→ POST /api/auth/signout 200 in 48ms (compile: 33ms, render: 15ms)
+   186→ GET / 200 in 69ms (compile: 6ms, render: 63ms)
+   187→prisma:query SELECT 1
+   188→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon`, `main`.`Category`.`language`, `main`.`Category`.`createdAt`, `main`.`Category`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Category` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`categoryId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`categoryId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Category`.`id` = `aggr_selection_0_CrosswordPuzzle`.`categoryId`) WHERE 1=1 ORDER BY `main`.`Category`.`language` ASC, `main`.`Category`.`name` ASC LIMIT ? OFFSET ?
+   189→ GET /api/categories 200 in 49ms (compile: 3ms, render: 46ms)
+   190→ GET /api/auth/session 200 in 51ms (compile: 36ms, render: 15ms)
+   191→ GET /api/packs 200 in 8ms (compile: 3ms, render: 5ms)
+   192→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`description`, `main`.`Pack`.`icon`, `main`.`Pack`.`language`, `main`.`Pack`.`createdAt`, `main`.`Pack`.`updatedAt`, COALESCE(`aggr_selection_0_CrosswordPuzzle`.`_aggr_count_puzzles`, 0) AS `_aggr_count_puzzles` FROM `main`.`Pack` LEFT JOIN (SELECT `main`.`CrosswordPuzzle`.`packId`, COUNT(*) AS `_aggr_count_puzzles` FROM `main`.`CrosswordPuzzle` WHERE 1=1 GROUP BY `main`.`CrosswordPuzzle`.`packId`) AS `aggr_selection_0_CrosswordPuzzle` ON (`main`.`Pack`.`id` = `aggr_selection_0_CrosswordPuzzle`.`packId`) WHERE 1=1 ORDER BY `main`.`Pack`.`language` ASC, `main`.`Pack`.`createdAt` DESC LIMIT ? OFFSET ?
+   193→prisma:query SELECT `main`.`PublishingSchedule`.`id`, `main`.`PublishingSchedule`.`puzzlesPerDay`, `main`.`PublishingSchedule`.`isActive`, `main`.`PublishingSchedule`.`createdAt`, `main`.`PublishingSchedule`.`updatedAt` FROM `main`.`PublishingSchedule` WHERE 1=1 ORDER BY `main`.`PublishingSchedule`.`createdAt` DESC LIMIT ? OFFSET ?
+   194→prisma:query BEGIN IMMEDIATE
+   195→prisma:query UPDATE `main`.`CrosswordPuzzle` SET `published` = ?, `updatedAt` = ? WHERE (`main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?)
+   196→prisma:query COMMIT
+   197→prisma:query SELECT `main`.`CrosswordPuzzle`.`id`, `main`.`CrosswordPuzzle`.`title`, `main`.`CrosswordPuzzle`.`difficulty`, `main`.`CrosswordPuzzle`.`language`, `main`.`CrosswordPuzzle`.`description`, `main`.`CrosswordPuzzle`.`rows`, `main`.`CrosswordPuzzle`.`cols`, `main`.`CrosswordPuzzle`.`publishDate`, `main`.`CrosswordPuzzle`.`categoryId`, `main`.`CrosswordPuzzle`.`packId` FROM `main`.`CrosswordPuzzle` WHERE (`main`.`CrosswordPuzzle`.`publishDate` >= ? AND `main`.`CrosswordPuzzle`.`publishDate` <= ? AND `main`.`CrosswordPuzzle`.`published` = ?) ORDER BY `main`.`CrosswordPuzzle`.`publishDate` ASC LIMIT ? OFFSET ?
+   198→prisma:query SELECT `main`.`Category`.`id`, `main`.`Category`.`name`, `main`.`Category`.`slug`, `main`.`Category`.`icon` FROM `main`.`Category` WHERE `main`.`Category`.`id` IN (?) LIMIT ? OFFSET ?
+   199→prisma:query SELECT `main`.`Pack`.`id`, `main`.`Pack`.`name`, `main`.`Pack`.`icon` FROM `main`.`Pack` WHERE `main`.`Pack`.`id` IN (?,?) LIMIT ? OFFSET ?
+   200→ GET /api/puzzles/daily 200 in 16ms (compile: 4ms, render: 13ms)
+   201→ GET /api/auth/providers 200 in 44ms (compile: 33ms, render: 11ms)
+   202→ GET /api/auth/csrf 200 in 41ms (compile: 34ms, render: 8ms)
+   203→prisma:query SELECT 1
+   204→prisma:query SELECT `main`.`User`.`id`, `main`.`User`.`name`, `main`.`User`.`email`, `main`.`User`.`password`, `main`.`User`.`role`, `main`.`User`.`createdAt`, `main`.`User`.`updatedAt` FROM `main`.`User` WHERE (`main`.`User`.`email` = ? AND 1=1) LIMIT ? OFFSET ?
+   205→ POST /api/auth/callback/credentials 200 in 413ms (compile: 37ms, render: 377ms)
+   206→ GET /api/auth/session 200 in 45ms (compile: 34ms, render: 11ms)
+   207→[next-auth][error][JWT_SESSION_ERROR] 
+   208→https://next-auth.js.org/errors#jwt_session_error decryption operation failed {
+   209→  message: 'decryption operation failed',
+   210→  stack: 'JWEDecryptionFailed: decryption operation failed\n' +
+   211→    '    at gcmDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:734:15)\n' +
+   212→    '    at decrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:757:20)\n' +
+   213→    '    at flattenedDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:2254:52)\n' +
+   214→    '    at async compactDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:2308:23)\n' +
+   215→    '    at async jwtDecrypt (/home/z/my-project/.next/dev/server/chunks/node_modules_jose_dist_node_cjs_bd88468e._.js:3770:23)\n' +
+   216→    '    at async Object.decode (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:725:25)\n' +
+   217→    '    at async Object.session (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:2038:34)\n' +
+   218→    '    at async AuthHandler (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:3184:37)\n' +
+   219→    '    at async getServerSession (/home/z/my-project/.next/dev/server/chunks/node_modules_next-auth_1810886e._.js:3576:21)\n' +
+   220→    '    at async requireAuth (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8e150403._.js:208:21)\n' +
+   221→    '    at async requireRole (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__8e150403._.js:225:32)\n' +
+   222→    '    at async GET (/home/z/my-project/.next/dev/server/chunks/[root-of-the-server]__f07a335f._.js:426:32)\n' +
+   223→    '    at async AppRouteRouteModule.do (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:5:37866)\n' +
+   224→    '    at async AppRouteRouteModule.handle (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:5:45156)\n' +
+   225→    '    at async responseGenerator (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16028:38)\n' +
+   226→    '    at async AppRouteRouteModule.handleResponse (/home/z/my-project/node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.dev.js:1:187713)\n' +
+   227→    '    at async handleResponse (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16091:32)\n' +
+   228→    '    at async Module.handler (/home/z/my-project/.next/dev/server/chunks/node_modules_next_9927c8a3._.js:16144:13)\n' +
+   229→    '    at async DevServer.renderToResponseWithComponentsImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1422:9)\n' +
+   230→    '    at async DevServer.renderPageComponent (/home/z/my-project/node_modules/next/dist/server/base-server.js:1474:24)\n' +
+   231→    '    at async DevServer.renderToResponseImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1524:32)\n' +
+   232→    '    at async DevServer.pipeImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:1018:25)\n' +
+   233→    '    at async NextNodeServer.handleCatchallRenderRequest (/home/z/my-project/node_modules/next/dist/server/next-server.js:395:17)\n' +
+   234→    '    at async DevServer.handleRequestImpl (/home/z/my-project/node_modules/next/dist/server/base-server.js:909:17)\n' +
+   235→    '    at async /home/z/my-project/node_modules/next/dist/server/dev/next-dev-server.js:387:20\n' +
+   236→    '    at async Span.traceAsyncFn (/home/z/my-project/node_modules/next/dist/trace/trace.js:157:20)\n' +
+   237→    '    at async DevServer.handleRequest (/home/z/my-project/node_modules/next/dist/server/dev/next-dev-server.js:383:24)\n' +
+   238→    '    at async invokeRender (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:248:21)\n' +
+   239→    '    at async handleRequest (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:447:24)\n' +
+   240→    '    at async requestHandlerImpl (/home/z/my-project/node_modules/next/dist/server/lib/router-server.js:496:13)\n' +
+   241→    '    at async Server.requestListener (/home/z/my-project/node_modules/next/dist/server/lib/start-server.js:226:13)',
+   242→  name: 'JWEDecryptionFailed'
+   243→}
+   244→ GET /api/puzzles/admin 401 in 11ms (compile: 3ms, render: 8ms)
+   245→
