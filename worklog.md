@@ -645,3 +645,28 @@ Stage Summary:
 - Admin panel has date picker search filter for finding puzzles by publish/first-published date
 - Verified via agent-browser: admin panel loads 28 puzzles with #NNN badges, zero runtime errors
 
+---
+Task ID: auto-title-removal
+Agent: Main Coordinator
+Task: Remove manual title input from PuzzleEditor - title is now auto-generated from sequential puzzle number
+
+Work Log:
+- Verified .env has NEXTAUTH_SECRET (was intact this session)
+- Confirmed backend already auto-generates titles (#001, #002, etc.) in both generate and admin routes
+- Removed title state variable from PuzzleEditor.tsx
+- Removed title input field from PuzzleEditor settings grid
+- Removed title validation check in handleSave
+- Removed title from request body sent to API
+- Removed title from useCallback dependency array
+- Updated grid cols from 6 to 5 (one fewer field)
+- Changed editor description to inform user that number is auto-assigned
+- Changed save button disabled condition from `!title.trim()` to `words.length === 0`
+- Verified no remaining title references causing runtime errors
+- Tested via agent-browser: Generator tab has no title field, Puzzles table shows #028, #027, etc., Manual editor has no title input
+
+Stage Summary:
+- PuzzleEditor no longer has a title input - titles are 100% auto-generated
+- Both AI generator and manual editor auto-assign sequential numbers
+- Backend handles numbering via `getNextPuzzleNumber()` using MAX aggregation
+- Puzzle table in admin panel displays auto-numbered titles correctly
+

@@ -254,7 +254,6 @@ export default function PuzzleEditor({
   onSaved,
 }: PuzzleEditorProps) {
   // ── State ────────────────────────────────────────────────────────
-  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState<string>("2");
   const [language, setLanguage] = useState<string>("fr");
@@ -344,7 +343,6 @@ export default function PuzzleEditor({
     if (!open) return;
     if (!editPuzzleId) {
       // New puzzle: reset everything
-      setTitle("");
       setDescription("");
       setDifficulty("2");
       setLanguage("fr");
@@ -372,7 +370,6 @@ export default function PuzzleEditor({
       .then((data) => {
         if (cancelled) return;
         const p: CrosswordPuzzleData = data.puzzle;
-        setTitle(p.title);
         setDescription(p.description ?? "");
         setDifficulty(String(p.difficulty));
         // Load language and category from puzzle metadata
@@ -636,11 +633,6 @@ export default function PuzzleEditor({
 
   // ── Save ─────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
-    if (!title.trim()) {
-      toast.error("Le titre est requis");
-      return;
-    }
-
     const finalClues: Clue[] = clues.map(({ number, direction, text }) => ({
       number,
       direction,
@@ -650,7 +642,6 @@ export default function PuzzleEditor({
     setSaving(true);
     try {
       const body = {
-        title: title.trim(),
         description: description.trim() || undefined,
         difficulty: Number(difficulty),
         language,
@@ -688,7 +679,6 @@ export default function PuzzleEditor({
         onOpenChange(false);
       } else {
         // Reset for new puzzle
-        setTitle("");
         setDescription("");
         setDifficulty("2");
         setLanguage("fr");
@@ -706,7 +696,7 @@ export default function PuzzleEditor({
     } finally {
       setSaving(false);
     }
-  }, [title, description, difficulty, language, categoryId, packId, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+  }, [description, difficulty, language, categoryId, packId, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
 
   // ── Render helpers ───────────────────────────────────────────────
   const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
@@ -853,25 +843,13 @@ export default function PuzzleEditor({
           <DialogDescription>
             {isEditing
               ? "Modifiez la grille, les mots et les indices du puzzle."
-              : "Créez un nouveau mots croisés en dessinant la grille et en entrant les mots."}
+              : "Le numéro du puzzle sera attribué automatiquement à la sauvegarde."}
           </DialogDescription>
         </DialogHeader>
 
         {/* ── Puzzle settings ─────────────────────────────────────── */}
         <div className="px-4 pb-2 shrink-0 space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="puzzle-title" className="text-xs">
-                Titre *
-              </Label>
-              <Input
-                id="puzzle-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Titre du puzzle"
-                className="h-8 text-sm"
-              />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <div className="space-y-1">
               <Label htmlFor="puzzle-desc" className="text-xs">
                 Description
@@ -1024,7 +1002,7 @@ export default function PuzzleEditor({
             <Button
               size="sm"
               className="h-7 text-xs"
-              disabled={saving || !title.trim()}
+              disabled={saving || words.length === 0}
               onClick={handleSave}
             >
               {saving ? "Sauvegarde…" : "Sauvegarder"}
