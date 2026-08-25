@@ -26,8 +26,9 @@ export async function GET(request: NextRequest) {
         where: {
           publishDate: { lte: endOfDay },
           published: false,
+          firstPublishedAt: null, // Only auto-publish those never published before
         },
-        data: { published: true },
+        data: { published: true, firstPublishedAt: new Date() },
       });
       if (result.count > 0) {
         console.log(`📅 Auto-published ${result.count} puzzle(s) whose date has arrived`);
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
       },
       select: {
         id: true,
+        puzzleNumber: true,
         title: true,
         difficulty: true,
         language: true,
@@ -62,6 +64,7 @@ export async function GET(request: NextRequest) {
         rows: true,
         cols: true,
         publishDate: true,
+        firstPublishedAt: true,
         categoryId: true,
         packId: true,
         category: {
@@ -75,6 +78,7 @@ export async function GET(request: NextRequest) {
 
     const summaries = puzzles.map((p) => ({
       id: p.id,
+      puzzleNumber: p.puzzleNumber,
       title: p.title,
       difficulty: p.difficulty,
       language: p.language,
@@ -82,6 +86,7 @@ export async function GET(request: NextRequest) {
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? '',
+      firstPublishedAt: p.firstPublishedAt?.toISOString() ?? null,
       categoryId: p.categoryId,
       categoryName: p.category?.name ?? null,
       categoryIcon: p.category?.icon ?? null,

@@ -25,6 +25,7 @@ import {
   Trash2,
   Tag,
   Languages,
+  Search,
   Sparkles,
   Zap,
 } from 'lucide-react';
@@ -104,6 +105,7 @@ interface PackItem {
 
 interface PuzzleSummary {
   id: string;
+  puzzleNumber: number;
   title: string;
   difficulty: number;
   language: string;
@@ -118,6 +120,7 @@ interface PuzzleSummary {
   cols: number;
   published: boolean;
   publishDate: string | null;
+  firstPublishedAt: string | null;
   createdAt: string;
 }
 
@@ -1073,6 +1076,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [packFilter, setPackFilter] = useState<string>('all');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
+  const [dateSearch, setDateSearch] = useState<string>(''); // YYYY-MM-DD search by publish/first-published date
 
   // Determine the correct API endpoint based on role
   const dataEndpoint = isAdmin ? '/api/puzzles/admin' : '/api/creator/data';
@@ -1264,8 +1268,17 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
     if (languageFilter !== 'all') {
       filtered = filtered.filter((p) => p.language === languageFilter);
     }
+    // Date search: match against publishDate or firstPublishedAt
+    if (dateSearch.trim()) {
+      const q = dateSearch.trim().toLowerCase();
+      filtered = filtered.filter((p) => {
+        const pub = p.publishDate?.toLowerCase().slice(0, 10) ?? '';
+        const first = p.firstPublishedAt?.toLowerCase().slice(0, 10) ?? '';
+        return pub.includes(q) || first.includes(q);
+      });
+    }
     return filtered;
-  }, [data, categoryFilter, packFilter, languageFilter]);
+  }, [data, categoryFilter, packFilter, languageFilter, dateSearch]);
 
   // --- Render ---
 
@@ -1427,6 +1440,17 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                         </SelectContent>
                       </Select>
 
+                      <div className="relative">
+                        <Search className="size-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          type="date"
+                          className="h-8 text-xs w-[140px] pl-7"
+                          value={dateSearch}
+                          onChange={(e) => setDateSearch(e.target.value)}
+                          placeholder="Recherche par date"
+                        />
+                      </div>
+
                       <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => openEditor()}>
                         <Plus className="size-3.5" />
                         Créer
@@ -1445,13 +1469,13 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                       <Table>
                         <TableHeader>
                           <TableRow className="hover:bg-transparent">
-                            <TableHead className="pl-3">Titre</TableHead>
+                            <TableHead className="pl-3">N°</TableHead>
                             <TableHead>Catégorie</TableHead>
                             <TableHead>Collection</TableHead>
                             <TableHead>Langue</TableHead>
                             <TableHead>Difficulté</TableHead>
                             <TableHead className="hidden md:table-cell">Taille</TableHead>
-                            <TableHead className="hidden lg:table-cell">Date</TableHead>
+                            <TableHead className="hidden lg:table-cell">Publication</TableHead>
                             <TableHead>Statut</TableHead>
                             <TableHead className="text-right pr-3">Actions</TableHead>
                           </TableRow>
@@ -1463,8 +1487,8 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
 
                             return (
                               <TableRow key={puzzle.id}>
-                                <TableCell className="font-medium pl-3 max-w-[140px] truncate">
-                                  {puzzle.title}
+                                <TableCell className="font-medium pl-3">
+                                  <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{puzzle.title}</span>
                                 </TableCell>
 
                                 <TableCell>
@@ -1501,7 +1525,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                                   {puzzle.rows}×{puzzle.cols}
                                 </TableCell>
 
-                                <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">
+                                <TableCell className="hidden lg:table-cell">
                                   {isDatePicking ? (
                                     <Popover open={isDatePicking} onOpenChange={(o) => !o && setDatePickerPuzzleId(null)}>
                                       <PopoverTrigger asChild>
@@ -1524,7 +1548,12 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                                       </PopoverContent>
                                     </Popover>
                                   ) : (
-                                    <span>{formatDate(puzzle.publishDate)}</span>
+                                    <div className="text-xs text-muted-foreground">
+                                      <div>{formatDate(puzzle.firstPublishedAt || puzzle.publishDate)}</div>
+                                      {puzzle.firstPublishedAt && puzzle.publishDate && puzzle.firstPublishedAt !== puzzle.publishDate && (
+                                        <div className="text-[10px] opacity-60">prévu: {formatDate(puzzle.publishDate)}</div>
+                                      )}
+                                    </div>
                                   )}
                                 </TableCell>
 

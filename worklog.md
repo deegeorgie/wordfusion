@@ -615,3 +615,33 @@ Stage Summary:
 - Role-based API routing: /api/puzzles/admin (ADMIN) vs /api/creator/data (CREATOR+)
 - Creator users see only Puzzles + Générateur tabs, no admin-only actions
 - Admin users see all 5 tabs with full management capabilities
+
+---
+Task ID: auto-puzzle-numbering
+Agent: Main Coordinator
+Task: Automate puzzle titles with unique numbers, track first publication date, add date search
+
+Work Log:
+- Added puzzleNumber (Int, @unique) and firstPublishedAt (DateTime?) to CrosswordPuzzle schema
+- Added indexes on publishDate, firstPublishedAt, and published for query performance
+- Two-step migration: added field as optional → assigned sequential numbers to 28 existing puzzles → made required
+- Created migration script that numbered puzzles #001-#028 by createdAt order and set firstPublishedAt from publishDate for already-published puzzles
+- Created unique index on puzzleNumber in SQLite
+- Updated /api/puzzles/admin POST: auto-assigns next puzzleNumber via aggregate _max, generates title as #NNN format
+- Updated /api/puzzles/admin PUT: prevents title changes (auto-managed), removed title from metadata-only update path
+- Updated /api/puzzles/generate POST: same auto-number logic, sets firstPublishedAt if autoPublish
+- Updated /api/puzzles/admin/publish POST: sets firstPublishedAt only on first publish (immutable after)
+- Updated /api/puzzles/daily GET: auto-publish sets firstPublishedAt, response includes puzzleNumber and firstPublishedAt
+- Updated /api/creator/data GET: includes puzzleNumber and firstPublishedAt in response
+- Added date search filter (native date input with Search icon) in AdminPanel Puzzles tab
+- Updated AdminPanel table: "N°" header, monospace badge for #NNN display, "Publication" column shows firstPublishedAt with scheduled date as secondary line
+- Added Search icon import from lucide-react
+- Updated PuzzleSummary interface with puzzleNumber and firstPublishedAt fields
+
+Stage Summary:
+- All 28 existing puzzles migrated to #001-#028 format
+- New puzzles auto-assigned sequential numbers (no manual titles needed)
+- firstPublishedAt is immutable — set once on first publish, preserved on unpublish
+- Admin panel has date picker search filter for finding puzzles by publish/first-published date
+- Verified via agent-browser: admin panel loads 28 puzzles with #NNN badges, zero runtime errors
+

@@ -49,26 +49,32 @@ model Category {
 }
 
 model CrosswordPuzzle {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  difficulty  Int      @default(1) // 1=Easy, 2=Medium, 3=Hard
-  language    String   @default("fr") // "fr" or "en"
-  categoryId  String?
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  packId      String?
-  pack        Pack?     @relation(fields: [packId], references: [id], onDelete: SetNull)
-  creatorId   String?
-  creator     User?     @relation(fields: [creatorId], references: [id], onDelete: SetNull)
-  gridData    String   // JSON string of the grid layout
-  wordsData   String   // JSON string of word placements
-  cluesData   String   // JSON string of clues
-  rows        Int
-  cols        Int
-  publishDate DateTime? // When this puzzle should be published
-  published   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String    @id @default(cuid())
+  puzzleNumber     Int       @unique              // Auto-incremented unique number (#001, #002, …)
+  title            String                         // Display title (auto-set from puzzleNumber)
+  description      String?
+  difficulty       Int       @default(1)          // 1=Easy, 2=Medium, 3=Hard
+  language         String    @default("fr")       // "fr" or "en"
+  categoryId       String?
+  category         Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  packId           String?
+  pack             Pack?     @relation(fields: [packId], references: [id], onDelete: SetNull)
+  creatorId        String?
+  creator          User?     @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  gridData         String                         // JSON string of the grid layout
+  wordsData        String                         // JSON string of word placements
+  cluesData        String                         // JSON string of clues
+  rows             Int
+  cols             Int
+  publishDate      DateTime?                      // Scheduled publication date
+  firstPublishedAt DateTime?                      // Immutable: set once when first published
+  published        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([publishDate])
+  @@index([firstPublishedAt])
+  @@index([published])
 }
 
 model UserProgress {

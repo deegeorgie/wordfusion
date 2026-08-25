@@ -238,10 +238,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 3: Create the puzzle
-    const title = language === 'fr'
-      ? `${theme} — Mots Croisés`
-      : `${theme} — Crossword`;
+    // Step 3: Create the puzzle with auto-numbered title
+    const maxNum = await db.crosswordPuzzle.aggregate({ _max: { puzzleNumber: true } });
+    const puzzleNumber = (maxNum._max.puzzleNumber ?? 0) + 1;
+    const autoTitle = `#${String(puzzleNumber).padStart(3, '0')}`;
 
     const rawWordsForPuzzle = placement.words.map((w) => ({
       word: w.word,
@@ -251,15 +251,17 @@ export async function POST(request: NextRequest) {
       clue: w.clue,
     }));
 
-    const puzzleData = createPuzzle(title, difficulty, placement.rows, placement.cols, rawWordsForPuzzle);
+    const puzzleData = createPuzzle(autoTitle, difficulty, placement.rows, placement.cols, rawWordsForPuzzle);
     const dbFormat = puzzleToDbFormat(puzzleData);
 
     // Step 4: Save to database
     const publishDate = autoPublish ? new Date() : null;
+    const firstPublishedAt = autoPublish ? new Date() : null;
 
     const puzzle = await db.crosswordPuzzle.create({
       data: {
-        title: title.trim(),
+        puzzleNumber,
+        title: autoTitle,
         description: language === 'fr'
           ? `Puzzle généré automatiquement sur le thème « ${theme} »`
           : `Auto-generated puzzle on theme "${theme}"`,
@@ -275,6 +277,7 @@ export async function POST(request: NextRequest) {
         cluesData: dbFormat.cluesData,
         published: autoPublish,
         publishDate,
+        firstPublishedAt,
       },
     });
 
@@ -282,6 +285,7 @@ export async function POST(request: NextRequest) {
       success: true,
       puzzle: {
         id: puzzle.id,
+        puzzleNumber: puzzle.puzzleNumber,
         title: puzzle.title,
         rows: placement.rows,
         cols: placement.cols,

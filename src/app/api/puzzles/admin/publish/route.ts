@@ -39,6 +39,7 @@ export async function POST(request: NextRequest) {
     const updateData: {
       published: boolean;
       publishDate?: Date | null;
+      firstPublishedAt?: Date | null;
     } = {
       published,
     };
@@ -49,8 +50,13 @@ export async function POST(request: NextRequest) {
       // If publishing without a date and no existing date, set to now
       updateData.publishDate = new Date();
     } else if (!published) {
-      // Unpublishing: clear the publish date
+      // Unpublishing: clear the publish date (but keep firstPublishedAt)
       updateData.publishDate = null;
+    }
+
+    // Set firstPublishedAt only on the very first publish
+    if (published && !existing.firstPublishedAt) {
+      updateData.firstPublishedAt = new Date();
     }
 
     const updated = await db.crosswordPuzzle.update({

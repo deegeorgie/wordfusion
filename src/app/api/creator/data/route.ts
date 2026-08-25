@@ -29,6 +29,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        puzzleNumber: true,
         title: true,
         difficulty: true,
         language: true,
@@ -37,6 +38,7 @@ export async function GET() {
         rows: true,
         cols: true,
         publishDate: true,
+        firstPublishedAt: true,
         published: true,
         createdAt: true,
         category: {
@@ -50,6 +52,7 @@ export async function GET() {
 
     const puzzleList = puzzles.map((p) => ({
       id: p.id,
+      puzzleNumber: p.puzzleNumber,
       title: p.title,
       difficulty: p.difficulty,
       language: p.language,
@@ -63,6 +66,7 @@ export async function GET() {
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? null,
+      firstPublishedAt: p.firstPublishedAt?.toISOString() ?? null,
       published: p.published,
       createdAt: p.createdAt.toISOString(),
     }));

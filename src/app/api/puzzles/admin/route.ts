@@ -4,10 +4,22 @@ import { puzzleToDbFormat } from '@/lib/crossword/utils';
 import type { CrosswordPuzzleData } from '@/lib/crossword/types';
 import { requireRole } from '@/lib/auth-guard';
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+/** Get the next sequential puzzle number */
+async function getNextPuzzleNumber(): Promise<number> {
+  const max = await db.crosswordPuzzle.aggregate({ _max: { puzzleNumber: true } });
+  return (max._max.puzzleNumber ?? 0) + 1;
+}
+
+function formatPuzzleTitle(num: number): string {
+  return `#${String(num).padStart(3, '0')}`;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────
 
 interface PuzzleBody {
-  title: string;
+  title?: string;  // Now optional — auto-generated from puzzleNumber
   description?: string;
   difficulty: number;
   language?: string;
@@ -25,7 +37,6 @@ interface PuzzleBody {
 function validateBody(body: unknown): body is PuzzleBody {
   const b = body as Record<string, unknown>;
   return (
-    typeof b.title === 'string' && b.title.trim().length > 0 &&
     typeof b.difficulty === 'number' && b.difficulty >= 1 && b.difficulty <= 3 &&
     typeof b.rows === 'number' && b.rows >= 2 &&
     typeof b.cols === 'number' && b.cols >= 2 &&
@@ -44,6 +55,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        puzzleNumber: true,
         title: true,
         difficulty: true,
         language: true,
@@ -52,6 +64,7 @@ export async function GET() {
         rows: true,
         cols: true,
         publishDate: true,
+        firstPublishedAt: true,
         published: true,
         createdAt: true,
         category: {
@@ -65,6 +78,7 @@ export async function GET() {
 
     const puzzleList = puzzles.map((p) => ({
       id: p.id,
+      puzzleNumber: p.puzzleNumber,
       title: p.title,
       difficulty: p.difficulty,
       language: p.language,
@@ -78,6 +92,7 @@ export async function GET() {
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? null,
+      firstPublishedAt: p.firstPublishedAt?.toISOString() ?? null,
       published: p.published,
       createdAt: p.createdAt.toISOString(),
     }));
@@ -147,8 +162,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const puzzleNumber = await getNextPuzzleNumber();
+    const autoTitle = formatPuzzleTitle(puzzleNumber);
+
     const dbFormat = puzzleToDbFormat({
-      title: body.title,
+      title: autoTitle,
       description: body.description,
       difficulty: body.difficulty,
       rows: body.rows,
@@ -160,7 +178,8 @@ export async function POST(request: NextRequest) {
 
     const puzzle = await db.crosswordPuzzle.create({
       data: {
-        title: body.title.trim(),
+        puzzleNumber,
+        title: autoTitle,
         description: body.description?.trim() || null,
         difficulty: body.difficulty,
         language,
@@ -212,7 +231,7 @@ export async function PUT(request: NextRequest) {
       }
 
       const dbFormat = puzzleToDbFormat({
-        title: body.title,
+        title: existing.title, // Keep auto-generated title
         description: body.description,
         difficulty: body.difficulty,
         rows: body.rows,
@@ -244,7 +263,6 @@ export async function PUT(request: NextRequest) {
       await db.crosswordPuzzle.update({
         where: { id: body.id },
         data: {
-          title: body.title.trim(),
           description: body.description?.trim() || null,
           difficulty: body.difficulty,
           language,
@@ -258,9 +276,8 @@ export async function PUT(request: NextRequest) {
         },
       });
     } else {
-      // Only metadata update (title, description, difficulty, language, categoryId)
+      // Only metadata update (description, difficulty, language, categoryId) — title is auto-managed
       const updateData: Record<string, unknown> = {};
-      if (body.title) updateData.title = body.title.trim();
       if (body.description !== undefined) updateData.description = body.description?.trim() || null;
       if (body.difficulty) updateData.difficulty = body.difficulty;
       if (body.language && ['fr', 'en'].includes(body.language)) updateData.language = body.language;
