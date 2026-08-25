@@ -893,7 +893,10 @@ export default function Home() {
                           variant="ghost"
                           size="sm"
                           className="text-xs text-muted-foreground hover:text-destructive gap-1"
-                          onClick={() => signOut({ callbackUrl: '/' })}
+                          onClick={async () => {
+                            await signOut({ redirect: false });
+                            window.location.href = '/';
+                          }}
                         >
                           <LogOut className="size-3.5" />
                           <span className="hidden sm:inline">Déconnexion</span>
