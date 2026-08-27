@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useSession, signOut } from 'next-auth/react';
 import {
   ArrowLeft,
+  CalendarDays,
   Clock,
   CheckCircle2,
   Eye,
@@ -278,10 +279,11 @@ export default function Home() {
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
-  // ── Language + Category + Pack filter state ────────────────────────
+  // ── Language + Category + Pack + Date filter state ─────────────────
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPack, setSelectedPack] = useState<string>('all');
+  const [todayOnly, setTodayOnly] = useState(false);
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [packs, setPacks] = useState<PackInfo[]>([]);
 
@@ -374,9 +376,15 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [selectedLanguage]);
 
-  // ── Filter puzzles by category and pack on client side ──────────────
+  // ── Today's date string (server-agnostic) ─────────────────────────
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  // ── Filter puzzles by date, category and pack on client side ────────
   const filteredPuzzles = useMemo(() => {
     let puzzles = dailyPuzzles;
+    if (todayOnly) {
+      puzzles = puzzles.filter((p) => p.publishDate && p.publishDate.slice(0, 10) === todayStr);
+    }
     if (selectedCategory !== 'all') {
       puzzles = puzzles.filter((p) => p.categoryId === selectedCategory);
     }
@@ -384,7 +392,7 @@ export default function Home() {
       puzzles = puzzles.filter((p) => p.packId === selectedPack);
     }
     return puzzles;
-  }, [dailyPuzzles, selectedCategory, selectedPack]);
+  }, [dailyPuzzles, todayOnly, todayStr, selectedCategory, selectedPack]);
 
   // ── Available categories for filter (based on loaded puzzles) ────────
   const activeCategoryIds = useMemo(() => {
@@ -1031,6 +1039,17 @@ export default function Home() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Today toggle */}
+              <Button
+                variant={todayOnly ? 'default' : 'outline'}
+                size="sm"
+                className={cn('h-9 gap-1.5 text-sm', todayOnly && 'bg-orange-600 hover:bg-orange-700')}
+                onClick={() => setTodayOnly(!todayOnly)}
+              >
+                <CalendarDays className="size-3.5" />
+                Aujourd'hui
+              </Button>
 
               {/* Category selector — only show if there are categories with puzzles */}
               {activeCategoryIds.size > 0 && (
