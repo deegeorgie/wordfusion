@@ -670,3 +670,26 @@ Stage Summary:
 - Backend handles numbering via `getNextPuzzleNumber()` using MAX aggregation
 - Puzzle table in admin panel displays auto-numbered titles correctly
 
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix JWEDecryptionFailed and restore missing components after context reset
+
+Work Log:
+- Identified JWEDecryptionFailed: NextAuth v4 uses JWE encryption (EncryptJWT + HKDF), not JWS signing
+- Created /api/auth/login/route.ts using next-auth/jwt's own encode() function for 100% compatible JWE
+- Added NEXTAUTH_SECRET to .env so all code uses the same secret value
+- Discovered Prisma schema was reverted (lost provider, providerAccountId, all demographic fields)
+- Restored full User model in schema.prisma with all 12+ fields
+- Ran prisma db push + prisma generate + full server restart
+- Discovered AdminPanel.tsx lost Users tab import and UserManager component was deleted
+- Restored Users tab (import, TabsTrigger, TabsContent, grid-cols-6) in AdminPanel.tsx
+- Recreated UserManager.tsx component via subagent
+- Recreated /api/admin/users/route.ts API endpoint
+- Verified full flow: login → admin panel → 6 tabs → Users tab with user list
+
+Stage Summary:
+- Root causes: (1) JWS vs JWE encryption mismatch, (2) NEXTAUTH_SECRET not in .env, (3) schema reverted during context reset
+- Key fix: use next-auth/jwt encode() instead of manual jose encryption
+- All restored: schema, login endpoint, UserManager component, admin users API

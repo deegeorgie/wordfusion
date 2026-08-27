@@ -13,15 +13,25 @@ datasource db {
 // ADMIN    = Full control: publish/unpublish, categories, packs, schedule
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String   // bcrypt hash
-  role      String   @default("USER") // "USER" | "CREATOR" | "ADMIN"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  email            String   @unique
+  password          String?  // bcrypt hash (null for OAuth users)
+  role             String   @default("USER") // "USER" | "CREATOR" | "ADMIN"
+  provider         String?  // "credentials" | "google" | "github"
+  providerAccountId String? // unique ID from the OAuth provider
+  // Demographic fields (all optional — collected at registration)
+  phone            String?
+  dateOfBirth      String?  // YYYY-MM-DD
+  gender           String?  // "male" | "female" | "other" | "prefer_not_to_say"
+  country          String?
+  city             String?
+  occupation       String?
+  education        String?  // "none" | "primary" | "secondary" | "bachelor" | "master" | "doctorate" | "other"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  puzzles   CrosswordPuzzle[]
+  puzzles          CrosswordPuzzle[]
 }
 
 model Pack {

@@ -27,6 +27,7 @@ import {
   Languages,
   Search,
   Sparkles,
+  Users,
   Zap,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -80,6 +81,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import PuzzleEditor from '@/components/crossword/PuzzleEditor';
+import UserManager from '@/components/crossword/UserManager';
 import { cn } from '@/lib/utils';
 
 // --- Types ---
@@ -1302,7 +1304,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
             <Tabs defaultValue={isCreator && !isAdmin ? 'generator' : 'categories'} className="w-full">
               <TabsList className={cn(
                 'grid w-full',
-                isAdmin ? 'grid-cols-5' : isCreator ? 'grid-cols-2' : 'grid-cols-1'
+                isAdmin ? 'grid-cols-6' : isCreator ? 'grid-cols-2' : 'grid-cols-1'
               )}>
                 {isAdmin && (
                   <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
@@ -1336,6 +1338,13 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                     <CalendarDays className="size-3.5" />
                     <span className="hidden sm:inline">Programme</span>
                     <span className="sm:hidden">Prog.</span>
+                  </TabsTrigger>
+                )}
+                {isAdmin && (
+                  <TabsTrigger value="users" className="text-xs sm:text-sm gap-1.5">
+                    <Users className="size-3.5" />
+                    <span className="hidden sm:inline">Utilisateurs</span>
+                    <span className="sm:hidden">Util.</span>
                   </TabsTrigger>
                 )}
               </TabsList>
@@ -1708,6 +1717,10 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                     </div>
                   </div>
                 </section>
+              </TabsContent>
+              {/* ── Users Tab ── */}
+              <TabsContent value="users" className="mt-4">
+                <UserManager />
               </TabsContent>
             </Tabs>
           </div>
