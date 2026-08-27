@@ -379,10 +379,13 @@ export default function Home() {
   // ── Today's date string (server-agnostic) ─────────────────────────
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
+  // ── Non-admins always see only today's puzzles ─────────────────────
+  const effectiveTodayOnly = isAdmin ? todayOnly : true;
+
   // ── Filter puzzles by date, category and pack on client side ────────
   const filteredPuzzles = useMemo(() => {
     let puzzles = dailyPuzzles;
-    if (todayOnly) {
+    if (effectiveTodayOnly) {
       puzzles = puzzles.filter((p) => p.publishDate && p.publishDate.slice(0, 10) === todayStr);
     }
     if (selectedCategory !== 'all') {
@@ -392,7 +395,7 @@ export default function Home() {
       puzzles = puzzles.filter((p) => p.packId === selectedPack);
     }
     return puzzles;
-  }, [dailyPuzzles, todayOnly, todayStr, selectedCategory, selectedPack]);
+  }, [dailyPuzzles, effectiveTodayOnly, todayStr, selectedCategory, selectedPack]);
 
   // ── Available categories for filter (based on loaded puzzles) ────────
   const activeCategoryIds = useMemo(() => {
@@ -1007,7 +1010,8 @@ export default function Home() {
               </motion.div>
             )}
 
-            {/* ── Filters ──────────────────────────────────────── */}
+            {/* ── Filters (admin only) ──────────────────────────── */}
+            {isAdmin && (
             <div className="flex flex-wrap items-center gap-3 mb-6">
               {/* Language selector */}
               <div className="flex items-center gap-2">
@@ -1087,6 +1091,7 @@ export default function Home() {
                 </Badge>
               </div>
             </div>
+            )}
 
             {/* Loading state */}
             {isLoadingPuzzles && (
@@ -1105,9 +1110,11 @@ export default function Home() {
                 </div>
                 <h3 className="text-lg font-medium">Aucun puzzle disponible</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {selectedLanguage !== 'all' || selectedCategory !== 'all' || selectedPack !== 'all'
+                  {isAdmin && (selectedLanguage !== 'all' || selectedCategory !== 'all' || selectedPack !== 'all')
                     ? 'Essayez de modifier vos filtres pour trouver des puzzles.'
-                    : 'Aucun puzzle publié pour le moment.'}
+                    : isAdmin
+                      ? 'Aucun puzzle publié pour le moment.'
+                      : 'Revenez demain pour de nouveaux puzzles !'}
                 </p>
               </div>
             )}
@@ -1186,8 +1193,8 @@ export default function Home() {
               </div>
             )}
 
-            {/* ── Collections section ── */}
-            {packs.length > 0 && (
+            {/* ── Collections section (admin only) ── */}
+            {isAdmin && packs.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                   <Package className="size-5 text-muted-foreground" />
