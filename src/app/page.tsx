@@ -941,7 +941,7 @@ export default function Home() {
                 className="mt-2 text-xl font-semibold sm:text-2xl"
                 style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
               >
-                Puzzles du jour
+                Mots Croisés
               </h2>
             </div>
 
@@ -1088,7 +1088,7 @@ export default function Home() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {selectedLanguage !== 'all' || selectedCategory !== 'all' || selectedPack !== 'all'
                     ? 'Essayez de modifier vos filtres pour trouver des puzzles.'
-                    : 'Revenez demain pour de nouveaux puzzles !'}
+                    : 'Aucun puzzle publié pour le moment.'}
                 </p>
               </div>
             )}

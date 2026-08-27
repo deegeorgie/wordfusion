@@ -7,12 +7,7 @@ export async function GET(request: NextRequest) {
     const dateParam = searchParams.get('date');
     const languageParam = searchParams.get('language');
 
-    // Parse date, default to today
-    const now = dateParam ? new Date(dateParam + 'T00:00:00') : new Date();
-
-    // Get start and end of the day (in local timezone)
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const now = new Date();
 
     // ── Auto-publish puzzles whose publishDate has arrived ──
     const schedule = await db.publishingSchedule.findFirst({
@@ -24,9 +19,9 @@ export async function GET(request: NextRequest) {
     if (scheduleActive) {
       const result = await db.crosswordPuzzle.updateMany({
         where: {
-          publishDate: { lte: endOfDay },
+          publishDate: { lte: now },
           published: false,
-          firstPublishedAt: null, // Only auto-publish those never published before
+          firstPublishedAt: null,
         },
         data: { published: true, firstPublishedAt: new Date() },
       });
@@ -35,12 +30,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // ── Build where clause ──
+    // ── Build where clause: all published puzzles ──
     const where: Record<string, unknown> = {
-      publishDate: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
       published: true,
     };
 
@@ -48,11 +39,11 @@ export async function GET(request: NextRequest) {
       where.language = languageParam;
     }
 
-    // ── Fetch today's published puzzles ──
+    // ── Fetch all published puzzles, newest first ──
     const puzzles = await db.crosswordPuzzle.findMany({
       where,
       orderBy: {
-        publishDate: 'asc',
+        publishDate: 'desc',
       },
       select: {
         id: true,
@@ -98,9 +89,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ puzzles: summaries });
   } catch (error) {
-    console.error('Error fetching daily puzzles:', error);
+    console.error('Error fetching puzzles:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch daily puzzles' },
+      { error: 'Failed to fetch puzzles' },
       { status: 500 }
     );
   }
