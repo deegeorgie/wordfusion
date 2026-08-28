@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
-  /* config options here */
+  // Vercel handles the deployment output; standalone copying is unnecessary.
   typescript: {
-    ignoreBuildErrors: true,
+    // Do not hide TypeScript errors during production builds.
+    ignoreBuildErrors: false,
   },
   reactStrictMode: false,
 };

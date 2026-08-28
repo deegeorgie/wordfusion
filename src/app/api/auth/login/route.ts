@@ -5,7 +5,11 @@ import type { UserRole } from '@/lib/auth';
 import { encode } from 'next-auth/jwt';
 import { authOptions } from '@/lib/auth';
 
-const SECRET = process.env.NEXTAUTH_SECRET || 'crossword2024stablesecretkey9d01809fc61e2f4c';
+const SECRET = process.env.NEXTAUTH_SECRET;
+
+if (!SECRET) {
+  throw new Error('NEXTAUTH_SECRET must be configured');
+}
 
 const COOKIE_NAME = process.env.NODE_ENV === 'production'
   ? '__Secure-next-auth.session-token'

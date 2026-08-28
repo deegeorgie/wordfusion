@@ -9,26 +9,8 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
 
-    // ── Auto-publish puzzles whose publishDate has arrived ──
-    const schedule = await db.publishingSchedule.findFirst({
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const scheduleActive = schedule?.isActive ?? true;
-
-    if (scheduleActive) {
-      const result = await db.crosswordPuzzle.updateMany({
-        where: {
-          publishDate: { lte: now },
-          published: false,
-          firstPublishedAt: null,
-        },
-        data: { published: true, firstPublishedAt: new Date() },
-      });
-      if (result.count > 0) {
-        console.log(`📅 Auto-published ${result.count} puzzle(s) whose date has arrived`);
-      }
-    }
+    // Scheduled publication is handled by /api/cron/publish-puzzles.
+    // This endpoint is read-only so a visitor cannot mutate publication state.
 
     // ── Build where clause: all published puzzles ──
     const where: Record<string, unknown> = {
