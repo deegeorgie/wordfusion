@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { CrosswordCell } from '@/lib/crossword/types';
+import { getAccessiblePuzzle } from '@/lib/puzzle-access';
+import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 
 interface CheckRequestBody {
   puzzleId: string;
@@ -12,7 +14,7 @@ export async function POST(request: NextRequest) {
     const body: CheckRequestBody = await request.json();
     const { puzzleId, userInputs } = body;
 
-    if (!puzzleId || !userInputs) {
+    if (!puzzleId || !Array.isArray(userInputs)) {
       return NextResponse.json(
         { error: 'Missing puzzleId or userInputs' },
         { status: 400 }
@@ -20,9 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the puzzle
-    const puzzle = await db.crosswordPuzzle.findUnique({
-      where: { id: puzzleId },
-    });
+    const puzzle = await getAccessiblePuzzle(puzzleId);
 
     if (!puzzle) {
       return NextResponse.json(
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const progressUser = await getProgressUser(request);
     // Parse grid data from DB
     const grid: CrosswordCell[][] = JSON.parse(puzzle.gridData);
 
@@ -73,12 +74,12 @@ export async function POST(request: NextRequest) {
         where: {
           puzzleId_userId: {
             puzzleId,
-            userId: 'anonymous',
+            userId: progressUser.userId,
           },
         },
         create: {
           puzzleId,
-          userId: 'anonymous',
+          userId: progressUser.userId,
           completed: true,
           completedAt: new Date(),
           progress: JSON.stringify(userInputs),
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
         where: {
           puzzleId_userId: {
             puzzleId,
-            userId: 'anonymous',
+            userId: progressUser.userId,
           },
         },
         create: {
@@ -110,11 +111,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       correct: allCorrect,
       incorrectCells,
       completionPercent,
     });
+    return setProgressCookie(response, progressUser.userId, progressUser.setCookie);
   } catch (error) {
     console.error('Error checking puzzle answers:', error);
     return NextResponse.json(

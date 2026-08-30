@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import type { UserRole } from '@/lib/auth';
 import { encode } from 'next-auth/jwt';
 import { authOptions } from '@/lib/auth';
+import { isRateLimited, requestClientKey } from '@/lib/rate-limit';
 
 const SECRET = process.env.NEXTAUTH_SECRET;
 
@@ -20,6 +21,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const email = (body.email || '').trim().toLowerCase();
     const password = body.password || '';
+
+    if (isRateLimited(`login:${requestClientKey(req)}:${email}`, 10, 15 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Trop de tentatives. Réessayez plus tard.' }, { status: 429 });
+    }
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 });
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
     // Use NextAuth's own encode function — guaranteed compatible encryption
     const encryptedToken = await encode({
       token,
-      secret: SECRET,
+      secret: SECRET!,
     });
 
     const res = NextResponse.json({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { puzzleFromDbFormat } from '@/lib/crossword/utils';
+import { getAccessiblePuzzle } from '@/lib/puzzle-access';
+import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 
 export async function GET(
   request: NextRequest,
@@ -10,9 +12,7 @@ export async function GET(
     const { id } = await params;
 
     // Fetch the puzzle
-    const puzzle = await db.crosswordPuzzle.findUnique({
-      where: { id },
-    });
+    const puzzle = await getAccessiblePuzzle(id);
 
     if (!puzzle) {
       return NextResponse.json(
@@ -33,33 +33,17 @@ export async function GET(
       puzzle.cluesData
     );
 
-    // Check for anonymous user progress (optional progressId param)
-    const { searchParams } = new URL(request.url);
-    const progressId = searchParams.get('progressId');
-
-    let userProgress = null;
-    if (progressId) {
-      userProgress = await db.userProgress.findUnique({
-        where: { id: progressId },
-      });
-    } else {
-      // Check for anonymous progress on this puzzle
-      userProgress = await db.userProgress.findUnique({
-        where: {
-          puzzleId_userId: {
-            puzzleId: id,
-            userId: 'anonymous',
-          },
-        },
-      });
-    }
+    const progressUser = await getProgressUser(request);
+    const userProgress = await db.userProgress.findUnique({
+      where: { puzzleId_userId: { puzzleId: id, userId: progressUser.userId } },
+    });
 
     // Count total published puzzles for navigation
     const totalPublished = await db.crosswordPuzzle.count({
       where: { published: true },
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       puzzle: puzzleData,
       puzzleId: puzzle.id,
       language: puzzle.language,
@@ -77,6 +61,7 @@ export async function GET(
         : null,
       totalPublished,
     });
+    return setProgressCookie(response, progressUser.userId, progressUser.setCookie);
   } catch (error) {
     console.error('Error fetching puzzle:', error);
     return NextResponse.json(

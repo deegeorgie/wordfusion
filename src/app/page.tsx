@@ -288,7 +288,8 @@ export default function Home() {
   const [packs, setPacks] = useState<PackInfo[]>([]);
 
   // ── Puzzle data ─────────────────────────────────────────────────────
-  const [selectedPuzzle, setSelectedPuzzle] = useState<CrosswordPuzzleData | null>(null);
+  type SelectedPuzzle = CrosswordPuzzleData & { language: 'fr' | 'en' };
+  const [selectedPuzzle, setSelectedPuzzle] = useState<SelectedPuzzle | null>(null);
   const [puzzleId, setPuzzleId] = useState<string | null>(null);
   const [userInputs, setUserInputs] = useState<(string | null)[][]>([]);
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
@@ -468,7 +469,10 @@ export default function Home() {
       const res = await fetch(`/api/puzzles/${id}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
-      const puzzle: CrosswordPuzzleData = data.puzzle;
+      const puzzle: SelectedPuzzle = {
+        ...data.puzzle,
+        language: data.language === 'en' ? 'en' : 'fr',
+      };
 
       const inputs: (string | null)[][] = Array.from({ length: puzzle.rows }, () =>
         Array.from<null>({ length: puzzle.cols }).fill(null),

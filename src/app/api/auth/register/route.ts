@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
+import { isRateLimited, requestClientKey } from '@/lib/rate-limit';
 
 interface RegisterBody {
   name: string;
@@ -10,6 +11,9 @@ interface RegisterBody {
 
 export async function POST(request: NextRequest) {
   try {
+    if (isRateLimited(`register:${requestClientKey(request)}`, 5, 60 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Trop de tentatives. Réessayez plus tard.' }, { status: 429 });
+    }
     const body: RegisterBody = await request.json();
     const { name, email, password } = body;
 

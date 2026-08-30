@@ -4,6 +4,7 @@ import { createPuzzle, puzzleToDbFormat } from '@/lib/crossword/utils';
 import { placeWords, type RawWord } from '@/lib/crossword/placement';
 import ZAI from 'z-ai-web-dev-sdk';
 import { requireRole } from '@/lib/auth-guard';
+import { createWithNextPuzzleNumber } from '@/lib/puzzle-number';
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -172,23 +173,37 @@ export async function POST(request: NextRequest) {
       autoPublish = false,
     } = body;
 
+    if (typeof theme !== 'string' || theme.trim().length === 0 || theme.length > 120) {
+      return NextResponse.json({ error: 'Thème invalide' }, { status: 400 });
+    }
+    if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 3) {
+      return NextResponse.json({ error: 'Difficulté invalide (1-3)' }, { status: 400 });
+    }
+    if (!Number.isInteger(wordCount) || wordCount < 5 || wordCount > 30) {
+      return NextResponse.json({ error: 'Nombre de mots invalide (5-30)' }, { status: 400 });
+    }
+    if (!['small', 'medium', 'large'].includes(size)) {
+      return NextResponse.json({ error: 'Taille invalide' }, { status: 400 });
+    }
+    if (typeof autoPublish !== 'boolean') {
+      return NextResponse.json({ error: 'Statut de publication invalide' }, { status: 400 });
+    }
+    if (autoPublish && session!.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Seul un administrateur peut publier un puzzle' }, { status: 403 });
+    }
+
     // Validate gridSize
     if (gridSize) {
-      if (typeof gridSize.rows !== 'number' || typeof gridSize.cols !== 'number') {
+      if (!Number.isInteger(gridSize.rows) || !Number.isInteger(gridSize.cols)) {
         return NextResponse.json({ error: 'Format de grille invalide' }, { status: 400 });
       }
-      gridSize.rows = Math.max(3, Math.min(25, gridSize.rows));
-      gridSize.cols = Math.max(3, Math.min(25, gridSize.cols));
+      if (gridSize.rows < 3 || gridSize.rows > 25 || gridSize.cols < 3 || gridSize.cols > 25) {
+        return NextResponse.json({ error: 'La grille doit être comprise entre 3 et 25 cases' }, { status: 400 });
+      }
     }
 
     if (!['fr', 'en'].includes(language)) {
       return NextResponse.json({ error: 'Langue invalide' }, { status: 400 });
-    }
-    if (difficulty < 1 || difficulty > 3) {
-      return NextResponse.json({ error: 'Difficulté invalide (1-3)' }, { status: 400 });
-    }
-    if (wordCount < 5 || wordCount > 30) {
-      return NextResponse.json({ error: 'Nombre de mots invalide (5-30)' }, { status: 400 });
     }
 
     // Validate categoryId
@@ -239,27 +254,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 3: Create the puzzle with auto-numbered title
-    const maxNum = await db.crosswordPuzzle.aggregate({ _max: { puzzleNumber: true } });
-    const puzzleNumber = (maxNum._max.puzzleNumber ?? 0) + 1;
-    const autoTitle = `#${String(puzzleNumber).padStart(3, '0')}`;
-
-    const rawWordsForPuzzle = placement.words.map((w) => ({
-      word: w.word,
-      direction: w.direction,
-      row: w.row,
-      col: w.col,
-      clue: w.clue,
-    }));
-
-    const puzzleData = createPuzzle(autoTitle, difficulty, placement.rows, placement.cols, rawWordsForPuzzle);
-    const dbFormat = puzzleToDbFormat(puzzleData);
-
-    // Step 4: Save to database
-    const publishDate = autoPublish ? new Date() : null;
-    const firstPublishedAt = autoPublish ? new Date() : null;
-
-    const puzzle = await db.crosswordPuzzle.create({
-      data: {
+    const puzzle = await createWithNextPuzzleNumber((tx, puzzleNumber) => {
+      const autoTitle = `#${String(puzzleNumber).padStart(3, '0')}`;
+      const rawWordsForPuzzle = placement.words.map((w) => ({
+        word: w.word, direction: w.direction, row: w.row, col: w.col, clue: w.clue,
+      }));
+      const dbFormat = puzzleToDbFormat(createPuzzle(autoTitle, difficulty, placement.rows, placement.cols, rawWordsForPuzzle));
+      const publishedAt = autoPublish ? new Date() : null;
+      return tx.crosswordPuzzle.create({ data: {
         puzzleNumber,
         title: autoTitle,
         description: language === 'fr'
@@ -276,9 +278,9 @@ export async function POST(request: NextRequest) {
         wordsData: dbFormat.wordsData,
         cluesData: dbFormat.cluesData,
         published: autoPublish,
-        publishDate,
-        firstPublishedAt,
-      },
+        publishDate: publishedAt,
+        firstPublishedAt: publishedAt,
+      }});
     });
 
     return NextResponse.json({

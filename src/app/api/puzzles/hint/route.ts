@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { CrosswordCell, Clue } from '@/lib/crossword/types';
+import { getAccessiblePuzzle } from '@/lib/puzzle-access';
+import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 
 interface HintRequestBody {
   puzzleId: string;
@@ -13,7 +15,7 @@ export async function POST(request: NextRequest) {
     const body: HintRequestBody = await request.json();
     const { puzzleId, row, col } = body;
 
-    if (!puzzleId || row === undefined || col === undefined) {
+    if (!puzzleId || !Number.isInteger(row) || !Number.isInteger(col)) {
       return NextResponse.json(
         { error: 'Missing puzzleId, row, or col' },
         { status: 400 }
@@ -21,9 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the puzzle
-    const puzzle = await db.crosswordPuzzle.findUnique({
-      where: { id: puzzleId },
-    });
+    const puzzle = await getAccessiblePuzzle(puzzleId);
 
     if (!puzzle) {
       return NextResponse.json(
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const progressUser = await getProgressUser(request);
     // Parse grid and clues
     const grid: CrosswordCell[][] = JSON.parse(puzzle.gridData);
     const clues: Clue[] = JSON.parse(puzzle.cluesData);
@@ -58,12 +59,12 @@ export async function POST(request: NextRequest) {
       where: {
         puzzleId_userId: {
           puzzleId,
-          userId: 'anonymous',
+          userId: progressUser.userId,
         },
       },
       create: {
         puzzleId,
-        userId: 'anonymous',
+        userId: progressUser.userId,
         hintsUsed: 1,
       },
       update: {
@@ -120,12 +121,13 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       letter: cell.letter,
       row,
       col,
       wordHint,
     });
+    return setProgressCookie(response, progressUser.userId, progressUser.setCookie);
   } catch (error) {
     console.error('Error getting hint:', error);
     return NextResponse.json(

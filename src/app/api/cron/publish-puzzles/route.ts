@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+export const dynamic = 'force-dynamic';
 
 /**
  * Vercel Cron endpoint.
@@ -21,16 +22,25 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date();
 
-    const result = await db.crosswordPuzzle.updateMany({
+    const schedule = await db.publishingSchedule.findFirst({ orderBy: { createdAt: 'desc' } });
+    if (schedule && !schedule.isActive) {
+      return NextResponse.json({ ok: true, published: 0, ranAt: now.toISOString() });
+    }
+
+    const puzzlesPerDay = schedule?.puzzlesPerDay ?? 1;
+    const duePuzzles = await db.crosswordPuzzle.findMany({
       where: {
         publishDate: { lte: now },
         published: false,
         firstPublishedAt: null,
       },
-      data: {
-        published: true,
-        firstPublishedAt: now,
-      },
+      orderBy: { publishDate: 'asc' },
+      take: puzzlesPerDay,
+      select: { id: true },
+    });
+    const result = duePuzzles.length === 0 ? { count: 0 } : await db.crosswordPuzzle.updateMany({
+      where: { id: { in: duePuzzles.map((puzzle) => puzzle.id) }, published: false, firstPublishedAt: null },
+      data: { published: true, firstPublishedAt: now },
     });
 
     console.log(`[cron] Published ${result.count} puzzle(s)`);

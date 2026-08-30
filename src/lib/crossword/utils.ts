@@ -6,7 +6,7 @@ import { CrosswordPuzzleData, CrosswordCell, WordPlacement, Clue } from './types
 function buildGridFromWords(
   rows: number,
   cols: number,
-  words: Omit<WordPlacement, 'clueNumber'>[]
+  words: Omit<WordPlacement, 'clueNumber' | 'length'>[]
 ): { grid: CrosswordCell[][]; wordsWithNumbers: WordPlacement[] } {
   // Create empty grid
   const grid: CrosswordCell[][] = [];

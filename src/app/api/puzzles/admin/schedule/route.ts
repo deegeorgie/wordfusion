@@ -15,9 +15,9 @@ export async function POST(request: NextRequest) {
     const body: ScheduleRequestBody = await request.json();
     const { puzzlesPerDay, isActive } = body;
 
-    if (puzzlesPerDay === undefined || isActive === undefined) {
+    if (!Number.isInteger(puzzlesPerDay) || puzzlesPerDay < 1 || puzzlesPerDay > 50 || typeof isActive !== 'boolean') {
       return NextResponse.json(
-        { error: 'Missing puzzlesPerDay or isActive' },
+        { error: 'puzzlesPerDay doit être compris entre 1 et 50 et isActive doit être booléen' },
         { status: 400 }
       );
     }
