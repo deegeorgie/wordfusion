@@ -144,6 +144,7 @@ interface AdminPanelProps {
   onOpenChange: (open: boolean) => void;
   isAdmin?: boolean;
   isCreator?: boolean;
+  fullPage?: boolean;
 }
 
 // --- Helpers ---
@@ -1048,7 +1049,7 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
 
 // --- Main AdminPanel Component ---
 
-export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCreator = false }: AdminPanelProps) {
+export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCreator = false, fullPage = false }: AdminPanelProps) {
   // Data state
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1284,10 +1285,32 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
 
   // --- Render ---
 
-  return (
+  const panelContent = (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+      <div className={fullPage ? 'mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8' : 'p-6 space-y-6'}>
+        {fullPage && (
+          <div className="mb-8 flex items-start justify-between gap-4 border-b pb-6">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
+                <Settings className="size-4" />
+                <span>{isAdmin ? 'Administration' : 'Espace Créateur'}</span>
+              </div>
+              <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                {isAdmin ? 'Centre de gestion' : 'Espace Créateur'}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                {isAdmin
+                  ? 'Gérez vos catégories, collections, puzzles, utilisateurs et publications.'
+                  : 'Créez et gérez vos puzzles de mots croisés.'}
+              </p>
+            </div>
+            <Button variant="outline" asChild>
+              <a href="/">Retour au jeu</a>
+            </Button>
+          </div>
+        )}
+
+        {!fullPage && (
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Settings className="size-5" />
@@ -1299,8 +1322,9 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                 : 'Créez et gérez vos puzzles de mots croisés.'}
             </DialogDescription>
           </DialogHeader>
+              )}
 
-          <div className="p-6 space-y-6">
+              <div className={fullPage ? 'space-y-6' : ''}>
             <Tabs defaultValue={isCreator && !isAdmin ? 'generator' : 'categories'} className="w-full">
               <TabsList className={cn(
                 'grid w-full',
@@ -1723,9 +1747,22 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                 <UserManager />
               </TabsContent>
             </Tabs>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {fullPage ? (
+        <div className="min-h-screen bg-background">{panelContent}</div>
+      ) : (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+            {panelContent}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* ── Puzzle Editor Dialog ──────────────────────────────── */}
       <PuzzleEditor

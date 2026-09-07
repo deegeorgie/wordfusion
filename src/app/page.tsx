@@ -61,7 +61,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-import AdminPanel from '@/components/crossword/AdminPanel';
 import { StatsPanel } from '@/components/crossword/StatsPanel';
 import { BadgePanel } from '@/components/crossword/BadgePanel';
 import { BadgeNotification } from '@/components/crossword/BadgeNotification';
@@ -301,7 +300,6 @@ export default function Home() {
 
   // ── View state ──────────────────────────────────────────────────────
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
-  const [adminOpen, setAdminOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [badgesOpen, setBadgesOpen] = useState(false);
   const [newBadge, setNewBadge] = useState<EarnedBadge | null>(null);
@@ -1127,7 +1125,7 @@ export default function Home() {
                           variant="ghost"
                           size="sm"
                           className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                          onClick={() => setAdminOpen(true)}
+                          onClick={() => { window.location.href = '/admin'; }}
                         >
                           <Settings className="size-3.5" />
                           <span className="hidden sm:inline">{isAdmin ? 'Administration' : 'Créateur'}</span>
@@ -1773,7 +1771,6 @@ export default function Home() {
       )}
 
       {/* ── Admin Panel Dialog ──────────────────────────────── */}
-      <AdminPanel open={adminOpen} onOpenChange={setAdminOpen} isAdmin={isAdmin} isCreator={isCreator} />
 
       {/* ── Stats Panel Dialog ────────────────────────────────── */}
       <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />

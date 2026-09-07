@@ -30,14 +30,11 @@ export async function POST(
     }
     const puzzle = await db.crosswordPuzzle.findUnique({
       where: { id: puzzleId },
-      select: { id: true, published: true, isPremium: true, creatorId: true },
+      select: { id: true, published: true },
     });
     if (!puzzle || !puzzle.published) {
       return NextResponse.json({ error: 'Puzzle introuvable' }, { status: 404 });
     }
-
-    const isPrivileged = session.user.role === 'ADMIN' || puzzle.creatorId === session.user.id;
-    if (isPrivileged) return NextResponse.json({ balance: null, charged: false });
 
     const cost = PDF_COSTS[kind];
     const result = await db.$transaction(async (tx) => {
