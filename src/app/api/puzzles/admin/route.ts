@@ -20,6 +20,8 @@ interface PuzzleBody {
   language?: string;
   categoryId?: string | null;
   packId?: string | null;
+  isPremium?: boolean;
+  unlockCost?: number;
   rows: number;
   cols: number;
   grid: CrosswordPuzzleData['grid'];
@@ -71,6 +73,8 @@ export async function GET() {
         publishDate: true,
         firstPublishedAt: true,
         published: true,
+        isPremium: true,
+        unlockCost: true,
         createdAt: true,
         category: {
           select: { id: true, name: true, slug: true, icon: true },
@@ -94,6 +98,8 @@ export async function GET() {
       packId: p.packId,
       packName: p.pack?.name ?? null,
       packIcon: p.pack?.icon ?? null,
+      isPremium: p.isPremium,
+      unlockCost: p.unlockCost,
       rows: p.rows,
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? null,
@@ -151,6 +157,14 @@ export async function POST(request: NextRequest) {
     const language = ['fr', 'en'].includes(body.language ?? '') ? body.language! : 'fr';
     const categoryId = body.categoryId || null;
     const packId = body.packId || null;
+    const isPremium = body.isPremium === true;
+    const requestedUnlockCost = body.unlockCost ?? 0;
+    const unlockCost = isPremium && Number.isInteger(requestedUnlockCost) && requestedUnlockCost > 0
+      ? requestedUnlockCost
+      : 0;
+    if (isPremium && unlockCost <= 0) {
+      return NextResponse.json({ error: 'Le coût de déverrouillage doit être positif' }, { status: 400 });
+    }
 
     // Validate categoryId if provided
     if (categoryId) {
@@ -198,6 +212,8 @@ export async function POST(request: NextRequest) {
         language,
         categoryId,
         packId,
+        isPremium,
+        unlockCost,
         creatorId: session!.user.id,
         rows: body.rows,
         cols: body.cols,
@@ -262,6 +278,14 @@ export async function PUT(request: NextRequest) {
       const language = ['fr', 'en'].includes(body.language ?? '') ? body.language! : existing.language;
       const categoryId = body.categoryId !== undefined ? (body.categoryId || null) : existing.categoryId;
       const packId = body.packId !== undefined ? (body.packId || null) : existing.packId;
+      const isPremium = body.isPremium !== undefined ? body.isPremium === true : existing.isPremium;
+      const requestedUnlockCost = body.unlockCost ?? 0;
+      const unlockCost = isPremium
+        ? (Number.isInteger(requestedUnlockCost) && requestedUnlockCost > 0 ? requestedUnlockCost : existing.unlockCost)
+        : 0;
+      if (isPremium && unlockCost <= 0) {
+        return NextResponse.json({ error: 'Le coût de déverrouillage doit être positif' }, { status: 400 });
+      }
 
       // Validate categoryId if provided
       if (categoryId) {
@@ -286,6 +310,8 @@ export async function PUT(request: NextRequest) {
           language,
           categoryId,
           packId,
+          isPremium,
+          unlockCost,
           rows: body.rows,
           cols: body.cols,
           gridData: dbFormat.gridData,
@@ -323,6 +349,18 @@ export async function PUT(request: NextRequest) {
         } else {
           updateData.packId = null;
         }
+      }
+      if (body.isPremium !== undefined || body.unlockCost !== undefined) {
+        const isPremium = body.isPremium !== undefined ? body.isPremium === true : existing.isPremium;
+        const requestedUnlockCost = body.unlockCost ?? 0;
+        const unlockCost = isPremium
+          ? (Number.isInteger(requestedUnlockCost) && requestedUnlockCost > 0 ? requestedUnlockCost : existing.unlockCost)
+          : 0;
+        if (isPremium && unlockCost <= 0) {
+          return NextResponse.json({ error: 'Le coût de déverrouillage doit être positif' }, { status: 400 });
+        }
+        updateData.isPremium = isPremium;
+        updateData.unlockCost = unlockCost;
       }
 
       if (Object.keys(updateData).length === 0) {

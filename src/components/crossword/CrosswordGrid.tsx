@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useMemo, useRef, useEffect } from 'react';
+import { Keyboard } from 'lucide-react';
 import type { CrosswordPuzzleData } from '@/lib/crossword/types';
 
 type CellKey = `${number},${number}`;
@@ -44,6 +45,7 @@ export default function CrosswordGrid({
   incorrectCells,
 }: CrosswordGridProps) {
   const gridRef = useRef<HTMLDivElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Derived sets for fast O(1) look-ups ───────────────────────────
   const activeWordSet = useMemo<Set<CellKey>>(() => {
@@ -110,10 +112,55 @@ export default function CrosswordGrid({
 
   // ── Focus management ───────────────────────────────────────────────
   useEffect(() => {
-    if (selectedCell && gridRef.current) {
-      gridRef.current.focus({ preventScroll: true });
+    if (!selectedCell) {
+      const firstCell = puzzle.grid
+        .flatMap((row, rowIndex) => row.map((cell, colIndex) => ({ cell, rowIndex, colIndex })))
+        .find(({ cell }) => !cell.isBlack);
+      if (firstCell) onSelectCell(firstCell.rowIndex, firstCell.colIndex);
+      return;
     }
-  }, [selectedCell]);
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      mobileInputRef.current?.focus({ preventScroll: true });
+    } else {
+      gridRef.current?.focus({ preventScroll: true });
+    }
+  }, [selectedCell, puzzle.grid, onSelectCell]);
+
+  const focusMobileKeyboard = useCallback(() => {
+    mobileInputRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  const handleMobileInput = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!selectedCell) return;
+      const letter = event.target.value.slice(-1).toUpperCase();
+      event.target.value = '';
+      if (!/^[A-ZÀ-Ý]$/.test(letter)) return;
+
+      onCellChange(selectedCell.row, selectedCell.col, letter);
+      const next = nextCell(selectedCell.row, selectedCell.col);
+      if (next) onSelectCell(next.row, next.col);
+    },
+    [selectedCell, onCellChange, nextCell, onSelectCell],
+  );
+
+  const handleMobileKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (!selectedCell || event.key !== 'Backspace') return;
+      event.preventDefault();
+      const { row, col } = selectedCell;
+      if (userInputs[row]?.[col]) {
+        onCellChange(row, col, '');
+        return;
+      }
+      const previous = prevCell(row, col);
+      if (previous) {
+        onSelectCell(previous.row, previous.col);
+        onCellChange(previous.row, previous.col, '');
+      }
+    },
+    [selectedCell, userInputs, onCellChange, onSelectCell, prevCell],
+  );
 
   // ── Keyboard handling ──────────────────────────────────────────────
   const handleKeyDown = useCallback(
@@ -246,7 +293,11 @@ export default function CrosswordGrid({
       }
 
       // Ensure the grid retains focus for keyboard input
-      gridRef.current?.focus({ preventScroll: true });
+      if (window.matchMedia('(pointer: coarse)').matches) {
+        mobileInputRef.current?.focus({ preventScroll: true });
+      } else {
+        gridRef.current?.focus({ preventScroll: true });
+      }
     },
     [selectedCell, onSelectCell, onToggleDirection, isWhiteCell],
   );
@@ -260,8 +311,20 @@ export default function CrosswordGrid({
   // ── Render ─────────────────────────────────────────────────────────
   return (
     <div
-      className="w-full flex items-start justify-center"
+      className="relative w-full flex flex-col items-center justify-center"
     >
+      <input
+        ref={mobileInputRef}
+        type="text"
+        inputMode="text"
+        autoCapitalize="characters"
+        autoCorrect="off"
+        spellCheck={false}
+        aria-label="Saisie des lettres"
+        className="absolute h-px w-px opacity-0"
+        onChange={handleMobileInput}
+        onKeyDown={handleMobileKeyDown}
+      />
       <div
         ref={gridRef}
         role="grid"
@@ -422,6 +485,15 @@ export default function CrosswordGrid({
           }),
         )}
       </div>
+      <button
+        type="button"
+        className="mt-2 flex items-center gap-1 rounded-md border bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm sm:hidden"
+        onClick={focusMobileKeyboard}
+        aria-label="Ouvrir le clavier"
+      >
+        <Keyboard className="size-3.5" />
+        Clavier
+      </button>
     </div>
   );
 }

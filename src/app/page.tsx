@@ -21,6 +21,10 @@ import {
   FolderOpen,
   Layers,
   Package,
+  Coins,
+  Lock,
+  Volume2,
+  VolumeX,
   Share2,
   BarChart3,
   Download,
@@ -95,8 +99,12 @@ interface PuzzleSummary {
   packId?: string | null;
   packName?: string | null;
   packIcon?: string | null;
+  isPremium?: boolean;
+  unlockCost?: number;
+  isUnlocked?: boolean;
   completed?: boolean;
   timeSpent?: number;
+  lastPlayedAt?: string | null;
 }
 
 interface PackInfo {
@@ -140,6 +148,28 @@ function formatTimer(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function playCompletionSound(): void {
+  if (typeof window === 'undefined' || !window.AudioContext) return;
+
+  const context = new window.AudioContext();
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.0001, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.9);
+  gain.connect(context.destination);
+
+  [523.25, 659.25, 783.99].forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    oscillator.connect(gain);
+    oscillator.start(context.currentTime + index * 0.12);
+    oscillator.stop(context.currentTime + 0.32 + index * 0.12);
+  });
+
+  window.setTimeout(() => void context.close(), 1100);
 }
 
 function difficultyLabel(d: number): string {
@@ -283,7 +313,7 @@ export default function Home() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedPack, setSelectedPack] = useState<string>('all');
-  const [todayOnly, setTodayOnly] = useState(false);
+  const [todayOnly, setTodayOnly] = useState(true);
   const [categories, setCategories] = useState<CategoryInfo[]>([]);
   const [packs, setPacks] = useState<PackInfo[]>([]);
 
@@ -309,12 +339,19 @@ export default function Home() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [isLoadingPuzzle, setIsLoadingPuzzle] = useState(false);
+  const [isUnlockingPuzzle, setIsUnlockingPuzzle] = useState<string | null>(null);
 
   // ── Streak ──────────────────────────────────────────────────────────
   const [streakData, setStreakData] = useState<StreakCompletion[]>([]);
+  const [coinBalance, setCoinBalance] = useState(0);
+  const [lastCoinReward, setLastCoinReward] = useState(0);
+  const [isRevealingLetters, setIsRevealingLetters] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // ── Timer interval ──────────────────────────────────────────────────
+  const saveTick = Math.floor(timer / 15);
   useEffect(() => {
     if (!isTimerRunning) return;
     const id = setInterval(() => setTimer((t) => t + 1), 1000);
@@ -339,6 +376,23 @@ export default function Home() {
         setPacks(data.packs ?? []);
       })
       .catch(() => {});
+  }, []);
+
+  // ── Load authenticated coin balance ─────────────────────────────────
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      setCoinBalance(0);
+      return;
+    }
+
+    fetch('/api/coins')
+      .then((res) => res.json())
+      .then((data) => setCoinBalance(data.balance ?? 0))
+      .catch(() => {});
+  }, [status]);
+
+  useEffect(() => {
+    setSoundEnabled(localStorage.getItem('crossword-sound-enabled') !== 'false');
   }, []);
 
   // ── Load streak data from localStorage ──────────────────────────────
@@ -381,7 +435,11 @@ export default function Home() {
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   // ── Non-admins always see only today's puzzles ─────────────────────
-  const effectiveTodayOnly = isAdmin ? todayOnly : true;
+  // Archive access is an entitlement. Today is public; admins have it now,
+  // and a future ad-reward entitlement can be added here without changing
+  // the filtering or card UI.
+  const hasArchiveAccess = isAdmin;
+  const effectiveTodayOnly = hasArchiveAccess ? todayOnly : true;
 
   // ── Filter puzzles by date, category and pack on client side ────────
   const filteredPuzzles = useMemo(() => {
@@ -462,7 +520,7 @@ export default function Home() {
   }, [isCompleted]);
 
   // ── Fetch a specific puzzle ─────────────────────────────────────────
-  const fetchPuzzle = useCallback(async (id: string) => {
+  const fetchPuzzle = useCallback(async (id: string, startFresh = false) => {
     setIsLoadingPuzzle(true);
     setCurrentView('playing');
     try {
@@ -478,12 +536,21 @@ export default function Home() {
         Array.from<null>({ length: puzzle.cols }).fill(null),
       );
 
-      // Restore saved progress
-      if (data.progress?.cells) {
-        for (const cell of data.progress.cells) {
-          const { row, col, letter } = cell as { row: number; col: number; letter: string };
-          if (row >= 0 && row < puzzle.rows && col >= 0 && col < puzzle.cols) {
-            inputs[row][col] = letter;
+      if (!startFresh) {
+        // Restore current matrix records, while preserving support for legacy cell lists.
+        if (Array.isArray(data.progress?.progress)) {
+          for (let row = 0; row < puzzle.rows; row++) {
+            for (let col = 0; col < puzzle.cols; col++) {
+              const value = data.progress.progress[row]?.[col];
+              if (typeof value === 'string') inputs[row][col] = value;
+            }
+          }
+        } else if (data.progress?.cells) {
+          for (const cell of data.progress.cells) {
+            const { row, col, letter } = cell as { row: number; col: number; letter: string };
+            if (row >= 0 && row < puzzle.rows && col >= 0 && col < puzzle.cols) {
+              inputs[row][col] = letter;
+            }
           }
         }
       }
@@ -499,9 +566,10 @@ export default function Home() {
       setCorrectCellsManual(new Set());
       setIncorrectCellsManual(new Set());
       setCompletedClues(new Set());
-      setTimer(0);
+      setTimer(startFresh ? 0 : (data.progress?.timeSpent ?? 0));
       setIsTimerRunning(false);
       setIsCompleted(false);
+      setLastCoinReward(0);
       setIsChecking(false);
     } catch {
       toast.error('Impossible de charger le puzzle');
@@ -510,6 +578,49 @@ export default function Home() {
       setIsLoadingPuzzle(false);
     }
   }, []);
+
+  const handleUnlockPuzzle = useCallback(async (id: string, cost: number) => {
+    if (!session?.user) {
+      setAuthOpen(true);
+      return;
+    }
+    if (coinBalance < cost) {
+      toast.error(`Il vous faut ${cost} pièces pour déverrouiller ce puzzle`);
+      return;
+    }
+
+    setIsUnlockingPuzzle(id);
+    try {
+      const res = await fetch(`/api/puzzles/${id}/unlock`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Impossible de déverrouiller le puzzle');
+        return;
+      }
+      setCoinBalance(data.balance ?? coinBalance - cost);
+      setDailyPuzzles((previous) => previous.map((puzzle) =>
+        puzzle.id === id ? { ...puzzle, isUnlocked: true } : puzzle,
+      ));
+      toast.success('Puzzle déverrouillé !');
+    } catch {
+      toast.error('Impossible de déverrouiller le puzzle');
+    } finally {
+      setIsUnlockingPuzzle(null);
+    }
+  }, [session, coinBalance]);
+
+  useEffect(() => {
+    if (!puzzleId || !selectedPuzzle || isCompleted) return;
+    if (!userInputs.some((row) => row.some(Boolean))) return;
+    const timeout = window.setTimeout(() => {
+      void fetch('/api/puzzles/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzleId, userInputs, timeSpent: saveTick * 15 }),
+      });
+    }, 750);
+    return () => window.clearTimeout(timeout);
+  }, [puzzleId, selectedPuzzle, userInputs, saveTick, isCompleted]);
 
   // ── Get active word cells for highlighting ──────────────────────────
   const getActiveWordCells = useCallback(
@@ -617,13 +728,13 @@ export default function Home() {
   );
 
   const handleCheck = useCallback(async () => {
-    if (!puzzleId || !selectedPuzzle || isCompleted) return;
+    if (!puzzleId || !selectedPuzzle || isCompleted || isChecking) return;
     setIsChecking(true);
     try {
       const res = await fetch('/api/puzzles/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ puzzleId, userInputs }),
+        body: JSON.stringify({ puzzleId, userInputs, timeSpent: timer }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -656,6 +767,9 @@ export default function Home() {
       if (data.completionPercent === 100 && data.correct) {
         setIsCompleted(true);
         setIsTimerRunning(false);
+        if (soundEnabled) playCompletionSound();
+        setLastCoinReward(data.coinReward ?? 0);
+        if (data.coinReward) setCoinBalance((balance) => balance + data.coinReward);
         toast.success('Bravo ! Puzzle complété !', { duration: 6000 });
       } else if (incorrect.size === 0) {
         toast.success('Tout est correct pour le moment !');
@@ -667,7 +781,20 @@ export default function Home() {
     } finally {
       setIsChecking(false);
     }
-  }, [puzzleId, selectedPuzzle, userInputs, isCompleted, completedClues]);
+  }, [puzzleId, selectedPuzzle, userInputs, isCompleted, isChecking, completedClues, soundEnabled]);
+
+  // Automatically verify once every white cell has an answer.
+  useEffect(() => {
+    if (!autoCheck || !puzzleId || !selectedPuzzle || isCompleted || isChecking) return;
+
+    const isFilled = selectedPuzzle.grid.every((row, rowIndex) =>
+      row.every((cell, colIndex) => cell.isBlack || Boolean(userInputs[rowIndex]?.[colIndex])),
+    );
+
+    if (!isFilled) return;
+    const timeout = window.setTimeout(() => void handleCheck(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [autoCheck, puzzleId, selectedPuzzle, userInputs, isCompleted, isChecking, handleCheck]);
 
   const handleHint = useCallback(async () => {
     if (!puzzleId || !selectedCell || !selectedPuzzle || isCompleted) return;
@@ -699,6 +826,47 @@ export default function Home() {
       toast.error('Erreur lors de la révélation');
     }
   }, [puzzleId, selectedCell, selectedPuzzle, isCompleted]);
+
+  const handleRevealLetters = useCallback(async (count: 5 | 10) => {
+    if (!puzzleId || !selectedPuzzle || isCompleted || isRevealingLetters) return;
+    setIsRevealingLetters(true);
+    try {
+      const filledCells = userInputs.flatMap((row, rowIndex) =>
+        row.flatMap((value, colIndex) => value ? [`${rowIndex},${colIndex}`] : []),
+      );
+      const res = await fetch('/api/puzzles/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzleId, count, filledCells }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Révélation indisponible');
+        return;
+      }
+
+      setUserInputs((previous) => {
+        const next = previous.map((row) => [...row]);
+        for (const cell of data.cells as { row: number; col: number; letter: string }[]) {
+          next[cell.row][cell.col] = cell.letter;
+        }
+        return next;
+      });
+      setRevealedCells((previous) => {
+        const next = new Set(previous);
+        for (const cell of data.cells as { row: number; col: number }[]) {
+          next.add(toCellKey(cell.row, cell.col));
+        }
+        return next;
+      });
+      setCoinBalance(data.balance);
+      toast.success(`${data.cells.length} lettre${data.cells.length > 1 ? 's' : ''} révélée${data.cells.length > 1 ? 's' : ''} pour ${count} pièces`);
+    } catch {
+      toast.error('Erreur lors de la révélation');
+    } finally {
+      setIsRevealingLetters(false);
+    }
+  }, [puzzleId, selectedPuzzle, isCompleted, isRevealingLetters, userInputs]);
 
   const handleClear = useCallback(() => {
     if (!selectedPuzzle || isCompleted) return;
@@ -751,6 +919,37 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
     toast.success('Résultat copié dans le presse-papiers !');
   }, [selectedPuzzle, timer, streak, revealedCells]);
+
+  const handlePdfDownload = useCallback(async (withAnswers: boolean) => {
+    if (!selectedPuzzle || !puzzleId || isDownloadingPdf) return;
+    if (!session?.user) {
+      setAuthOpen(true);
+      return;
+    }
+
+    const cost = withAnswers ? 15 : 5;
+    setIsDownloadingPdf(true);
+    try {
+      const res = await fetch(`/api/puzzles/${puzzleId}/pdf-access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: withAnswers ? 'answers' : 'puzzle' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || `Il vous faut ${cost} pièces`);
+        return;
+      }
+
+      if (typeof data.balance === 'number') setCoinBalance(data.balance);
+      exportPuzzleToPdf(selectedPuzzle, { withAnswers });
+      toast.success(withAnswers ? 'PDF avec réponses téléchargé !' : 'PDF téléchargé !');
+    } catch {
+      toast.error('Impossible de préparer le téléchargement');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  }, [selectedPuzzle, puzzleId, isDownloadingPdf, session]);
 
   // ── Derived values ───────────────────────────────────────────────────
 
@@ -858,6 +1057,12 @@ export default function Home() {
                 </div>
               )}
               <div className="flex items-center gap-1">
+                {session?.user && (
+                  <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 shadow-sm dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
+                    <Coins className="size-4" />
+                    <span className="text-sm font-bold">{coinBalance}</span>
+                  </div>
+                )}
                 {streakData.length > 0 && (
                   <>
                     <Button
@@ -1015,7 +1220,7 @@ export default function Home() {
             )}
 
             {/* ── Filters (admin only) ──────────────────────────── */}
-            {isAdmin && (
+            {hasArchiveAccess && (
             <div className="flex flex-wrap items-center gap-3 mb-6">
               {/* Language selector */}
               <div className="flex items-center gap-2">
@@ -1144,9 +1349,16 @@ export default function Home() {
                       <CardHeader className="gap-1.5 px-5 pt-5 pb-0">
                         <div className="flex items-start justify-between gap-2">
                           <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
-                          <Badge variant="outline" className="shrink-0 text-xs mt-0.5">
-                            {languageFlag(puzzle.language)} {languageName(puzzle.language)}
-                          </Badge>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {puzzle.isPremium && (
+                              <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-300">
+                                <Lock className="mr-1 size-3" /> {puzzle.unlockCost} <Coins className="ml-1 size-3" />
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
+                              {languageFlag(puzzle.language)} {languageName(puzzle.language)}
+                            </Badge>
+                          </div>
                         </div>
                         <CardDescription className="line-clamp-2 min-h-[2.5rem]">
                           {puzzle.description || (puzzle.language === 'en' ? 'A crossword puzzle' : 'Un puzzle de mots croisés')}
@@ -1174,14 +1386,26 @@ export default function Home() {
                             {puzzle.rows}×{puzzle.cols}
                           </span>
                         </div>
-                        <Button
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                          onClick={() => fetchPuzzle(puzzle.id)}
-                        >
-                          <Play className="size-3.5" />
-                          Jouer
-                        </Button>
+                        {puzzle.isPremium && !puzzle.isUnlocked ? (
+                          <Button
+                            size="sm"
+                            className="bg-amber-600 text-white shadow-sm hover:bg-amber-700"
+                            onClick={() => void handleUnlockPuzzle(puzzle.id, puzzle.unlockCost ?? 0)}
+                            disabled={isUnlockingPuzzle === puzzle.id}
+                          >
+                            <Coins className="size-3.5" />
+                            {isUnlockingPuzzle === puzzle.id ? '...' : 'Déverrouiller'}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            onClick={() => void fetchPuzzle(puzzle.id, puzzle.completed)}
+                          >
+                            {puzzle.completed ? <CheckCircle2 className="size-3.5" /> : <Play className="size-3.5" />}
+                            {puzzle.completed ? 'Rejouer' : puzzle.timeSpent ? 'Continuer' : 'Jouer'}
+                          </Button>
+                        )}
                       </CardContent>
                       {puzzle.completed && (
                         <div className="absolute top-3 right-3">
@@ -1276,18 +1500,44 @@ export default function Home() {
                 <span className="font-medium">{formatTimer(timer)}</span>
               </div>
               {selectedPuzzle && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                  onClick={() => {
-                    if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
-                    toast.success('PDF téléchargé !');
-                  }}
-                >
-                  <Download className="size-3.5" />
-                  <span className="hidden sm:inline">PDF</span>
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={handleClear}
+                    disabled={isCompleted}
+                    title="Effacer la grille"
+                    aria-label="Effacer la grille"
+                  >
+                    <Trash2 className="size-3.5 text-red-500" />
+                    <span className="hidden sm:inline">Effacer</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => void handlePdfDownload(false)}
+                    disabled={isDownloadingPdf}
+                    title="PDF : 5 pièces"
+                    aria-label="Télécharger le PDF pour 5 pièces"
+                  >
+                    <Download className="size-3.5 text-emerald-600" />
+                    <span className="hidden sm:inline">PDF · 5</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => void handlePdfDownload(true)}
+                    disabled={isDownloadingPdf}
+                    title="PDF avec réponses : 15 pièces"
+                    aria-label="Télécharger le PDF avec réponses pour 15 pièces"
+                  >
+                    <FileText className="size-3.5 text-amber-500" />
+                    <span className="hidden sm:inline">Réponses · 15</span>
+                  </Button>
+                </div>
               )}
             </div>
           </header>
@@ -1305,7 +1555,7 @@ export default function Home() {
             {selectedPuzzle && (
               <div className="flex flex-col gap-4 lg:flex-row lg:gap-6">
                 {/* ── Left: Grid + Controls ──────────────────── */}
-                <div className="flex flex-col items-center gap-3 lg:w-auto lg:min-w-0 lg:flex-1">
+                <div className="flex w-full min-w-0 flex-col items-center gap-3 lg:w-auto lg:flex-1">
                   {/* Active clue banner */}
                   {activeClueText && (
                     <div
@@ -1328,7 +1578,7 @@ export default function Home() {
                   )}
 
                   {/* Action buttons row */}
-                  <div className="flex flex-wrap items-center justify-center gap-2">
+                  <div className="relative z-10 flex w-full min-w-0 shrink-0 flex-wrap items-center justify-center gap-2 rounded-md bg-background p-1">
                     {/* Auto-check toggle */}
                     <div className="flex items-center gap-1.5 rounded-md border bg-muted/30 px-2.5 py-1">
                       <Switch
@@ -1341,6 +1591,23 @@ export default function Home() {
                         Validation auto
                       </Label>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setSoundEnabled((enabled) => {
+                          const next = !enabled;
+                          localStorage.setItem('crossword-sound-enabled', String(next));
+                          return next;
+                        });
+                      }}
+                      aria-label={soundEnabled ? 'Désactiver les sons' : 'Activer les sons'}
+                      title={soundEnabled ? 'Désactiver les sons' : 'Activer les sons'}
+                    >
+                      {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+                      <span className="hidden sm:inline">Son</span>
+                    </Button>
                     <Separator orientation="vertical" className="h-6 hidden sm:block" />
                     <Button
                       variant="outline"
@@ -1363,39 +1630,27 @@ export default function Home() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleClear}
-                      disabled={isCompleted}
+                      onClick={() => void handleRevealLetters(5)}
+                      disabled={!session?.user || isCompleted || isRevealingLetters || coinBalance < 5}
+                      title="Révéler 5 lettres pour 5 pièces"
                     >
-                      <Trash2 className="size-4 text-red-500" />
-                      Effacer
-                    </Button>
-                    <Separator orientation="vertical" className="h-6 hidden sm:block" />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle);
-                        toast.success('PDF téléchargé !');
-                      }}
-                    >
-                      <Download className="size-4 text-emerald-600" />
-                      <span className="hidden sm:inline">PDF</span>
+                      <Coins className="size-4 text-amber-500" />
+                      5 lettres
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        if (selectedPuzzle) exportPuzzleToPdf(selectedPuzzle, { withAnswers: true });
-                        toast.success('PDF avec réponses téléchargé !');
-                      }}
+                      onClick={() => void handleRevealLetters(10)}
+                      disabled={!session?.user || isCompleted || isRevealingLetters || coinBalance < 10}
+                      title="Révéler 10 lettres pour 10 pièces"
                     >
-                      <FileText className="size-4 text-amber-500" />
-                      <span className="hidden sm:inline">PDF + Réponses</span>
+                      <Coins className="size-4 text-amber-500" />
+                      10 lettres
                     </Button>
                   </div>
 
                   {/* The crossword grid */}
-                  <div className="overflow-x-auto w-full flex justify-center">
+                  <div className="relative z-0 w-full min-w-0 shrink-0 overflow-x-auto">
                     <CrosswordGrid
                       puzzle={selectedPuzzle}
                       userInputs={userInputs}
@@ -1494,6 +1749,12 @@ export default function Home() {
                       </div>
                     )}
                   </div>
+                  {lastCoinReward > 0 && (
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                      <Coins className="size-4" />
+                      +{lastCoinReward} pièces
+                    </div>
+                  )}
                   <div className="mt-6 flex items-center justify-center gap-3">
                     <Button variant="outline" onClick={handleShare}>
                       <Share2 className="size-4" />

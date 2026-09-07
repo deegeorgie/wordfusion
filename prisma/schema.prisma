@@ -33,6 +33,9 @@ model User {
   updatedAt        DateTime @updatedAt
 
   puzzles          CrosswordPuzzle[]
+  wallet           UserWallet?
+  coinTransactions CoinTransaction[]
+  puzzleUnlocks    PuzzleUnlock[]
 }
 
 model Pack {
@@ -72,6 +75,7 @@ model CrosswordPuzzle {
   pack             Pack?     @relation(fields: [packId], references: [id], onDelete: SetNull)
   creatorId        String?
   creator          User?     @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  unlocks          PuzzleUnlock[]
   gridData         String                         // JSON string of the grid layout
   wordsData        String                         // JSON string of word placements
   cluesData        String                         // JSON string of clues
@@ -80,12 +84,29 @@ model CrosswordPuzzle {
   publishDate      DateTime?                      // Scheduled publication date
   firstPublishedAt DateTime?                      // Immutable: set once when first published
   published        Boolean   @default(false)
+  isPremium        Boolean   @default(false)
+  unlockCost       Int       @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
   @@index([publishDate])
   @@index([firstPublishedAt])
   @@index([published])
+  @@index([isPremium])
+}
+
+model PuzzleUnlock {
+  id         String   @id @default(cuid())
+  userId     String
+  puzzleId   String
+  unlockedAt DateTime @default(now())
+
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  puzzle CrosswordPuzzle  @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, puzzleId])
+  @@index([userId])
+  @@index([puzzleId])
 }
 
 model UserProgress {
@@ -101,6 +122,33 @@ model UserProgress {
   updatedAt   DateTime @updatedAt
 
   @@unique([puzzleId, userId])
+}
+
+model UserWallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CoinTransaction[]
+}
+
+model CoinTransaction {
+  id            String   @id @default(cuid())
+  userId        String
+  walletId      String
+  amount        Int
+  reason        String
+  referenceKey  String   @unique
+  balanceAfter  Int
+  createdAt     DateTime @default(now())
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet UserWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model PublishingSchedule {

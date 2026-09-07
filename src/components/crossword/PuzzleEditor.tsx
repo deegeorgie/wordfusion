@@ -27,7 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
-import { Languages, FolderOpen, Package, Grid2X2, Grid3X3, LayoutGrid } from "lucide-react";
+import { Languages, FolderOpen, Package, Coins, Grid2X2, Grid3X3, LayoutGrid } from "lucide-react";
 
 import type {
   CrosswordCell,
@@ -259,6 +259,8 @@ export default function PuzzleEditor({
   const [language, setLanguage] = useState<string>("fr");
   const [categoryId, setCategoryId] = useState<string>(noneCategory);
   const [packId, setPackId] = useState<string>(nonePack);
+  const [isPremium, setIsPremium] = useState(false);
+  const [unlockCost, setUnlockCost] = useState("25");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [packs, setPacks] = useState<PackOption[]>([]);
   const [rowsInput, setRowsInput] = useState(10);
@@ -348,6 +350,8 @@ export default function PuzzleEditor({
       setLanguage("fr");
       setCategoryId(noneCategory);
       setPackId(nonePack);
+      setIsPremium(false);
+      setUnlockCost("25");
       setRowsInput(10);
       setColsInput(10);
       const emptyGrid = createEmptyGrid(10, 10);
@@ -378,6 +382,8 @@ export default function PuzzleEditor({
         else setCategoryId(noneCategory);
         if (data.packId) setPackId(data.packId);
         else setPackId(nonePack);
+        setIsPremium(data.isPremium === true);
+        setUnlockCost(String(data.unlockCost || 25));
         setRowsInput(p.rows);
         setColsInput(p.cols);
         setGrid(cloneGrid(p.grid));
@@ -647,6 +653,8 @@ export default function PuzzleEditor({
         language,
         categoryId: categoryId === noneCategory ? null : categoryId,
         packId: packId === nonePack ? null : packId,
+        isPremium,
+        unlockCost: isPremium ? Number(unlockCost) : 0,
         rows: grid.length,
         cols: grid[0]?.length ?? 0,
         grid,
@@ -684,6 +692,8 @@ export default function PuzzleEditor({
         setLanguage("fr");
         setCategoryId(noneCategory);
         setPackId(nonePack);
+        setIsPremium(false);
+        setUnlockCost("25");
         setRowsInput(10);
         setColsInput(10);
         setGrid(createEmptyGrid(10, 10));
@@ -696,7 +706,7 @@ export default function PuzzleEditor({
     } finally {
       setSaving(false);
     }
-  }, [description, difficulty, language, categoryId, packId, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+  }, [description, difficulty, language, categoryId, packId, isPremium, unlockCost, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
 
   // ── Render helpers ───────────────────────────────────────────────
   const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
@@ -849,7 +859,7 @@ export default function PuzzleEditor({
 
         {/* ── Puzzle settings ─────────────────────────────────────── */}
         <div className="px-4 pb-2 shrink-0 space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
             <div className="space-y-1">
               <Label htmlFor="puzzle-desc" className="text-xs">
                 Description
@@ -921,6 +931,35 @@ export default function PuzzleEditor({
                   <SelectItem value="3">Difficile</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Accès premium</Label>
+              <div className="flex h-8 items-center gap-2 rounded-md border px-2">
+                <input
+                  id="puzzle-premium"
+                  type="checkbox"
+                  checked={isPremium}
+                  onChange={(event) => {
+                    setIsPremium(event.target.checked);
+                    if (!event.target.checked) setUnlockCost("0");
+                    else if (unlockCost === "0") setUnlockCost("25");
+                  }}
+                  className="accent-amber-500"
+                />
+                <label htmlFor="puzzle-premium" className="flex items-center gap-1 text-xs cursor-pointer">
+                  <Coins className="size-3 text-amber-500" /> Payant
+                </label>
+                {isPremium && (
+                  <Input
+                    aria-label="Coût en pièces"
+                    type="number"
+                    min="1"
+                    value={unlockCost}
+                    onChange={(event) => setUnlockCost(event.target.value)}
+                    className="h-6 w-16 px-1 text-xs"
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>

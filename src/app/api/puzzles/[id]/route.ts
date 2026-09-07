@@ -49,6 +49,8 @@ export async function GET(
       language: puzzle.language,
       categoryId: puzzle.categoryId,
       packId: puzzle.packId,
+      isPremium: puzzle.isPremium,
+      unlockCost: puzzle.unlockCost,
       progress: userProgress
         ? {
             id: userProgress.id,

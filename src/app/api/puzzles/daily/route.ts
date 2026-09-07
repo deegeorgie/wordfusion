@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,8 +41,11 @@ export async function GET(request: NextRequest) {
         cols: true,
         publishDate: true,
         firstPublishedAt: true,
+        isPremium: true,
+        unlockCost: true,
         categoryId: true,
         packId: true,
+        creatorId: true,
         category: {
           select: { id: true, name: true, slug: true, icon: true },
         },
@@ -48,6 +54,22 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+
+    const progressUser = await getProgressUser(request);
+    const session = await getServerSession(authOptions);
+    const unlockedPuzzleIds = session?.user.id
+      ? new Set(
+          (await db.puzzleUnlock.findMany({
+            where: { userId: session.user.id, puzzleId: { in: puzzles.map((puzzle) => puzzle.id) } },
+            select: { puzzleId: true },
+          })).map((unlock) => unlock.puzzleId),
+        )
+      : new Set<string>();
+    const progress = await db.userProgress.findMany({
+      where: { userId: progressUser.userId, puzzleId: { in: puzzles.map((puzzle) => puzzle.id) } },
+      select: { puzzleId: true, completed: true, timeSpent: true, updatedAt: true },
+    });
+    const progressByPuzzleId = new Map(progress.map((entry) => [entry.puzzleId, entry]));
 
     const summaries = puzzles.map((p) => ({
       id: p.id,
@@ -66,10 +88,17 @@ export async function GET(request: NextRequest) {
       packId: p.packId,
       packName: p.pack?.name ?? null,
       packIcon: p.pack?.icon ?? null,
+      isPremium: p.isPremium,
+      unlockCost: p.unlockCost,
+      isUnlocked: !p.isPremium || unlockedPuzzleIds.has(p.id) ||
+        session?.user.role === 'ADMIN' || p.creatorId === session?.user.id,
       categorySlug: p.category?.slug ?? null,
+      completed: progressByPuzzleId.get(p.id)?.completed ?? false,
+      timeSpent: progressByPuzzleId.get(p.id)?.timeSpent ?? 0,
+      lastPlayedAt: progressByPuzzleId.get(p.id)?.updatedAt.toISOString() ?? null,
     }));
 
-    return NextResponse.json({ puzzles: summaries });
+    return setProgressCookie(NextResponse.json({ puzzles: summaries }), progressUser.userId, progressUser.setCookie);
   } catch (error) {
     console.error('Error fetching puzzles:', error);
     return NextResponse.json(

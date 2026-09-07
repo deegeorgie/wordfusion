@@ -91,7 +91,15 @@ export function exportPuzzleToPdf(
 
   // ── Grid ────────────────────────────────────────────────────────────
   const { rows, cols, grid } = puzzle;
-  const cellSize = Math.min(Math.max(AVAIL_W / cols, 22), 36);
+  // Keep the complete grid inside the printable A4 area. The previous
+  // minimum cell size could make wider grids exceed the page margins.
+  const gridReserve = 24;
+  const availableGridHeight = CONTENT_MAX_Y - y - gridReserve;
+  const cellSize = Math.min(
+    AVAIL_W / cols,
+    Math.max(availableGridHeight / rows, 5),
+    24,
+  );
   const gridWidth = cols * cellSize;
   const gridX = LEFT + (AVAIL_W - gridWidth) / 2;
 
