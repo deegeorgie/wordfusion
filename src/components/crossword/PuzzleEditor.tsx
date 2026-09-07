@@ -693,7 +693,7 @@ export default function PuzzleEditor({
 
       if (isEditing && options?.closeAfterSave) {
         onOpenChange(false);
-      } else {
+      } else if (!isEditing) {
         // Reset for new puzzle
         setDescription("");
         setDifficulty("2");
@@ -718,8 +718,8 @@ export default function PuzzleEditor({
   }, [description, difficulty, language, categoryId, packId, isPremium, unlockCost, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
 
   const handleSave = useCallback(() => {
-    void savePuzzle({ closeAfterSave: isEditing });
-  }, [savePuzzle, isEditing]);
+    void savePuzzle();
+  }, [savePuzzle]);
 
   useEffect(() => {
     if (!open || !isEditing || loading || !autosaveReady.current) return;
