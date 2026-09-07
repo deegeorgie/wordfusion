@@ -271,7 +271,9 @@ export default function PuzzleEditor({
   const [clues, setClues] = useState<EditorClue[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [activeClueTab, setActiveClueTab] = useState<string>("across");
+  const autosaveReady = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const isEditing = !!editPuzzleId;
@@ -345,6 +347,8 @@ export default function PuzzleEditor({
     if (!open) return;
     if (!editPuzzleId) {
       // New puzzle: reset everything
+      autosaveReady.current = false;
+      setAutosaveStatus('idle');
       setDescription("");
       setDifficulty("2");
       setLanguage("fr");
@@ -403,6 +407,8 @@ export default function PuzzleEditor({
         setWords(p.words);
         setClues(editorClues);
         setLoading(false);
+        autosaveReady.current = true;
+        setAutosaveStatus('saved');
       })
       .catch((err) => {
         if (cancelled) return;
@@ -638,7 +644,7 @@ export default function PuzzleEditor({
   );
 
   // ── Save ─────────────────────────────────────────────────────────
-  const handleSave = useCallback(async () => {
+  const savePuzzle = useCallback(async (options?: { closeAfterSave?: boolean; silent?: boolean }) => {
     const finalClues: Clue[] = clues.map(({ number, direction, text }) => ({
       number,
       direction,
@@ -646,6 +652,7 @@ export default function PuzzleEditor({
     }));
 
     setSaving(true);
+    if (isEditing) setAutosaveStatus('saving');
     try {
       const body = {
         description: description.trim() || undefined,
@@ -677,13 +684,14 @@ export default function PuzzleEditor({
         throw new Error(data.error ?? "Erreur lors de la sauvegarde");
       }
 
-      toast.success(
-        isEditing ? "Puzzle mis à jour avec succès" : "Puzzle créé avec succès"
-      );
+      if (!options?.silent) {
+        toast.success(isEditing ? "Puzzle mis à jour avec succès" : "Puzzle créé avec succès");
+      }
+      if (isEditing) setAutosaveStatus('saved');
 
       onSaved?.();
 
-      if (isEditing) {
+      if (isEditing && options?.closeAfterSave) {
         onOpenChange(false);
       } else {
         // Reset for new puzzle
@@ -702,11 +710,26 @@ export default function PuzzleEditor({
         setClues([]);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur inconnue");
+      if (isEditing) setAutosaveStatus('error');
+      if (!options?.silent) toast.error(err instanceof Error ? err.message : "Erreur inconnue");
     } finally {
       setSaving(false);
     }
   }, [description, difficulty, language, categoryId, packId, isPremium, unlockCost, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+
+  const handleSave = useCallback(() => {
+    void savePuzzle({ closeAfterSave: isEditing });
+  }, [savePuzzle, isEditing]);
+
+  useEffect(() => {
+    if (!open || !isEditing || loading || !autosaveReady.current) return;
+
+    const timeout = window.setTimeout(() => {
+      void savePuzzle({ silent: true });
+    }, 900);
+
+    return () => window.clearTimeout(timeout);
+  }, [open, isEditing, loading, description, difficulty, language, categoryId, packId, isPremium, unlockCost, grid, words, clues, savePuzzle]);
 
   // ── Render helpers ───────────────────────────────────────────────
   const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
@@ -1046,6 +1069,17 @@ export default function PuzzleEditor({
             >
               {saving ? "Sauvegarde…" : "Sauvegarder"}
             </Button>
+            {isEditing && autosaveStatus !== 'idle' && (
+              <span className={`ml-2 text-[11px] ${
+                autosaveStatus === 'error'
+                  ? 'text-destructive'
+                  : 'text-muted-foreground'
+              }`}>
+                {autosaveStatus === 'saving' && 'Enregistrement…'}
+                {autosaveStatus === 'saved' && 'Enregistré'}
+                {autosaveStatus === 'error' && 'Échec de l’enregistrement'}
+              </span>
+            )}
           </div>
         </div>
 
