@@ -393,19 +393,22 @@ export default function Home() {
     setSoundEnabled(localStorage.getItem('crossword-sound-enabled') !== 'false');
   }, []);
 
-  // ── Load streak data from localStorage ──────────────────────────────
+  // ── Load account-scoped streak data from localStorage ────────────────
   useEffect(() => {
+    if (status === 'loading') return;
+
+    const storageKey = session?.user?.id
+      ? `crossword-streak-data:${session.user.id}`
+      : 'crossword-streak-data:anonymous';
+
     try {
-      const raw = localStorage.getItem('crossword-streak-data');
-      if (raw) {
-        const data = JSON.parse(raw);
-        setStreakData(data);
-        // Pre-compute already-earned badge IDs
-        const earned = evaluateBadges(data);
-        setEarnedBadgeIds(new Set(earned.map((b) => b.id)));
-      }
+      const raw = localStorage.getItem(storageKey);
+      const data = raw ? JSON.parse(raw) : [];
+      setStreakData(Array.isArray(data) ? data : []);
+      const earned = evaluateBadges(Array.isArray(data) ? data : []);
+      setEarnedBadgeIds(new Set(earned.map((b) => b.id)));
     } catch {}
-  }, []);
+  }, [session?.user?.id, status]);
 
   // ── Load daily puzzles on mount / filter change ────────────────────
   useEffect(() => {
@@ -498,7 +501,10 @@ export default function Home() {
     };
     setStreakData((prev) => {
       const updated = [...prev, entry];
-      localStorage.setItem('crossword-streak-data', JSON.stringify(updated));
+      const storageKey = session?.user?.id
+        ? `crossword-streak-data:${session.user.id}`
+        : 'crossword-streak-data:anonymous';
+      localStorage.setItem(storageKey, JSON.stringify(updated));
 
       // Check for newly earned badges
       const previouslyEarned = Array.from(earnedBadgeIds);
@@ -515,7 +521,7 @@ export default function Home() {
 
       return updated;
     });
-  }, [isCompleted]);
+  }, [isCompleted, session?.user?.id]);
 
   // ── Fetch a specific puzzle ─────────────────────────────────────────
   const fetchPuzzle = useCallback(async (id: string, startFresh = false) => {
@@ -1773,10 +1779,10 @@ export default function Home() {
       {/* ── Admin Panel Dialog ──────────────────────────────── */}
 
       {/* ── Stats Panel Dialog ────────────────────────────────── */}
-      <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} />
+      <StatsPanel open={statsOpen} onOpenChange={setStatsOpen} userId={session?.user?.id} />
 
       {/* ── Badge Panel Dialog ────────────────────────────────── */}
-      <BadgePanel open={badgesOpen} onOpenChange={setBadgesOpen} />
+      <BadgePanel open={badgesOpen} onOpenChange={setBadgesOpen} userId={session?.user?.id} />
 
       {/* ── Badge Notification ────────────────────────────────── */}
       <BadgeNotification badge={newBadge} onDismiss={() => setNewBadge(null)} />

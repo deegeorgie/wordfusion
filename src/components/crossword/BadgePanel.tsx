@@ -32,6 +32,7 @@ import {
 interface BadgePanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userId?: string;
 }
 
 // ---------- constants ----------
@@ -53,10 +54,10 @@ const CATEGORY_META: {
 
 // ---------- helpers ----------
 
-function loadData(): StreakCompletion[] {
+function loadData(userId?: string): StreakCompletion[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(userId ? `${STORAGE_KEY}:${userId}` : `${STORAGE_KEY}:anonymous`);
     if (!raw) return [];
     return JSON.parse(raw) as StreakCompletion[];
   } catch {
@@ -151,15 +152,15 @@ function BadgeCard({
 
 // ---------- main component ----------
 
-export function BadgePanel({ open, onOpenChange }: BadgePanelProps) {
+export function BadgePanel({ open, onOpenChange, userId }: BadgePanelProps) {
   const [earnedBadges, setEarnedBadges] = React.useState<EarnedBadge[]>([]);
 
   React.useEffect(() => {
     if (open) {
-      const completions = loadData();
+      const completions = loadData(userId);
       setEarnedBadges(evaluateBadges(completions));
     }
-  }, [open]);
+  }, [open, userId]);
 
   const earnedSet = React.useMemo(
     () => new Set(earnedBadges.map((b) => b.id)),

@@ -49,16 +49,17 @@ interface StreakCompletion {
 interface StatsPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  userId?: string;
 }
 
 // ---------- helpers ----------
 
 const STORAGE_KEY = "crossword-streak-data";
 
-function loadData(): StreakCompletion[] {
+function loadData(userId?: string): StreakCompletion[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(userId ? `${STORAGE_KEY}:${userId}` : `${STORAGE_KEY}:anonymous`);
     if (!raw) return [];
     return JSON.parse(raw) as StreakCompletion[];
   } catch {
@@ -218,14 +219,14 @@ function AnimatedNumber({ value, duration = 0.8 }: { value: number; duration?: n
 
 // ---------- Main component ----------
 
-export function StatsPanel({ open, onOpenChange }: StatsPanelProps) {
+export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
   const [completions, setCompletions] = React.useState<StreakCompletion[]>([]);
 
   React.useEffect(() => {
     if (open) {
-      setCompletions(loadData());
+      setCompletions(loadData(userId));
     }
-  }, [open]);
+  }, [open, userId]);
 
   // Derived stats
   const totalSolved = completions.length;
