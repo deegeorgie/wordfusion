@@ -1547,7 +1547,7 @@ export default function Home() {
           </header>
 
           {/* ── Main area ──────────────────────────────────────── */}
-          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 sm:px-4">
+          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 pb-8 sm:px-4 sm:pb-6">
             {/* Loading state */}
             {isLoadingPuzzle && !selectedPuzzle && (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -1700,7 +1700,7 @@ export default function Home() {
           </main>
 
           {/* ── Footer ─────────────────────────────────────────── */}
-          <footer className="mt-auto border-t py-3">
+          <footer className="mt-auto hidden border-t py-3 lg:block">
             <div className="mx-auto max-w-4xl flex flex-col items-center gap-1 text-[11px] text-muted-foreground">
               <p className="font-medium">Mots Croisés &mdash; Un puzzle unique chaque jour</p>
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
