@@ -91,7 +91,8 @@ export async function GET(request: NextRequest) {
       isPremium: p.isPremium,
       unlockCost: p.unlockCost,
       isUnlocked: !p.isPremium || unlockedPuzzleIds.has(p.id) ||
-        session?.user.role === 'ADMIN' || p.creatorId === session?.user.id,
+        session?.user.role === 'ADMIN' || p.creatorId === session?.user.id ||
+        progressByPuzzleId.get(p.id)?.completed === true,
       categorySlug: p.category?.slug ?? null,
       completed: progressByPuzzleId.get(p.id)?.completed ?? false,
       timeSpent: progressByPuzzleId.get(p.id)?.timeSpent ?? 0,

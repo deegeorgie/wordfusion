@@ -15,14 +15,25 @@ export async function getAccessiblePuzzle(id: string) {
   if (!puzzle.isPremium || isAdmin || isOwner) return puzzle;
   if (!session?.user.id) return null;
 
-  const unlock = await db.puzzleUnlock.findUnique({
-    where: {
-      userId_puzzleId: {
-        userId: session.user.id,
-        puzzleId: puzzle.id,
+  const [unlock, completedProgress] = await Promise.all([
+    db.puzzleUnlock.findUnique({
+      where: {
+        userId_puzzleId: {
+          userId: session.user.id,
+          puzzleId: puzzle.id,
+        },
       },
-    },
-  });
+    }),
+    db.userProgress.findUnique({
+      where: {
+        puzzleId_userId: {
+          puzzleId: puzzle.id,
+          userId: session.user.id,
+        },
+      },
+      select: { completed: true },
+    }),
+  ]);
 
-  return unlock ? puzzle : null;
+  return unlock || completedProgress?.completed ? puzzle : null;
 }

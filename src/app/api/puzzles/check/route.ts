@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
         if (!session?.user.id || previousProgress?.completed) return 0;
 
-        const amount = 10 + Math.max(0, puzzle.difficulty - 1) * 5;
+        const amount = puzzle.rows === 5 && puzzle.cols === 5 ? 1 : 2;
         const wallet = await tx.userWallet.upsert({
           where: { userId: session.user.id },
           create: { userId: session.user.id, balance: amount },

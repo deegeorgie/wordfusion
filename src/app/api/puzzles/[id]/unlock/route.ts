@@ -29,10 +29,18 @@ export async function POST(
       return NextResponse.json({ unlocked: true, alreadyUnlocked: true });
     }
 
-    const existing = await db.puzzleUnlock.findUnique({
-      where: { userId_puzzleId: { userId: session.user.id, puzzleId } },
-    });
-    if (existing) return NextResponse.json({ unlocked: true, alreadyUnlocked: true });
+    const [existing, completedProgress] = await Promise.all([
+      db.puzzleUnlock.findUnique({
+        where: { userId_puzzleId: { userId: session.user.id, puzzleId } },
+      }),
+      db.userProgress.findUnique({
+        where: { puzzleId_userId: { puzzleId, userId: session.user.id } },
+        select: { completed: true },
+      }),
+    ]);
+    if (existing || completedProgress?.completed) {
+      return NextResponse.json({ unlocked: true, alreadyUnlocked: true });
+    }
 
     const result = await db.$transaction(async (tx) => {
       const walletUpdate = await tx.userWallet.updateMany({

@@ -446,7 +446,11 @@ export default function Home() {
   const filteredPuzzles = useMemo(() => {
     let puzzles = dailyPuzzles;
     if (effectiveTodayOnly) {
-      puzzles = puzzles.filter((p) => p.publishDate && p.publishDate.slice(0, 10) === todayStr);
+      puzzles = puzzles.filter((p) =>
+        (p.publishDate && p.publishDate.slice(0, 10) === todayStr) ||
+        p.completed ||
+        (p.isPremium && p.isUnlocked),
+      );
     }
     if (selectedCategory !== 'all') {
       puzzles = puzzles.filter((p) => p.categoryId === selectedCategory);
