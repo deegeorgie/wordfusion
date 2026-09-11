@@ -449,7 +449,7 @@ export default function Home() {
       puzzles = puzzles.filter((p) =>
         (p.publishDate && p.publishDate.slice(0, 10) === todayStr) ||
         p.completed ||
-        (p.isPremium && p.isUnlocked),
+        p.isPremium,
       );
     }
     if (selectedCategory !== 'all') {
