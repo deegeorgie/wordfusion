@@ -66,6 +66,7 @@ interface PuzzleEditorProps {
   onOpenChange: (open: boolean) => void;
   editPuzzleId?: string | null;
   onSaved?: () => void;
+  pageMode?: boolean;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -294,6 +295,7 @@ export default function PuzzleEditor({
   onOpenChange,
   editPuzzleId,
   onSaved,
+  pageMode = false,
 }: PuzzleEditorProps) {
   // ── State ────────────────────────────────────────────────────────
   const [description, setDescription] = useState("");
@@ -1174,17 +1176,10 @@ export default function PuzzleEditor({
   };
 
   // ── Main render ──────────────────────────────────────────────────
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="
-          max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] md:max-w-[95vw] lg:max-w-[90vw]
-          h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)]
-          flex flex-col p-0 gap-0 overflow-hidden
-        "
-        showCloseButton
-      >
-        <DialogHeader className="px-4 pt-4 pb-2 shrink-0">
+  const editorBody = (
+    <>
+        <DialogHeader className={`px-4 pt-4 pb-2 shrink-0 ${pageMode ? "flex-row items-start justify-between gap-4 border-b px-5 py-4" : ""}`}>
+          <div>
           <DialogTitle>
             {isEditing ? "Modifier le puzzle" : "Nouveau puzzle"}
           </DialogTitle>
@@ -1193,6 +1188,20 @@ export default function PuzzleEditor({
               ? "Modifiez la grille, les mots et les indices du puzzle."
               : "Le numéro du puzzle sera attribué automatiquement à la sauvegarde."}
           </DialogDescription>
+          </div>
+          {pageMode && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => onOpenChange(false)}
+              aria-label="Fermer l'éditeur"
+              title="Fermer l'éditeur"
+            >
+              <X className="size-4" />
+            </Button>
+          )}
         </DialogHeader>
 
         {/* ── Puzzle settings ─────────────────────────────────────── */}
@@ -1741,6 +1750,24 @@ export default function PuzzleEditor({
             Utilisez les flèches pour naviguer, Retour pour effacer.
           </p>
         </div>
+      </>
+  );
+
+  return pageMode ? (
+    <div className="flex min-h-screen w-full flex-col bg-background">
+      {editorBody}
+    </div>
+  ) : (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="
+          max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] md:max-w-[95vw] lg:max-w-[90vw]
+          h-[calc(100vh-1rem)] sm:h-[calc(100vh-2rem)]
+          flex flex-col p-0 gap-0 overflow-hidden
+        "
+        showCloseButton
+      >
+        {editorBody}
       </DialogContent>
     </Dialog>
   );

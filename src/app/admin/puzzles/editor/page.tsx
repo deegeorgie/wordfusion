@@ -39,6 +39,7 @@ export default function PuzzleEditorPage() {
           if (!open) window.close();
         }}
         editPuzzleId={puzzleId}
+        pageMode
         onSaved={() => {
           window.opener?.postMessage({ type: 'wordfusion:puzzle-saved' }, window.location.origin);
         }}

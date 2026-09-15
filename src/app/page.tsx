@@ -1035,16 +1035,15 @@ export default function Home() {
           />
 
           {/* ── Header ─────────────────────────────────────────── */}
-          <header className="border-b bg-background/95 backdrop-blur-sm">
-            <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
+          <header className="border-b border-foreground/10 bg-background/80 backdrop-blur-md">
+            <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                   <Grid3X3 className="size-6" />
                 </div>
                 <div>
                   <h1
-                    className="text-3xl font-bold tracking-tight sm:text-4xl"
-                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                    className="font-display text-3xl font-bold tracking-tight sm:text-4xl"
                   >
                     Mots Croisés
                   </h1>
@@ -1159,15 +1158,14 @@ export default function Home() {
           </header>
 
           {/* ── Main Content ───────────────────────────────────── */}
-          <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+          <main className="flex-1 mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
             {/* Date display */}
             <div className="mb-6">
               <p className="text-sm text-muted-foreground capitalize">
                 📅 {formatFrenchDate()}
               </p>
               <h2
-                className="mt-2 text-xl font-semibold sm:text-2xl"
-                style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                className="font-display mt-2 text-xl font-semibold sm:text-2xl"
               >
                 Mots Croisés
               </h2>
@@ -1178,7 +1176,7 @@ export default function Home() {
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 rounded-xl border bg-gradient-to-r from-orange-50/80 to-amber-50/80 dark:from-orange-950/20 dark:to-amber-950/20 p-4 sm:p-5"
+                className="mb-6 rounded-lg border border-orange-200/70 bg-[oklch(0.97_0.035_55)] p-4 shadow-sm shadow-orange-900/5 sm:p-5 dark:border-orange-900/40 dark:bg-orange-950/20"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                   {/* Streak counter */}
@@ -1338,10 +1336,10 @@ export default function Home() {
 
             {/* Puzzle cards grid */}
             {!isLoadingPuzzles && filteredPuzzles.length > 0 && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredPuzzles.map((puzzle) => (
                   <div key={puzzle.id}>
-                    <Card className="group relative overflow-hidden py-0 transition-shadow hover:shadow-md">
+                    <Card className="group relative overflow-hidden border-foreground/10 bg-card/90 py-0 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10">
                       {/* Difficulty accent bar */}
                       <div
                         className={`h-1 w-full ${
@@ -1354,9 +1352,9 @@ export default function Home() {
                                 : 'bg-red-500'
                         }`}
                       />
-                      <CardHeader className="gap-1.5 px-5 pt-5 pb-0">
+                      <CardHeader className="gap-2 px-5 pt-5 pb-0">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-lg leading-snug">{puzzle.title}</CardTitle>
+                          <CardTitle className="font-display text-xl leading-snug">{puzzle.title}</CardTitle>
                           <div className="flex shrink-0 items-center gap-1">
                             {puzzle.isPremium && (
                               <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-300">
@@ -1732,8 +1730,7 @@ export default function Home() {
                     <Trophy className="size-8 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <h2
-                    className="text-2xl font-bold sm:text-3xl"
-                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                    className="font-display text-2xl font-bold sm:text-3xl"
                   >
                     Félicitations !
                   </h2>
