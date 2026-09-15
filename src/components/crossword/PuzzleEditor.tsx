@@ -97,6 +97,7 @@ interface WordAssistantResult {
   definitions: { partOfSpeech?: string; definition: string; example?: string }[];
   synonyms: string[];
   acronym: { title: string; extract: string } | null;
+  context: { title: string; extract: string } | null;
   source: string;
   glossaryEntryId?: string;
   savedClue?: string | null;
@@ -1515,6 +1516,12 @@ export default function PuzzleEditor({
                       <p className="mt-1 text-muted-foreground">{assistantResult.acronym.extract}</p>
                     </div>
                   )}
+                  {assistantResult.context && (
+                    <div className="rounded-md border bg-background p-2">
+                      <p className="font-medium">Contexte encyclopédique · {assistantResult.context.title}</p>
+                      <p className="mt-1 text-muted-foreground">{assistantResult.context.extract}</p>
+                    </div>
+                  )}
                   {assistantResult.definitions.map((definition, index) => (
                     <div key={`${definition.definition}-${index}`} className="rounded-md border bg-background p-2">
                       <div className="flex items-start justify-between gap-2">
@@ -1604,10 +1611,10 @@ export default function PuzzleEditor({
                   {assistantResult.synonyms.length > 0 && (
                     <p className="text-muted-foreground">Liés : {assistantResult.synonyms.join(", ")}</p>
                   )}
-                  {assistantResult.definitions.length === 0 && !assistantResult.acronym && assistantResult.synonyms.length === 0 && (
+                  {assistantResult.definitions.length === 0 && !assistantResult.acronym && !assistantResult.context && assistantResult.synonyms.length === 0 && (
                     <p className="text-muted-foreground">Aucun résultat trouvé.</p>
                   )}
-                  {assistantResult.definitions.length === 0 && (assistantResult.acronym || assistantResult.synonyms.length > 0) && (
+                  {assistantResult.definitions.length === 0 && (assistantResult.acronym || assistantResult.context || assistantResult.synonyms.length > 0) && (
                     <p className="text-muted-foreground">Définition indisponible pour ce terme.</p>
                   )}
                   <p className="text-[10px] text-muted-foreground">Source : {assistantResult.source}</p>

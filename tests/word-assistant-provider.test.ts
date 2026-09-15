@@ -99,6 +99,22 @@ describe("lookupWord", () => {
     expect(result.acronym).toEqual({ title: "NASA", extract: "US space agency." });
   });
 
+  it("uses Wikipedia context for proper names without dictionary definitions", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("wikipedia.org")) {
+        return jsonResponse({ title: "Casablanca", extract: "A city in Morocco." });
+      }
+      return jsonResponse({}, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await lookupWord("casablanca", "en");
+
+    expect(result.context).toEqual({ title: "Casablanca", extract: "A city in Morocco." });
+    expect(result.acronym).toBeNull();
+  });
+
   it("does not treat an uppercase crossword answer as an acronym", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
@@ -144,9 +160,11 @@ describe("lookupWord", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await lookupWord("cache-check", "fr");
+    const callsAfterFirstLookup = fetchMock.mock.calls.length;
     await lookupWord(" CACHE-CHECK ", "fr");
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(callsAfterFirstLookup).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(callsAfterFirstLookup);
   });
 });
 

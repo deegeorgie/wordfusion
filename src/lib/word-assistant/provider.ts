@@ -12,6 +12,7 @@ export interface WordAssistantResult {
   definitions: WordAssistantDefinition[];
   synonyms: string[];
   acronym: { title: string; extract: string } | null;
+  context: { title: string; extract: string } | null;
   source: string;
 }
 
@@ -98,6 +99,22 @@ async function lookupAcronym(
     : null;
 }
 
+async function lookupWikipediaContext(
+  term: string,
+  language: WordAssistantLanguage
+): Promise<{ title: string; extract: string } | null> {
+  const data = await fetchJson(
+    `https://${language}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`
+  );
+  if (!data || typeof data !== "object") return null;
+
+  const summary = data as { title?: unknown; extract?: unknown; description?: unknown };
+  const extract = normalizeText(summary.extract);
+  return extract
+    ? { title: normalizeText(summary.title) || term, extract: normalizeText(summary.description) || extract }
+    : null;
+}
+
 function cleanWiktionaryExtract(value: string): string {
   return value
     .replace(/^=+[^=\r\n]+=+\s*$/gm, "")
@@ -133,7 +150,7 @@ export async function lookupWord(
   options: WordAssistantLookupOptions = {}
 ): Promise<WordAssistantResult> {
   const normalizedTerm = term.trim();
-  const cacheKey = `${language}:${normalizedTerm.toLowerCase()}`;
+  const cacheKey = `${language}:${normalizedTerm.toLowerCase()}:${options.includeAcronym ? "acronym" : "standard"}`;
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.result;
   if (cached) resultCache.delete(cacheKey);
@@ -152,6 +169,9 @@ export async function lookupWord(
       ? lookupAcronym(normalizedTerm, language)
       : Promise.resolve(null),
   ]);
+  const context = fallbackDefinitions.length === 0 && !acronym
+    ? await lookupWikipediaContext(normalizedTerm, language)
+    : null;
 
   const result = {
     term: normalizedTerm,
@@ -159,9 +179,12 @@ export async function lookupWord(
     definitions: fallbackDefinitions,
     synonyms,
     acronym,
+    context,
     source: definitions.length > 0
       ? "Dictionary API, Datamuse et Wikipedia"
-      : "Wiktionary, Datamuse et Wikipedia",
+      : context
+        ? "Wikipedia, Wiktionary et Datamuse"
+        : "Wiktionary, Datamuse et Wikipedia",
   };
   resultCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, result });
   if (resultCache.size > CACHE_LIMIT) {

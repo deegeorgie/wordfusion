@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
       definitions: [{ definition: glossaryEntry.definition, example: glossaryEntry.example ?? undefined }],
       synonyms: [],
       acronym: null,
+      context: null,
       source: "Glossaire personnel",
       glossaryEntryId: glossaryEntry.id,
       savedClue: glossaryEntry.clue,
