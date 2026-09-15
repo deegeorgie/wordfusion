@@ -43,6 +43,10 @@ import {
   BookmarkCheck,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Trash2,
+  Save,
+  X,
 } from "lucide-react";
 
 import type {
@@ -92,6 +96,15 @@ interface WordAssistantResult {
   source: string;
   glossaryEntryId?: string;
   savedClue?: string | null;
+}
+
+interface GlossaryEntry {
+  id: string;
+  term: string;
+  language: string;
+  definition: string;
+  example: string | null;
+  clue: string | null;
 }
 
 const noneCategory = "__none__";
@@ -308,6 +321,12 @@ export default function PuzzleEditor({
   const [clueSuggestion, setClueSuggestion] = useState<{ index: number; text: string } | null>(null);
   const [clueSuggestionLoading, setClueSuggestionLoading] = useState<number | null>(null);
   const [glossarySaving, setGlossarySaving] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [glossaryEntries, setGlossaryEntries] = useState<GlossaryEntry[]>([]);
+  const [glossarySearch, setGlossarySearch] = useState("");
+  const [glossaryLanguage, setGlossaryLanguage] = useState("all");
+  const [editingGlossaryId, setEditingGlossaryId] = useState<string | null>(null);
+  const [editingGlossary, setEditingGlossary] = useState({ definition: "", example: "", clue: "" });
   const autosaveReady = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -329,6 +348,21 @@ export default function PuzzleEditor({
       })
       .catch(() => {});
   }, [open]);
+
+  const loadGlossary = useCallback(async () => {
+    try {
+      const response = await fetch("/api/word-assistant/glossary");
+      if (!response.ok) return;
+      const data = await response.json();
+      setGlossaryEntries(data.entries ?? []);
+    } catch {
+      // The assistant remains usable if the glossary request fails.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) void loadGlossary();
+  }, [open, loadGlossary]);
 
   // ── Derived: number grid for display ─────────────────────────────
   const numberGrid = useMemo(() => {
@@ -716,13 +750,86 @@ export default function PuzzleEditor({
         glossaryEntryId: data.entry.id,
         savedClue: data.entry.clue,
       } : previous);
+      await loadGlossary();
       toast.success("Ajouté au glossaire personnel");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Glossaire indisponible");
     } finally {
       setGlossarySaving(false);
     }
-  }, [assistantClue, assistantResult, clues, language]);
+  }, [assistantClue, assistantResult, clues, language, loadGlossary]);
+
+  const filteredGlossaryEntries = useMemo(() => {
+    const search = glossarySearch.trim().toLowerCase();
+    return glossaryEntries.filter((entry) => {
+      const matchesLanguage = glossaryLanguage === "all" || entry.language === glossaryLanguage;
+      const matchesSearch = !search || [entry.term, entry.definition, entry.clue ?? ""]
+        .some((value) => value.toLowerCase().includes(search));
+      return matchesLanguage && matchesSearch;
+    });
+  }, [glossaryEntries, glossaryLanguage, glossarySearch]);
+
+  const startGlossaryEdit = useCallback((entry: GlossaryEntry) => {
+    setEditingGlossaryId(entry.id);
+    setEditingGlossary({
+      definition: entry.definition,
+      example: entry.example ?? "",
+      clue: entry.clue ?? "",
+    });
+  }, []);
+
+  const cancelGlossaryEdit = useCallback(() => {
+    setEditingGlossaryId(null);
+    setEditingGlossary({ definition: "", example: "", clue: "" });
+  }, []);
+
+  const updateGlossaryEntry = useCallback(async (entry: GlossaryEntry) => {
+    if (!editingGlossary.definition.trim()) return;
+    setGlossarySaving(true);
+    try {
+      const response = await fetch("/api/word-assistant/glossary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          term: entry.term,
+          language: entry.language,
+          definition: editingGlossary.definition,
+          example: editingGlossary.example,
+          clue: editingGlossary.clue,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Impossible de modifier l'entrée");
+      setGlossaryEntries((previous) => previous.map((item) => item.id === entry.id ? data.entry : item));
+      cancelGlossaryEdit();
+      toast.success("Entrée mise à jour");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Impossible de modifier l'entrée");
+    } finally {
+      setGlossarySaving(false);
+    }
+  }, [cancelGlossaryEdit, editingGlossary,]);
+
+  const deleteGlossaryEntry = useCallback(async (entry: GlossaryEntry) => {
+    if (!window.confirm(`Supprimer « ${entry.term} » du glossaire ?`)) return;
+    try {
+      const response = await fetch("/api/word-assistant/glossary", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: entry.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Impossible de supprimer l'entrée");
+      setGlossaryEntries((previous) => previous.filter((item) => item.id !== entry.id));
+      if (editingGlossaryId === entry.id) cancelGlossaryEdit();
+      if (assistantResult?.glossaryEntryId === entry.id) {
+        setAssistantResult((previous) => previous ? { ...previous, glossaryEntryId: undefined } : previous);
+      }
+      toast.success("Entrée supprimée");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Impossible de supprimer l'entrée");
+    }
+  }, [assistantResult, cancelGlossaryEdit, editingGlossaryId]);
 
   // ── Update word text → update grid cells ─────────────────────────
   const handleWordChange = useCallback(
@@ -1364,6 +1471,100 @@ export default function PuzzleEditor({
                     <p className="text-muted-foreground">Aucun résultat trouvé.</p>
                   )}
                   <p className="text-[10px] text-muted-foreground">Source : {assistantResult.source}</p>
+                </div>
+              )}
+              {assistantOpen && (
+                <div className="border-t pt-2">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between text-xs font-medium"
+                    onClick={() => setGlossaryOpen((openState) => !openState)}
+                    aria-expanded={glossaryOpen}
+                  >
+                    <span>Glossaire personnel ({glossaryEntries.length})</span>
+                    {glossaryOpen ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                  </button>
+                  {glossaryOpen && (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          value={glossarySearch}
+                          onChange={(event) => setGlossarySearch(event.target.value)}
+                          placeholder="Rechercher dans le glossaire"
+                          className="h-7 text-xs"
+                          aria-label="Rechercher dans le glossaire"
+                        />
+                        <Select value={glossaryLanguage} onValueChange={setGlossaryLanguage}>
+                          <SelectTrigger className="h-7 w-[82px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Toutes</SelectItem>
+                            <SelectItem value="fr">Français</SelectItem>
+                            <SelectItem value="en">English</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+                        {filteredGlossaryEntries.length === 0 && (
+                          <p className="py-2 text-[11px] text-muted-foreground">Aucune entrée enregistrée.</p>
+                        )}
+                        {filteredGlossaryEntries.map((entry) => (
+                          <div key={entry.id} className="rounded-md border bg-background p-2 text-xs">
+                            {editingGlossaryId === entry.id ? (
+                              <div className="space-y-1.5">
+                                <p className="font-medium">{entry.term} · {entry.language.toUpperCase()}</p>
+                                <Textarea
+                                  value={editingGlossary.definition}
+                                  onChange={(event) => setEditingGlossary((previous) => ({ ...previous, definition: event.target.value }))}
+                                  className="min-h-12 text-xs"
+                                  rows={2}
+                                  placeholder="Définition"
+                                />
+                                <Input
+                                  value={editingGlossary.example}
+                                  onChange={(event) => setEditingGlossary((previous) => ({ ...previous, example: event.target.value }))}
+                                  className="h-7 text-xs"
+                                  placeholder="Exemple (optionnel)"
+                                />
+                                <Input
+                                  value={editingGlossary.clue}
+                                  onChange={(event) => setEditingGlossary((previous) => ({ ...previous, clue: event.target.value }))}
+                                  className="h-7 text-xs"
+                                  placeholder="Indice préféré (optionnel)"
+                                />
+                                <div className="flex justify-end gap-1">
+                                  <Button type="button" variant="ghost" size="icon" className="size-6" onClick={cancelGlossaryEdit} title="Annuler">
+                                    <X className="size-3.5" />
+                                  </Button>
+                                  <Button type="button" size="sm" className="h-6 px-2 text-[11px]" disabled={glossarySaving} onClick={() => void updateGlossaryEntry(entry)}>
+                                    <Save className="size-3" />
+                                    Enregistrer
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-medium">{entry.term} · {entry.language.toUpperCase()}</p>
+                                  <p className="mt-0.5 text-muted-foreground">{entry.definition}</p>
+                                  {entry.clue && <p className="mt-0.5 italic text-muted-foreground">Indice : {entry.clue}</p>}
+                                </div>
+                                <div className="flex shrink-0 gap-0.5">
+                                  <Button type="button" variant="ghost" size="icon" className="size-6" onClick={() => startGlossaryEdit(entry)} title="Modifier">
+                                    <Pencil className="size-3.5" />
+                                  </Button>
+                                  <Button type="button" variant="ghost" size="icon" className="size-6 text-destructive hover:text-destructive" onClick={() => void deleteGlossaryEntry(entry)} title="Supprimer">
+                                    <Trash2 className="size-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
