@@ -14,8 +14,11 @@ The current implementation supports:
 - Acronym context from Wikipedia when the search term looks like an acronym.
 - Wiktionary summary fallback when the primary dictionary has no result.
 - AI-generated crossword clue suggestions.
+- Three clue alternatives with standard, humorous, or cryptic styles and easy, medium, or hard difficulty.
 - Creator-specific glossary entries.
 - Applying a definition or generated clue directly to the active clue.
+- Copying definitions and examples, with `Ctrl+Shift+D` or `Cmd+Shift+D` lookup support.
+- JSON glossary import and export.
 - Ten-minute in-process result caching.
 - A limit of 30 lookups per creator per minute.
 
@@ -61,6 +64,7 @@ The route layer handles authentication, validation, rate limiting, and persisten
 | --- | --- |
 | `src/components/crossword/PuzzleEditor.tsx` | Assistant UI, lookup actions, result actions, clue insertion, glossary save state |
 | `src/lib/word-assistant/provider.ts` | External provider calls, normalization, fallback logic, and cache |
+| `src/lib/word-assistant/clues.ts` | Parses and validates AI-generated clue alternatives |
 | `src/app/api/word-assistant/route.ts` | Authenticated lookup endpoint, glossary-first lookup, rate limiting |
 | `src/app/api/word-assistant/clue/route.ts` | AI crossword clue generation endpoint |
 | `src/app/api/word-assistant/glossary/route.ts` | Creator glossary CRUD endpoint |
@@ -234,15 +238,17 @@ Content-Type: application/json
 }
 ```
 
-The endpoint validates the term and definition, then uses the existing `z-ai-web-dev-sdk` integration. The prompt requires one concise clue and explicitly instructs the model not to include the answer.
+The endpoint validates the term and definition, then uses the existing `z-ai-web-dev-sdk` integration. The request may include `style` (`standard`, `humorous`, or `cryptic`) and `difficulty` (`easy`, `medium`, or `hard`). The prompt requests three concise alternatives and explicitly instructs the model not to include the answer.
 
 ### Response
 
 ```json
-{ "clue": "US space agency, briefly" }
+{ "clue": "US space agency, briefly", "clues": ["US space agency, briefly", "Space agency, briefly"] }
 ```
 
-The client never replaces a clue automatically. The creator must choose **Utiliser** on the generated suggestion.
+The client never replaces a clue automatically. The creator must choose **Utiliser** on one of the generated suggestions. Suggestions containing the answer, shorter than three characters, or longer than 160 characters are discarded.
+
+The glossary manager supports local search, language filtering, inline editing, deletion, JSON export, and JSON import. Imported entries are sent through the authenticated glossary upsert endpoint, preserving creator ownership and preventing duplicates by term and language.
 
 ## Caching and Rate Limiting
 
@@ -297,6 +303,7 @@ The test file mocks `globalThis.fetch`, so tests do not call external services. 
 - Wiktionary fallback behavior.
 - Wikipedia acronym enrichment.
 - Cache reuse for equivalent terms.
+- AI clue parsing, fenced JSON handling, malformed response rejection, and answer-leak filtering.
 
 Run the broader checks with:
 
@@ -312,7 +319,7 @@ git diff --check
 - Provider responses are not authoritative editorial content. Creators should review definitions before publishing clues.
 - The AI endpoint can produce an imperfect or ambiguous clue. It is intentionally suggestion-only.
 - In-memory cache and rate limiting reset whenever the server restarts.
-- The current glossary UI saves entries, but a separate glossary management screen can be added later for bulk editing and deletion.
+- The glossary manager is embedded in the assistant and keeps its own bounded scroll area so it does not displace the clue editor.
 - API keys are not required for the current public dictionary providers. The ZAI integration follows the existing project configuration.
 - Never commit real database credentials or provider secrets to source control.
 

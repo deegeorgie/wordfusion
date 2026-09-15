@@ -47,6 +47,9 @@ import {
   Trash2,
   Save,
   X,
+  Copy,
+  Download,
+  Upload,
 } from "lucide-react";
 
 import type {
@@ -318,8 +321,10 @@ export default function PuzzleEditor({
   const [assistantError, setAssistantError] = useState<string | null>(null);
   const [assistantClue, setAssistantClue] = useState<Pick<EditorClue, "number" | "direction"> | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [clueSuggestion, setClueSuggestion] = useState<{ index: number; text: string } | null>(null);
+  const [clueSuggestions, setClueSuggestions] = useState<{ index: number; texts: string[] } | null>(null);
   const [clueSuggestionLoading, setClueSuggestionLoading] = useState<number | null>(null);
+  const [clueStyle, setClueStyle] = useState("standard");
+  const [clueDifficulty, setClueDifficulty] = useState("medium");
   const [glossarySaving, setGlossarySaving] = useState(false);
   const [glossaryOpen, setGlossaryOpen] = useState(false);
   const [glossaryEntries, setGlossaryEntries] = useState<GlossaryEntry[]>([]);
@@ -330,6 +335,7 @@ export default function PuzzleEditor({
   const autosaveReady = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const glossaryFileRef = useRef<HTMLInputElement>(null);
   const isEditing = !!editPuzzleId;
 
   // ── Load categories & packs ─────────────────────────────────────
@@ -698,10 +704,31 @@ export default function PuzzleEditor({
     }
   }, [language]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleAssistantShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== "d") return;
+      event.preventDefault();
+      setAssistantOpen(true);
+      if (assistantTerm.trim()) void lookupWord(assistantTerm);
+    };
+    window.addEventListener("keydown", handleAssistantShortcut);
+    return () => window.removeEventListener("keydown", handleAssistantShortcut);
+  }, [assistantTerm, lookupWord, open]);
+
   const insertAssistantDefinition = useCallback((definition: string) => {
     if (!assistantClue) return;
     handleClueTextChange(assistantClue.number, assistantClue.direction, definition);
   }, [assistantClue, handleClueTextChange]);
+
+  const copyAssistantText = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copié");
+    } catch {
+      toast.error("Copie impossible");
+    }
+  }, []);
 
   const suggestClue = useCallback(async (definition: string, index: number) => {
     if (!assistantResult) return;
@@ -714,17 +741,19 @@ export default function PuzzleEditor({
           term: assistantResult.term,
           definition,
           language,
+          style: clueStyle,
+          difficulty: clueDifficulty,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Indice indisponible");
-      setClueSuggestion({ index, text: data.clue });
+      setClueSuggestions({ index, texts: data.clues ?? [data.clue] });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Indice indisponible");
     } finally {
       setClueSuggestionLoading(null);
     }
-  }, [assistantResult, language]);
+  }, [assistantResult, clueDifficulty, clueStyle, language]);
 
   const saveToGlossary = useCallback(async (definition: string, example?: string) => {
     if (!assistantResult) return;
@@ -830,6 +859,47 @@ export default function PuzzleEditor({
       toast.error(error instanceof Error ? error.message : "Impossible de supprimer l'entrée");
     }
   }, [assistantResult, cancelGlossaryEdit, editingGlossaryId]);
+
+  const exportGlossary = useCallback(() => {
+    const blob = new Blob([JSON.stringify(glossaryEntries, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "wordfusion-glossary.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [glossaryEntries]);
+
+  const importGlossary = useCallback(async (file: File) => {
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      if (!Array.isArray(parsed)) throw new Error("Format invalide");
+      let imported = 0;
+      for (const item of parsed) {
+        if (!item || typeof item !== "object") continue;
+        const entry = item as Partial<GlossaryEntry>;
+        if (!entry.term || !entry.definition) continue;
+        const response = await fetch("/api/word-assistant/glossary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            term: entry.term,
+            language: entry.language === "en" ? "en" : "fr",
+            definition: entry.definition,
+            example: entry.example ?? undefined,
+            clue: entry.clue ?? undefined,
+          }),
+        });
+        if (response.ok) imported++;
+      }
+      await loadGlossary();
+      toast.success(`${imported} entrée${imported === 1 ? "" : "s"} importée${imported === 1 ? "" : "s"}`);
+    } catch {
+      toast.error("Fichier de glossaire invalide");
+    } finally {
+      if (glossaryFileRef.current) glossaryFileRef.current.value = "";
+    }
+  }, [loadGlossary]);
 
   // ── Update word text → update grid cells ─────────────────────────
   const handleWordChange = useCallback(
@@ -1387,6 +1457,28 @@ export default function PuzzleEditor({
                       Chercher
                     </Button>
                   </form>
+                  <div className="flex gap-2">
+                    <Select value={clueStyle} onValueChange={setClueStyle}>
+                      <SelectTrigger className="h-7 flex-1 text-[11px]">
+                        <SelectValue placeholder="Style d'indice" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="standard">Indice standard</SelectItem>
+                        <SelectItem value="humorous">Humoristique</SelectItem>
+                        <SelectItem value="cryptic">Cryptique</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={clueDifficulty} onValueChange={setClueDifficulty}>
+                      <SelectTrigger className="h-7 flex-1 text-[11px]">
+                        <SelectValue placeholder="Difficulté" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="easy">Facile</SelectItem>
+                        <SelectItem value="medium">Moyenne</SelectItem>
+                        <SelectItem value="hard">Difficile</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   {assistantLoading && <p className="text-xs text-muted-foreground">Recherche en cours…</p>}
                   {assistantError && <p className="text-xs text-destructive">{assistantError}</p>}
                 </>
@@ -1407,6 +1499,16 @@ export default function PuzzleEditor({
                           {definition.definition}
                         </p>
                         <div className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-6"
+                            onClick={() => void copyAssistantText(definition.definition)}
+                            title="Copier la définition"
+                          >
+                            <Copy className="size-3.5" />
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"
@@ -1445,21 +1547,32 @@ export default function PuzzleEditor({
                         )}
                         </div>
                       </div>
-                      {definition.example && <p className="mt-1 italic text-muted-foreground">“{definition.example}”</p>}
+                      {definition.example && (
+                        <div className="mt-1 flex items-start gap-1 italic text-muted-foreground">
+                          <p className="min-w-0 flex-1">“{definition.example}”</p>
+                          <Button type="button" variant="ghost" size="icon" className="size-5 not-italic" onClick={() => void copyAssistantText(definition.example ?? "")} title="Copier l'exemple">
+                            <Copy className="size-3" />
+                          </Button>
+                        </div>
+                      )}
                       {clueSuggestionLoading === index && (
                         <p className="mt-1 text-[11px] text-muted-foreground">Génération en cours…</p>
                       )}
-                      {clueSuggestion?.index === index && (
-                        <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 p-1.5">
-                          <p className="min-w-0 flex-1">{clueSuggestion.text}</p>
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-6 shrink-0 px-2 text-[11px]"
-                            onClick={() => insertAssistantDefinition(clueSuggestion.text)}
-                          >
-                            Utiliser
-                          </Button>
+                      {clueSuggestions?.index === index && (
+                        <div className="mt-2 space-y-1 rounded-md bg-muted/50 p-1.5">
+                          {clueSuggestions.texts.map((suggestion, suggestionIndex) => (
+                            <div key={`${suggestion}-${suggestionIndex}`} className="flex items-center gap-2">
+                              <p className="min-w-0 flex-1">{suggestion}</p>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-6 shrink-0 px-2 text-[11px]"
+                                onClick={() => insertAssistantDefinition(suggestion)}
+                              >
+                                Utiliser
+                              </Button>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -1507,6 +1620,26 @@ export default function PuzzleEditor({
                             <SelectItem value="en">English</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div className="flex justify-end gap-1">
+                        <input
+                          ref={glossaryFileRef}
+                          type="file"
+                          accept="application/json,.json"
+                          className="hidden"
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void importGlossary(file);
+                          }}
+                        />
+                        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => glossaryFileRef.current?.click()}>
+                          <Upload className="size-3" />
+                          Importer
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px]" disabled={glossaryEntries.length === 0} onClick={exportGlossary}>
+                          <Download className="size-3" />
+                          Exporter
+                        </Button>
                       </div>
                       <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
                         {filteredGlossaryEntries.length === 0 && (

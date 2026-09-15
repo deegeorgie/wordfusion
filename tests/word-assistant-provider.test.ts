@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { lookupWord } from "../src/lib/word-assistant/provider";
+import { parseGeneratedClues } from "../src/lib/word-assistant/clues";
 
 function jsonResponse(body: unknown, ok = true): Response {
   return { ok, json: async () => body } as Response;
@@ -101,5 +102,21 @@ describe("lookupWord", () => {
     await lookupWord(" CACHE-CHECK ", "fr");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("parseGeneratedClues", () => {
+  it("accepts up to three JSON clues and removes answer leaks", () => {
+    const clues = parseGeneratedClues(
+      '["Space agency, briefly", "NASA headquarters", "US space organization"]',
+      "NASA"
+    );
+    expect(clues).toEqual(["Space agency, briefly", "US space organization"]);
+  });
+
+  it("accepts fenced JSON and rejects malformed responses", () => {
+    expect(parseGeneratedClues("```json\n[\"A short clue\"]\n```", "answer"))
+      .toEqual(["A short clue"]);
+    expect(() => parseGeneratedClues("not json", "answer")).toThrow();
   });
 });

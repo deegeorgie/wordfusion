@@ -87,11 +87,25 @@ async function lookupAcronym(
   );
   if (!data || typeof data !== "object") return null;
 
-  const summary = data as { title?: unknown; extract?: unknown };
+  const summary = data as { title?: unknown; extract?: unknown; description?: unknown };
   const extract = normalizeText(summary.extract);
   return extract
-    ? { title: normalizeText(summary.title) || term, extract }
+    ? { title: normalizeText(summary.title) || term, extract: normalizeText(summary.description) || extract }
     : null;
+}
+
+function cleanWiktionaryExtract(value: string): string {
+  return value
+    .replace(/^=+[^=\r\n]+=+\s*$/gm, "")
+    .replace(/^\s*(Pronunciation|Etymology|References|Translations|Synonyms|Derived terms)\s*$/gim, "")
+    .replace(/^\s*\([^\r\n]+\)\s*$/gm, "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[*#:;]+\s*/, "").trim())
+    .filter((line) => line.length >= 12 && !line.startsWith("IPA(key)"))
+    .slice(0, 5)
+    .join(" ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 async function lookupWiktionaryFallback(
@@ -105,7 +119,7 @@ async function lookupWiktionaryFallback(
 
   const query = (data as { query?: { pages?: Record<string, { extract?: unknown }> } }).query;
   const page = query?.pages ? Object.values(query.pages)[0] : undefined;
-  const extract = normalizeText(page?.extract);
+  const extract = cleanWiktionaryExtract(normalizeText(page?.extract));
   return extract ? [{ definition: extract }] : [];
 }
 
