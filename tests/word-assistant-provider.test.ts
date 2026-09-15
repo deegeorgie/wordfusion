@@ -84,6 +84,23 @@ describe("lookupWord", () => {
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("dictionaryapi.dev"), expect.anything());
   });
 
+  it("resolves uppercase French crossword answers through lowercase Wiktionary pages", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("wiktionary.org") && url.includes("titles=maison")) {
+        return jsonResponse({
+          query: { pages: { "736": { extract: "\n=== Nom commun ===\n\nBâtiment servant de logis.\n" } } },
+        });
+      }
+      return jsonResponse({}, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await lookupWord("MAISON", "fr");
+
+    expect(result.definitions[0]?.definition).toContain("Bâtiment servant de logis");
+  });
+
   it("adds acronym context from Wikipedia", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
@@ -113,6 +130,23 @@ describe("lookupWord", () => {
 
     expect(result.context).toEqual({ title: "Casablanca", extract: "A city in Morocco." });
     expect(result.acronym).toBeNull();
+  });
+
+  it("honors an explicit Wiktionary source", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("wiktionary.org")) {
+        return jsonResponse({ query: { pages: { "1": { extract: "Une définition explicite." } } } });
+      }
+      return jsonResponse({}, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await lookupWord("maison", "fr", { source: "wiktionary" });
+
+    expect(result.definitions).toEqual([{ definition: "Une définition explicite." }]);
+    expect(result.source).toBe("Wiktionary");
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("wikipedia.org"), expect.anything());
   });
 
   it("does not treat an uppercase crossword answer as an acronym", async () => {

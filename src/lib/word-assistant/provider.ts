@@ -1,4 +1,5 @@
 export type WordAssistantLanguage = "fr" | "en";
+export type WordAssistantSource = "auto" | "dictionary" | "wiktionary" | "wikipedia" | "datamuse" | "glossary" | "all";
 
 export interface WordAssistantDefinition {
   partOfSpeech?: string;
@@ -18,6 +19,7 @@ export interface WordAssistantResult {
 
 export interface WordAssistantLookupOptions {
   includeAcronym?: boolean;
+  source?: WordAssistantSource;
 }
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -150,26 +152,34 @@ export async function lookupWord(
   options: WordAssistantLookupOptions = {}
 ): Promise<WordAssistantResult> {
   const normalizedTerm = term.trim();
-  const cacheKey = `${language}:${normalizedTerm.toLowerCase()}:${options.includeAcronym ? "acronym" : "standard"}`;
+  const source = options.source ?? "auto";
+  const cacheKey = `${language}:${normalizedTerm.toLowerCase()}:${source}:${options.includeAcronym ? "acronym" : "standard"}`;
   const cached = resultCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.result;
   if (cached) resultCache.delete(cacheKey);
 
   const encodedTerm = encodeURIComponent(normalizedTerm.toLowerCase());
-  const dictionaryData = language === "en"
+  const dictionaryData = language === "en" && (source === "auto" || source === "dictionary" || source === "all")
     ? await fetchJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodedTerm}`)
     : null;
   const definitions = parseDefinitions(dictionaryData);
   const fallbackDefinitions = definitions.length > 0
     ? definitions
-    : await lookupWiktionaryFallback(normalizedTerm, language);
+    : (source === "auto" || source === "wiktionary" || source === "all")
+      ? await lookupWiktionaryFallback(
+        language === "fr" ? normalizedTerm.toLocaleLowerCase("fr-FR") : normalizedTerm,
+        language
+      )
+      : [];
   const [synonyms, acronym] = await Promise.all([
-    language === "en" ? lookupSynonyms(normalizedTerm) : Promise.resolve([]),
+    (language === "en" && (source === "auto" || source === "datamuse" || source === "all"))
+      ? lookupSynonyms(normalizedTerm)
+      : Promise.resolve([]),
     options.includeAcronym
       ? lookupAcronym(normalizedTerm, language)
       : Promise.resolve(null),
   ]);
-  const context = fallbackDefinitions.length === 0 && !acronym
+  const context = (source === "wikipedia" || ((source === "auto" || source === "all") && fallbackDefinitions.length === 0 && !acronym))
     ? await lookupWikipediaContext(normalizedTerm, language)
     : null;
 
@@ -180,7 +190,15 @@ export async function lookupWord(
     synonyms,
     acronym,
     context,
-    source: definitions.length > 0
+    source: source === "dictionary"
+      ? "Dictionary API"
+      : source === "wiktionary"
+        ? "Wiktionary"
+        : source === "wikipedia"
+          ? "Wikipedia"
+          : source === "datamuse"
+            ? "Datamuse"
+            : definitions.length > 0
       ? "Dictionary API, Datamuse et Wikipedia"
       : context
         ? "Wikipedia, Wiktionary et Datamuse"

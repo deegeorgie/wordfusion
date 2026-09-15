@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth-guard";
-import { lookupWord } from "@/lib/word-assistant/provider";
+import { lookupWord, type WordAssistantSource } from "@/lib/word-assistant/provider";
 import { db } from "@/lib/db";
 
 const RATE_WINDOW_MS = 60 * 1000;
@@ -14,6 +14,10 @@ export async function GET(request: NextRequest) {
   const term = request.nextUrl.searchParams.get("term")?.trim() ?? "";
   const language = request.nextUrl.searchParams.get("language") === "en" ? "en" : "fr";
   const includeAcronym = request.nextUrl.searchParams.get("acronym") === "true";
+  const requestedSource = request.nextUrl.searchParams.get("source");
+  const source: WordAssistantSource = ["dictionary", "wiktionary", "wikipedia", "datamuse", "glossary", "all"].includes(requestedSource ?? "")
+    ? requestedSource as WordAssistantSource
+    : "auto";
 
   if (!term || term.length > 80) {
     return NextResponse.json({ error: "Terme invalide" }, { status: 400 });
@@ -33,18 +37,20 @@ export async function GET(request: NextRequest) {
   lookupRate.set(session!.user.id, recentLookups);
 
   let glossaryEntry: Awaited<ReturnType<typeof db.glossaryEntry.findUnique>> = null;
-  try {
-    glossaryEntry = await db.glossaryEntry.findUnique({
-      where: {
-        creatorId_term_language: {
-          creatorId: session!.user.id,
-          term: term.toLowerCase(),
-          language,
+  if (source === "auto" || source === "all" || source === "glossary") {
+    try {
+      glossaryEntry = await db.glossaryEntry.findUnique({
+        where: {
+          creatorId_term_language: {
+            creatorId: session!.user.id,
+            term: term.toLowerCase(),
+            language,
+          },
         },
-      },
-    });
-  } catch {
-    // Continue with public providers until the glossary migration is applied.
+      });
+    } catch {
+      // Continue with public providers until the glossary migration is applied.
+    }
   }
   if (glossaryEntry) {
     return NextResponse.json({
@@ -60,5 +66,17 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(await lookupWord(term, language, { includeAcronym }));
+  if (source === "glossary") {
+    return NextResponse.json({
+      term,
+      language,
+      definitions: [],
+      synonyms: [],
+      acronym: null,
+      context: null,
+      source: "Glossaire personnel",
+    });
+  }
+
+  return NextResponse.json(await lookupWord(term, language, { includeAcronym, source }));
 }

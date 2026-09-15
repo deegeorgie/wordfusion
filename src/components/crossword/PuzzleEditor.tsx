@@ -319,6 +319,7 @@ export default function PuzzleEditor({
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [activeClueTab, setActiveClueTab] = useState<string>("across");
   const [assistantTerm, setAssistantTerm] = useState("");
+  const [assistantSource, setAssistantSource] = useState("auto");
   const [assistantResult, setAssistantResult] = useState<WordAssistantResult | null>(null);
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantError, setAssistantError] = useState<string | null>(null);
@@ -694,9 +695,9 @@ export default function PuzzleEditor({
     setAssistantResult(null);
 
     try {
-      const acronymSearch = !clue && /^[A-Z0-9]{2,12}$/.test(normalizedTerm);
+      const acronymSearch = !clue && (assistantSource === "wikipedia" || (assistantSource === "auto" && /^[A-Z0-9]{2,12}$/.test(normalizedTerm)));
       const response = await fetch(
-        `/api/word-assistant?term=${encodeURIComponent(normalizedTerm)}&language=${language}&acronym=${acronymSearch}`
+        `/api/word-assistant?term=${encodeURIComponent(normalizedTerm)}&language=${language}&source=${assistantSource}&acronym=${acronymSearch}`
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Recherche impossible");
@@ -706,7 +707,7 @@ export default function PuzzleEditor({
     } finally {
       setAssistantLoading(false);
     }
-  }, [language]);
+  }, [assistantSource, language]);
 
   useEffect(() => {
     if (!open) return;
@@ -1482,6 +1483,20 @@ export default function PuzzleEditor({
                       Chercher
                     </Button>
                   </form>
+                  <Select value={assistantSource} onValueChange={setAssistantSource}>
+                    <SelectTrigger className="h-7 text-[11px]">
+                      <SelectValue placeholder="Source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">Automatique</SelectItem>
+                      <SelectItem value="dictionary">Dictionnaire (anglais)</SelectItem>
+                      <SelectItem value="wiktionary">Wiktionary</SelectItem>
+                      <SelectItem value="wikipedia">Wikipedia</SelectItem>
+                      <SelectItem value="datamuse">Mots liés (Datamuse)</SelectItem>
+                      <SelectItem value="glossary">Glossaire personnel</SelectItem>
+                      <SelectItem value="all">Toutes les sources</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <div className="flex gap-2">
                     <Select value={clueStyle} onValueChange={setClueStyle}>
                       <SelectTrigger className="h-7 flex-1 text-[11px]">
