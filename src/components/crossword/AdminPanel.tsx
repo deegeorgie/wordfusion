@@ -1255,7 +1255,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
 
   const openEditor = (puzzleId?: string) => {
     const query = puzzleId ? `?puzzleId=${encodeURIComponent(puzzleId)}` : '';
-    window.open(`/admin/puzzles/editor${query}`, '_blank', 'noopener,noreferrer');
+    window.open(`/admin/puzzles/editor${query}`, '_blank');
   };
 
   // Filtered puzzles
