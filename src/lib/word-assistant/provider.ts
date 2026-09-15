@@ -26,7 +26,10 @@ function normalizeText(value: unknown): string {
 async function fetchJson(url: string): Promise<unknown | null> {
   try {
     const response = await fetch(url, {
-      headers: { Accept: "application/json" },
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "WordFusion/1.0 (word assistant)",
+      },
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) return null;
@@ -96,12 +99,13 @@ async function lookupWiktionaryFallback(
   language: WordAssistantLanguage
 ): Promise<WordAssistantDefinition[]> {
   const data = await fetchJson(
-    `https://${language}.wiktionary.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`
+    `https://${language}.wiktionary.org/w/api.php?action=query&prop=extracts&explaintext=1&format=json&redirects=1&titles=${encodeURIComponent(term)}`
   );
   if (!data || typeof data !== "object") return [];
 
-  const summary = data as { extract?: unknown };
-  const extract = normalizeText(summary.extract);
+  const query = (data as { query?: { pages?: Record<string, { extract?: unknown }> } }).query;
+  const page = query?.pages ? Object.values(query.pages)[0] : undefined;
+  const extract = normalizeText(page?.extract);
   return extract ? [{ definition: extract }] : [];
 }
 

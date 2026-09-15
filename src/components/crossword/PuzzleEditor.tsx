@@ -1467,8 +1467,11 @@ export default function PuzzleEditor({
                   {assistantResult.synonyms.length > 0 && (
                     <p className="text-muted-foreground">Liés : {assistantResult.synonyms.join(", ")}</p>
                   )}
-                  {assistantResult.definitions.length === 0 && !assistantResult.acronym && (
+                  {assistantResult.definitions.length === 0 && !assistantResult.acronym && assistantResult.synonyms.length === 0 && (
                     <p className="text-muted-foreground">Aucun résultat trouvé.</p>
+                  )}
+                  {assistantResult.definitions.length === 0 && (assistantResult.acronym || assistantResult.synonyms.length > 0) && (
+                    <p className="text-muted-foreground">Définition indisponible pour ce terme.</p>
                   )}
                   <p className="text-[10px] text-muted-foreground">Source : {assistantResult.source}</p>
                 </div>

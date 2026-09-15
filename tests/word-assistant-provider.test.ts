@@ -46,7 +46,7 @@ describe("lookupWord", () => {
       const url = String(input);
       if (url.includes("dictionaryapi.dev")) return jsonResponse({}, false);
       if (url.includes("wiktionary.org")) {
-        return jsonResponse({ extract: "Une definition de secours." });
+        return jsonResponse({ query: { pages: { "123": { extract: "Une definition de secours." } } } });
       }
       return jsonResponse({}, false);
     });
@@ -71,6 +71,20 @@ describe("lookupWord", () => {
     const result = await lookupWord("NASA", "en");
 
     expect(result.acronym).toEqual({ title: "NASA", extract: "US space agency." });
+  });
+
+  it("keeps related words when no definition provider has a result", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("datamuse.com")) return jsonResponse([{ word: "blur" }]);
+      return jsonResponse({}, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await lookupWord("smudge", "en");
+
+    expect(result.definitions).toEqual([]);
+    expect(result.synonyms).toEqual(["blur"]);
   });
 
   it("reuses a cached result for the same language and term", async () => {
