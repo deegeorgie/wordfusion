@@ -80,7 +80,6 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import PuzzleEditor from '@/components/crossword/PuzzleEditor';
 import UserManager from '@/components/crossword/UserManager';
 import { cn } from '@/lib/utils';
 
@@ -1071,10 +1070,6 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
   const [deleteTarget, setDeleteTarget] = useState<PuzzleSummary | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Editor state
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editPuzzleId, setEditPuzzleId] = useState<string | null>(null);
-
   // Category filter for puzzle table
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [packFilter, setPackFilter] = useState<string>('all');
@@ -1102,6 +1097,15 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
       setLoading(false);
     }
   }, [dataEndpoint]);
+
+  useEffect(() => {
+    const handleEditorMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'wordfusion:puzzle-saved') return;
+      void fetchData();
+    };
+    window.addEventListener('message', handleEditorMessage);
+    return () => window.removeEventListener('message', handleEditorMessage);
+  }, [fetchData]);
 
   useEffect(() => {
     if (open) {
@@ -1250,12 +1254,8 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
   };
 
   const openEditor = (puzzleId?: string) => {
-    setEditPuzzleId(puzzleId ?? null);
-    setEditorOpen(true);
-  };
-
-  const handleEditorSaved = () => {
-    fetchData();
+    const query = puzzleId ? `?puzzleId=${encodeURIComponent(puzzleId)}` : '';
+    window.open(`/admin/puzzles/editor${query}`, '_blank', 'noopener,noreferrer');
   };
 
   // Filtered puzzles
@@ -1763,14 +1763,6 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
           </DialogContent>
         </Dialog>
       )}
-
-      {/* ── Puzzle Editor Dialog ──────────────────────────────── */}
-      <PuzzleEditor
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        editPuzzleId={editPuzzleId}
-        onSaved={handleEditorSaved}
-      />
 
       {/* ── Delete Confirmation Dialog ────────────────────────── */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
