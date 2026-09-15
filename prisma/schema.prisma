@@ -33,6 +33,7 @@ model User {
   updatedAt        DateTime @updatedAt
 
   puzzles          CrosswordPuzzle[]
+  glossaryEntries  GlossaryEntry[]
   wallet           UserWallet?
   coinTransactions CoinTransaction[]
   puzzleUnlocks    PuzzleUnlock[]
@@ -62,6 +63,23 @@ model Category {
   updatedAt DateTime @updatedAt
 
   puzzles   CrosswordPuzzle[]
+}
+
+model GlossaryEntry {
+  id         String   @id @default(cuid())
+  creatorId  String
+  term       String
+  language   String   @default("fr")
+  definition String
+  example    String?
+  clue       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  creator User @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorId, term, language])
+  @@index([creatorId, language])
 }
 
 model CrosswordPuzzle {

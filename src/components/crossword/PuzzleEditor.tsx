@@ -27,7 +27,23 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
-import { Languages, FolderOpen, Package, Coins, Grid2X2, Grid3X3, LayoutGrid } from "lucide-react";
+import {
+  Languages,
+  FolderOpen,
+  Package,
+  Coins,
+  Grid2X2,
+  Grid3X3,
+  LayoutGrid,
+  Search,
+  BookOpen,
+  Lightbulb,
+  Sparkles,
+  Bookmark,
+  BookmarkCheck,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 
 import type {
   CrosswordCell,
@@ -66,6 +82,16 @@ interface PackOption {
   name: string;
   icon: string;
   language: string;
+}
+
+interface WordAssistantResult {
+  term: string;
+  definitions: { partOfSpeech?: string; definition: string; example?: string }[];
+  synonyms: string[];
+  acronym: { title: string; extract: string } | null;
+  source: string;
+  glossaryEntryId?: string;
+  savedClue?: string | null;
 }
 
 const noneCategory = "__none__";
@@ -273,6 +299,15 @@ export default function PuzzleEditor({
   const [saving, setSaving] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [activeClueTab, setActiveClueTab] = useState<string>("across");
+  const [assistantTerm, setAssistantTerm] = useState("");
+  const [assistantResult, setAssistantResult] = useState<WordAssistantResult | null>(null);
+  const [assistantLoading, setAssistantLoading] = useState(false);
+  const [assistantError, setAssistantError] = useState<string | null>(null);
+  const [assistantClue, setAssistantClue] = useState<Pick<EditorClue, "number" | "direction"> | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [clueSuggestion, setClueSuggestion] = useState<{ index: number; text: string } | null>(null);
+  const [clueSuggestionLoading, setClueSuggestionLoading] = useState<number | null>(null);
+  const [glossarySaving, setGlossarySaving] = useState(false);
   const autosaveReady = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -604,6 +639,91 @@ export default function PuzzleEditor({
     []
   );
 
+  const lookupWord = useCallback(async (term: string, clue?: EditorClue) => {
+    const normalizedTerm = term.trim();
+    if (!normalizedTerm) return;
+
+    setAssistantTerm(normalizedTerm);
+    setAssistantClue(clue ? { number: clue.number, direction: clue.direction } : null);
+    setAssistantOpen(true);
+    setAssistantLoading(true);
+    setAssistantError(null);
+    setAssistantResult(null);
+
+    try {
+      const response = await fetch(
+        `/api/word-assistant?term=${encodeURIComponent(normalizedTerm)}&language=${language}`
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Recherche impossible");
+      setAssistantResult(data);
+    } catch (error) {
+      setAssistantError(error instanceof Error ? error.message : "Recherche impossible");
+    } finally {
+      setAssistantLoading(false);
+    }
+  }, [language]);
+
+  const insertAssistantDefinition = useCallback((definition: string) => {
+    if (!assistantClue) return;
+    handleClueTextChange(assistantClue.number, assistantClue.direction, definition);
+  }, [assistantClue, handleClueTextChange]);
+
+  const suggestClue = useCallback(async (definition: string, index: number) => {
+    if (!assistantResult) return;
+    setClueSuggestionLoading(index);
+    try {
+      const response = await fetch("/api/word-assistant/clue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          term: assistantResult.term,
+          definition,
+          language,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Indice indisponible");
+      setClueSuggestion({ index, text: data.clue });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Indice indisponible");
+    } finally {
+      setClueSuggestionLoading(null);
+    }
+  }, [assistantResult, language]);
+
+  const saveToGlossary = useCallback(async (definition: string, example?: string) => {
+    if (!assistantResult) return;
+    setGlossarySaving(true);
+    try {
+      const response = await fetch("/api/word-assistant/glossary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          term: assistantResult.term,
+          language,
+          definition,
+          example,
+          clue: assistantClue ? clues.find(
+            (clue) => clue.number === assistantClue.number && clue.direction === assistantClue.direction
+          )?.text : undefined,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Glossaire indisponible");
+      setAssistantResult((previous) => previous ? {
+        ...previous,
+        glossaryEntryId: data.entry.id,
+        savedClue: data.entry.clue,
+      } : previous);
+      toast.success("Ajouté au glossaire personnel");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Glossaire indisponible");
+    } finally {
+      setGlossarySaving(false);
+    }
+  }, [assistantClue, assistantResult, clues, language]);
+
   // ── Update word text → update grid cells ─────────────────────────
   const handleWordChange = useCallback(
     (
@@ -813,6 +933,10 @@ export default function PuzzleEditor({
           <div
             key={`${clue.number}-${clue.direction}`}
             className="space-y-1.5 p-3 rounded-lg border bg-card"
+            onClick={() => {
+              setAssistantTerm(clue.word);
+              setAssistantClue({ number: clue.number, direction: clue.direction });
+            }}
           >
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="shrink-0 text-xs">
@@ -841,7 +965,21 @@ export default function PuzzleEditor({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Indice</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs text-muted-foreground">Indice</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-1.5 text-[11px]"
+                  disabled={!clue.word.trim()}
+                  onClick={() => void lookupWord(clue.word, clue)}
+                  title="Chercher la définition"
+                >
+                  <Search className="size-3" />
+                  Chercher
+                </Button>
+              </div>
               <Textarea
                 value={clue.text}
                 onChange={(e) =>
@@ -1096,6 +1234,139 @@ export default function PuzzleEditor({
 
           {/* Clue editor sidebar (right on desktop, below on mobile) */}
           <div className="lg:w-[360px] xl:w-[400px] border-t lg:border-t-0 lg:border-l overflow-hidden flex flex-col min-h-0">
+            <div className={`shrink-0 border-b bg-muted/20 ${assistantOpen ? "p-3 space-y-2" : "px-3 py-2"}`}>
+              <div className="flex items-center gap-2">
+                <BookOpen className="size-4 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Assistant de mots</p>
+                  {assistantOpen && (
+                    <p className="text-[11px] text-muted-foreground">Définitions, synonymes et acronymes</p>
+                  )}
+                </div>
+                {assistantResult && !assistantOpen && (
+                  <span className="truncate text-[11px] text-muted-foreground">{assistantResult.term}</span>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0"
+                  onClick={() => setAssistantOpen((openState) => !openState)}
+                  aria-expanded={assistantOpen}
+                  aria-label={assistantOpen ? "Réduire l'assistant" : "Ouvrir l'assistant"}
+                  title={assistantOpen ? "Réduire l'assistant" : "Ouvrir l'assistant"}
+                >
+                  {assistantOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </Button>
+              </div>
+              {assistantOpen && (
+                <>
+                  <form
+                    className="flex gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void lookupWord(assistantTerm);
+                    }}
+                  >
+                    <Input
+                      value={assistantTerm}
+                      onChange={(event) => setAssistantTerm(event.target.value)}
+                      placeholder={language === "fr" ? "Ex. maison ou NASA" : "E.g. house or NASA"}
+                      className="h-8 text-sm"
+                      aria-label="Mot à rechercher"
+                    />
+                    <Button type="submit" size="sm" className="h-8 px-2.5" disabled={assistantLoading || !assistantTerm.trim()}>
+                      <Search className="size-3.5" />
+                      Chercher
+                    </Button>
+                  </form>
+                  {assistantLoading && <p className="text-xs text-muted-foreground">Recherche en cours…</p>}
+                  {assistantError && <p className="text-xs text-destructive">{assistantError}</p>}
+                </>
+              )}
+              {assistantOpen && assistantResult && !assistantLoading && (
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 text-xs">
+                  {assistantResult.acronym && (
+                    <div className="rounded-md border bg-background p-2">
+                      <p className="font-medium">{assistantResult.acronym.title}</p>
+                      <p className="mt-1 text-muted-foreground">{assistantResult.acronym.extract}</p>
+                    </div>
+                  )}
+                  {assistantResult.definitions.map((definition, index) => (
+                    <div key={`${definition.definition}-${index}`} className="rounded-md border bg-background p-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p>
+                          {definition.partOfSpeech && <span className="font-medium text-primary">{definition.partOfSpeech}: </span>}
+                          {definition.definition}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-6"
+                            disabled={glossarySaving}
+                            onClick={() => void saveToGlossary(definition.definition, definition.example)}
+                            title={assistantResult.glossaryEntryId ? "Déjà enregistré" : "Enregistrer dans le glossaire"}
+                          >
+                            {assistantResult.glossaryEntryId ? <BookmarkCheck className="size-3.5 text-primary" /> : <Bookmark className="size-3.5" />}
+                          </Button>
+                        {assistantClue && (
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-6"
+                              onClick={() => insertAssistantDefinition(definition.definition)}
+                              title="Utiliser comme indice"
+                            >
+                              <Lightbulb className="size-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-6"
+                              disabled={clueSuggestionLoading !== null}
+                              onClick={() => void suggestClue(definition.definition, index)}
+                              title="Suggérer un indice"
+                            >
+                              <Sparkles className="size-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                        </div>
+                      </div>
+                      {definition.example && <p className="mt-1 italic text-muted-foreground">“{definition.example}”</p>}
+                      {clueSuggestionLoading === index && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">Génération en cours…</p>
+                      )}
+                      {clueSuggestion?.index === index && (
+                        <div className="mt-2 flex items-center gap-2 rounded-md bg-muted/50 p-1.5">
+                          <p className="min-w-0 flex-1">{clueSuggestion.text}</p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-6 shrink-0 px-2 text-[11px]"
+                            onClick={() => insertAssistantDefinition(clueSuggestion.text)}
+                          >
+                            Utiliser
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {assistantResult.synonyms.length > 0 && (
+                    <p className="text-muted-foreground">Liés : {assistantResult.synonyms.join(", ")}</p>
+                  )}
+                  {assistantResult.definitions.length === 0 && !assistantResult.acronym && (
+                    <p className="text-muted-foreground">Aucun résultat trouvé.</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">Source : {assistantResult.source}</p>
+                </div>
+              )}
+            </div>
             <Tabs
               value={activeClueTab}
               onValueChange={setActiveClueTab}
