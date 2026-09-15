@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
 
   const term = request.nextUrl.searchParams.get("term")?.trim() ?? "";
   const language = request.nextUrl.searchParams.get("language") === "en" ? "en" : "fr";
+  const includeAcronym = request.nextUrl.searchParams.get("acronym") === "true";
 
   if (!term || term.length > 80) {
     return NextResponse.json({ error: "Terme invalide" }, { status: 400 });
@@ -58,5 +59,5 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json(await lookupWord(term, language));
+  return NextResponse.json(await lookupWord(term, language, { includeAcronym }));
 }

@@ -693,8 +693,9 @@ export default function PuzzleEditor({
     setAssistantResult(null);
 
     try {
+      const acronymSearch = !clue && /^[A-Z0-9]{2,12}$/.test(normalizedTerm);
       const response = await fetch(
-        `/api/word-assistant?term=${encodeURIComponent(normalizedTerm)}&language=${language}`
+        `/api/word-assistant?term=${encodeURIComponent(normalizedTerm)}&language=${language}&acronym=${acronymSearch}`
       );
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Recherche impossible");

@@ -15,6 +15,10 @@ export interface WordAssistantResult {
   source: string;
 }
 
+export interface WordAssistantLookupOptions {
+  includeAcronym?: boolean;
+}
+
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_LIMIT = 100;
 const resultCache = new Map<string, { expiresAt: number; result: WordAssistantResult }>();
@@ -97,11 +101,11 @@ async function lookupAcronym(
 function cleanWiktionaryExtract(value: string): string {
   return value
     .replace(/^=+[^=\r\n]+=+\s*$/gm, "")
-    .replace(/^\s*(Pronunciation|Etymology|References|Translations|Synonyms|Derived terms)\s*$/gim, "")
+    .replace(/^\s*(Pronunciation|Etymology|Étymologie|Prononciation|References|Références|Translations|Traductions|Synonyms|Synonymes|Derived terms|Dérivés)\s*$/gim, "")
     .replace(/^\s*\([^\r\n]+\)\s*$/gm, "")
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*[*#:;]+\s*/, "").trim())
-    .filter((line) => line.length >= 12 && !line.startsWith("IPA(key)"))
+    .filter((line) => line.length >= 12 && !line.startsWith("IPA(key)") && !/^\(?[A-Z][A-Za-z -]+\)?\s*:\s*\/.*\/$/.test(line))
     .slice(0, 5)
     .join(" ")
     .replace(/\s{2,}/g, " ")
@@ -125,7 +129,8 @@ async function lookupWiktionaryFallback(
 
 export async function lookupWord(
   term: string,
-  language: WordAssistantLanguage
+  language: WordAssistantLanguage,
+  options: WordAssistantLookupOptions = {}
 ): Promise<WordAssistantResult> {
   const normalizedTerm = term.trim();
   const cacheKey = `${language}:${normalizedTerm.toLowerCase()}`;
@@ -134,16 +139,18 @@ export async function lookupWord(
   if (cached) resultCache.delete(cacheKey);
 
   const encodedTerm = encodeURIComponent(normalizedTerm.toLowerCase());
-  const dictionaryData = await fetchJson(
-    `https://api.dictionaryapi.dev/api/v2/entries/${language}/${encodedTerm}`
-  );
+  const dictionaryData = language === "en"
+    ? await fetchJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodedTerm}`)
+    : null;
   const definitions = parseDefinitions(dictionaryData);
   const fallbackDefinitions = definitions.length > 0
     ? definitions
     : await lookupWiktionaryFallback(normalizedTerm, language);
   const [synonyms, acronym] = await Promise.all([
     language === "en" ? lookupSynonyms(normalizedTerm) : Promise.resolve([]),
-    lookupAcronym(normalizedTerm, language),
+    options.includeAcronym
+      ? lookupAcronym(normalizedTerm, language)
+      : Promise.resolve(null),
   ]);
 
   const result = {

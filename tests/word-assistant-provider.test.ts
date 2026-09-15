@@ -59,6 +59,31 @@ describe("lookupWord", () => {
     expect(result.source).toContain("Wiktionary");
   });
 
+  it("uses Wiktionary directly for French definitions", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("wiktionary.org")) {
+        return jsonResponse({
+          query: {
+            pages: {
+              "736": {
+                extract: "\n== Français ==\n\n=== Nom commun ===\n\nBâtiment servant de logis, d'habitation, de demeure.\n",
+              },
+            },
+          },
+        });
+      }
+      return jsonResponse({}, false);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await lookupWord("maison", "fr");
+
+    expect(result.definitions[0]?.definition).toContain("Bâtiment servant de logis");
+    expect(result.source).toContain("Wiktionary");
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("dictionaryapi.dev"), expect.anything());
+  });
+
   it("adds acronym context from Wikipedia", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
@@ -69,9 +94,29 @@ describe("lookupWord", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await lookupWord("NASA", "en");
+    const result = await lookupWord("NASA", "en", { includeAcronym: true });
 
     expect(result.acronym).toEqual({ title: "NASA", extract: "US space agency." });
+  });
+
+  it("does not treat an uppercase crossword answer as an acronym", async () => {
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("dictionaryapi.dev")) {
+        return jsonResponse([{ meanings: [{ definitions: [{ definition: "A building for living in." }] }] }]);
+      }
+      if (url.includes("wikipedia.org")) {
+        return jsonResponse({ title: "HOUSE", extract: "An unrelated encyclopedia result." });
+      }
+      return jsonResponse([], true);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await lookupWord("HOUSE", "en");
+
+    expect(result.definitions).toHaveLength(1);
+    expect(result.acronym).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("wikipedia.org"), expect.anything());
   });
 
   it("keeps related words when no definition provider has a result", async () => {
