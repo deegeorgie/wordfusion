@@ -1180,14 +1180,28 @@ export default function PuzzleEditor({
     <>
         <DialogHeader className={`px-4 pt-4 pb-2 shrink-0 ${pageMode ? "flex-row items-start justify-between gap-4 border-b px-5 py-4" : ""}`}>
           <div>
-          <DialogTitle>
-            {isEditing ? "Modifier le puzzle" : "Nouveau puzzle"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? "Modifiez la grille, les mots et les indices du puzzle."
-              : "Le numéro du puzzle sera attribué automatiquement à la sauvegarde."}
-          </DialogDescription>
+          {pageMode ? (
+            <h1 className="text-lg font-semibold leading-none">
+              {isEditing ? "Modifier le puzzle" : "Nouveau puzzle"}
+            </h1>
+          ) : (
+            <DialogTitle>
+              {isEditing ? "Modifier le puzzle" : "Nouveau puzzle"}
+            </DialogTitle>
+          )}
+          {pageMode ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {isEditing
+                ? "Modifiez la grille, les mots et les indices du puzzle."
+                : "Le numéro du puzzle sera attribué automatiquement à la sauvegarde."}
+            </p>
+          ) : (
+            <DialogDescription>
+              {isEditing
+                ? "Modifiez la grille, les mots et les indices du puzzle."
+                : "Le numéro du puzzle sera attribué automatiquement à la sauvegarde."}
+            </DialogDescription>
+          )}
           </div>
           {pageMode && (
             <Button
