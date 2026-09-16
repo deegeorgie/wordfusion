@@ -5,6 +5,8 @@ export interface WordAssistantDefinition {
   partOfSpeech?: string;
   definition: string;
   example?: string;
+  phonetic?: string;
+  audio?: string;
 }
 
 export interface WordAssistantResult {
@@ -160,9 +162,9 @@ export async function lookupWord(
 
   const encodedTerm = encodeURIComponent(normalizedTerm.toLowerCase());
   const dictionaryData = language === "en" && (source === "auto" || source === "dictionary" || source === "all")
-    ? await fetchJson(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodedTerm}`)
+    ? await fetchJson(`https://dictionary-api-7hmy.onrender.com/define?word=${encodedTerm}`)
     : null;
-  const definitions = parseDefinitions(dictionaryData);
+  const definitions = parseHarikaDefinition(dictionaryData);
   const fallbackDefinitions = definitions.length > 0
     ? definitions
     : (source === "auto" || source === "wiktionary" || source === "all")
@@ -191,7 +193,7 @@ export async function lookupWord(
     acronym,
     context,
     source: source === "dictionary"
-      ? "Dictionary API"
+      ? "Harika English Dictionary"
       : source === "wiktionary"
         ? "Wiktionary"
         : source === "wikipedia"
@@ -199,7 +201,7 @@ export async function lookupWord(
           : source === "datamuse"
             ? "Datamuse"
             : definitions.length > 0
-      ? "Dictionary API, Datamuse et Wikipedia"
+      ? "Harika English Dictionary, Datamuse et Wikipedia"
       : context
         ? "Wikipedia, Wiktionary et Datamuse"
         : "Wiktionary, Datamuse et Wikipedia",
@@ -210,4 +212,27 @@ export async function lookupWord(
     if (oldestKey) resultCache.delete(oldestKey);
   }
   return result;
+}
+
+function parseHarikaDefinition(data: unknown): WordAssistantDefinition[] {
+  if (!data || typeof data !== "object") return [];
+  const entry = data as {
+    partOfSpeech?: unknown;
+    definition?: unknown;
+    example?: unknown;
+    phonetics?: unknown;
+  };
+  const definition = normalizeText(entry.definition);
+  if (!definition) return [];
+
+  const phoneticEntry = Array.isArray(entry.phonetics)
+    ? entry.phonetics.find((item) => item && typeof item === "object") as { text?: unknown; audio?: unknown } | undefined
+    : undefined;
+  return [{
+    partOfSpeech: normalizeText(entry.partOfSpeech) || undefined,
+    definition,
+    example: normalizeText(entry.example) || undefined,
+    phonetic: normalizeText(phoneticEntry?.text) || undefined,
+    audio: normalizeText(phoneticEntry?.audio) || undefined,
+  }];
 }

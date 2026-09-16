@@ -15,13 +15,14 @@ describe("lookupWord", () => {
   it("normalizes dictionary definitions and English related words", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
-      if (url.includes("dictionaryapi.dev")) {
-        return jsonResponse([{
-          meanings: [{
-            partOfSpeech: "noun",
-            definitions: [{ definition: "A red fruit", example: "I ate an apple." }],
-          }],
-        }]);
+      if (url.includes("dictionary-api-7hmy.onrender.com")) {
+        return jsonResponse({
+          word: "apple",
+          partOfSpeech: "noun",
+          definition: "A red fruit",
+          example: "I ate an apple.",
+          phonetics: [{ text: "/ˈæp.əl/", audio: "https://example.com/apple.mp3" }],
+        });
       }
       if (url.includes("datamuse.com")) {
         return jsonResponse([{ word: "orchard fruit" }, { word: "fruit" }]);
@@ -37,15 +38,18 @@ describe("lookupWord", () => {
       partOfSpeech: "noun",
       definition: "A red fruit",
       example: "I ate an apple.",
+      phonetic: "/ˈæp.əl/",
+      audio: "https://example.com/apple.mp3",
     }]);
     expect(result.synonyms).toEqual(["orchard fruit", "fruit"]);
-    expect(result.source).toContain("Dictionary API");
+    expect(result.source).toContain("Harika English Dictionary");
+    expect(result.definitions[0]?.phonetic).toBe("/ˈæp.əl/");
   });
 
   it("uses the localized Wiktionary summary when the dictionary has no result", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
-      if (url.includes("dictionaryapi.dev")) return jsonResponse({}, false);
+      if (url.includes("dictionary-api-7hmy.onrender.com")) return jsonResponse({}, false);
       if (url.includes("wiktionary.org")) {
         return jsonResponse({ query: { pages: { "123": { extract: "Une definition de secours." } } } });
       }
@@ -81,7 +85,7 @@ describe("lookupWord", () => {
 
     expect(result.definitions[0]?.definition).toContain("Bâtiment servant de logis");
     expect(result.source).toContain("Wiktionary");
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("dictionaryapi.dev"), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining("dictionary-api-7hmy.onrender.com"), expect.anything());
   });
 
   it("resolves uppercase French crossword answers through lowercase Wiktionary pages", async () => {
@@ -152,8 +156,8 @@ describe("lookupWord", () => {
   it("does not treat an uppercase crossword answer as an acronym", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
-      if (url.includes("dictionaryapi.dev")) {
-        return jsonResponse([{ meanings: [{ definitions: [{ definition: "A building for living in." }] }] }]);
+      if (url.includes("dictionary-api-7hmy.onrender.com")) {
+        return jsonResponse({ definition: "A building for living in." });
       }
       if (url.includes("wikipedia.org")) {
         return jsonResponse({ title: "HOUSE", extract: "An unrelated encyclopedia result." });
@@ -186,7 +190,7 @@ describe("lookupWord", () => {
   it("reuses a cached result for the same language and term", async () => {
     const fetchMock = vi.fn(async (input: string | URL) => {
       const url = String(input);
-      if (url.includes("dictionaryapi.dev")) {
+      if (url.includes("dictionary-api-7hmy.onrender.com")) {
         return jsonResponse([{ meanings: [{ definitions: [{ definition: "Cached result" }] }] }]);
       }
       return jsonResponse([], true);

@@ -94,7 +94,7 @@ interface PackOption {
 
 interface WordAssistantResult {
   term: string;
-  definitions: { partOfSpeech?: string; definition: string; example?: string }[];
+  definitions: { partOfSpeech?: string; definition: string; example?: string; phonetic?: string; audio?: string }[];
   synonyms: string[];
   acronym: { title: string; extract: string } | null;
   context: { title: string; extract: string } | null;
@@ -1600,6 +1600,9 @@ export default function PuzzleEditor({
                             <Copy className="size-3" />
                           </Button>
                         </div>
+                      )}
+                      {definition.phonetic && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">Prononciation : {definition.phonetic}</p>
                       )}
                       {clueSuggestionLoading === index && (
                         <p className="mt-1 text-[11px] text-muted-foreground">Génération en cours…</p>
