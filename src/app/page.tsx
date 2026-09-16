@@ -149,26 +149,38 @@ function formatTimer(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-function playCompletionSound(): void {
+let sharedAudioContext: AudioContext | null = null;
+
+function playPuzzleSound(kind: 'letter' | 'correct' | 'incorrect' | 'magic' | 'completion', letter?: string): void {
   if (typeof window === 'undefined' || !window.AudioContext) return;
 
-  const context = new window.AudioContext();
-  const gain = context.createGain();
-  gain.gain.setValueAtTime(0.0001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.9);
-  gain.connect(context.destination);
+  sharedAudioContext ??= new window.AudioContext();
+  const context = sharedAudioContext;
+  if (context.state === 'suspended') void context.resume();
 
-  [523.25, 659.25, 783.99].forEach((frequency, index) => {
+  const sounds = {
+    letter: { frequencies: [letter ? 220 + ((letter.charCodeAt(0) - 65) % 12) * 18 : 330], duration: 0.09, type: 'sine' as OscillatorType, volume: 0.06, gap: 0 },
+    correct: { frequencies: [523.25, 659.25], duration: 0.2, type: 'sine' as OscillatorType, volume: 0.12, gap: 0.08 },
+    incorrect: { frequencies: [185, 146.83], duration: 0.16, type: 'triangle' as OscillatorType, volume: 0.1, gap: 0.05 },
+    magic: { frequencies: [392, 523.25, 659.25, 783.99], duration: 0.24, type: 'sine' as OscillatorType, volume: 0.12, gap: 0.08 },
+    completion: { frequencies: [523.25, 659.25, 783.99], duration: 0.32, type: 'sine' as OscillatorType, volume: 0.16, gap: 0.12 },
+  }[kind];
+  const start = context.currentTime;
+
+  sounds.frequencies.forEach((frequency, index) => {
     const oscillator = context.createOscillator();
-    oscillator.type = 'sine';
+    const gain = context.createGain();
+    const noteStart = start + index * sounds.gap;
+    oscillator.type = sounds.type;
     oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.exponentialRampToValueAtTime(sounds.volume, noteStart + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + sounds.duration);
     oscillator.connect(gain);
-    oscillator.start(context.currentTime + index * 0.12);
-    oscillator.stop(context.currentTime + 0.32 + index * 0.12);
+    gain.connect(context.destination);
+    oscillator.start(noteStart);
+    oscillator.stop(noteStart + sounds.duration);
   });
-
-  window.setTimeout(() => void context.close(), 1100);
 }
 
 function difficultyLabel(d: number): string {
@@ -713,6 +725,7 @@ export default function Home() {
         next[row][col] = value || null;
         return next;
       });
+      if (soundEnabled && value) playPuzzleSound('letter', value);
       if (!isTimerRunning && value) setIsTimerRunning(true);
       // Only clear manual check highlights on new input (auto-check handles its own)
       if (!autoCheck) {
@@ -720,7 +733,7 @@ export default function Home() {
         setIncorrectCellsManual(new Set());
       }
     },
-    [isCompleted, isTimerRunning, autoCheck, revealedCells],
+    [isCompleted, isTimerRunning, autoCheck, revealedCells, soundEnabled],
   );
 
   const handleSelectCell = useCallback(
@@ -791,6 +804,7 @@ export default function Home() {
           return next;
         });
         toast.success(`Mot magique trouvé ! ${magicCells.length} lettre${magicCells.length > 1 ? 's' : ''} révélée${magicCells.length > 1 ? 's' : ''}`);
+        if (soundEnabled) playPuzzleSound('magic');
       }
 
       const correct = new Set<string>();
@@ -816,13 +830,15 @@ export default function Home() {
       if (data.completionPercent === 100 && data.correct) {
         setIsCompleted(true);
         setIsTimerRunning(false);
-        if (soundEnabled) playCompletionSound();
+        if (soundEnabled) playPuzzleSound('completion');
         setLastCoinReward(data.coinReward ?? 0);
         if (data.coinReward) setCoinBalance((balance) => balance + data.coinReward);
         toast.success('Bravo ! Puzzle complété !', { duration: 6000 });
       } else if (!options?.silent && incorrect.size === 0) {
+        if (soundEnabled) playPuzzleSound('correct');
         toast.success('Tout est correct pour le moment !');
       } else if (!options?.silent) {
+        if (soundEnabled) playPuzzleSound('incorrect');
         toast.error(`${incorrect.size} lettre${incorrect.size > 1 ? 's' : ''} incorrecte${incorrect.size > 1 ? 's' : ''}`);
       }
     } catch {
