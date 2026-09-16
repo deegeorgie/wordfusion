@@ -747,7 +747,7 @@ export default function Home() {
     [selectedPuzzle],
   );
 
-  const handleCheck = useCallback(async () => {
+  const handleCheck = useCallback(async (options?: { silent?: boolean }) => {
     if (!puzzleId || !selectedPuzzle || isCompleted || isChecking) return;
     setIsChecking(true);
     try {
@@ -811,9 +811,9 @@ export default function Home() {
         setLastCoinReward(data.coinReward ?? 0);
         if (data.coinReward) setCoinBalance((balance) => balance + data.coinReward);
         toast.success('Bravo ! Puzzle complété !', { duration: 6000 });
-      } else if (incorrect.size === 0) {
+      } else if (!options?.silent && incorrect.size === 0) {
         toast.success('Tout est correct pour le moment !');
-      } else {
+      } else if (!options?.silent) {
         toast.error(`${incorrect.size} lettre${incorrect.size > 1 ? 's' : ''} incorrecte${incorrect.size > 1 ? 's' : ''}`);
       }
     } catch {
@@ -821,7 +821,23 @@ export default function Home() {
     } finally {
       setIsChecking(false);
     }
-  }, [puzzleId, selectedPuzzle, userInputs, isCompleted, isChecking, completedClues, soundEnabled]);
+  }, [puzzleId, selectedPuzzle, userInputs, timer, isCompleted, isChecking, completedClues, soundEnabled]);
+
+  // Check partial progress shortly after input so magic words trigger
+  // without requiring the player to complete or manually check the grid.
+  useEffect(() => {
+    if (!puzzleId || !selectedPuzzle || isCompleted || isChecking) return;
+    if (!userInputs.some((row) => row.some(Boolean))) return;
+    const isFilled = selectedPuzzle.grid.every((row, rowIndex) =>
+      row.every((cell, colIndex) => cell.isBlack || Boolean(userInputs[rowIndex]?.[colIndex])),
+    );
+    if (isFilled) return;
+
+    const timeout = window.setTimeout(() => {
+      void handleCheck({ silent: true });
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [puzzleId, selectedPuzzle, userInputs, isCompleted, isChecking, handleCheck]);
 
   // Automatically verify once every white cell has an answer.
   useEffect(() => {
@@ -1651,7 +1667,7 @@ export default function Home() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleCheck}
+                      onClick={() => void handleCheck()}
                       disabled={isChecking || isCompleted}
                     >
                       <CheckCircle2 className="size-4 text-emerald-600" />
