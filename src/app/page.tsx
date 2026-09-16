@@ -719,7 +719,17 @@ export default function Home() {
 
   const handleCellChange = useCallback(
     (row: number, col: number, value: string) => {
-      if (isCompleted || revealedCells.has(toCellKey(row, col))) return;
+      const cellKey = toCellKey(row, col);
+      if (isCompleted || revealedCells.has(cellKey)) return;
+      const currentInput = userInputs[row]?.[col];
+      const answer = selectedPuzzle?.grid[row]?.[col]?.letter;
+      const isConfirmedCorrect = correctCellsManual.has(cellKey) || (
+        autoCheck && !!currentInput && !!answer && currentInput.toUpperCase() === answer.toUpperCase()
+      );
+      if (isConfirmedCorrect && value !== currentInput) {
+        toast.info('Cette lettre correcte est verrouillée');
+        return;
+      }
       setUserInputs((prev) => {
         const next = prev.map((r) => [...r]);
         next[row][col] = value || null;
@@ -733,7 +743,7 @@ export default function Home() {
         setIncorrectCellsManual(new Set());
       }
     },
-    [isCompleted, isTimerRunning, autoCheck, revealedCells, soundEnabled],
+    [isCompleted, isTimerRunning, autoCheck, revealedCells, soundEnabled, userInputs, selectedPuzzle, correctCellsManual],
   );
 
   const handleSelectCell = useCallback(
