@@ -160,19 +160,28 @@ export async function POST(request: NextRequest) {
       const amount = puzzle.rows === 5 && puzzle.cols === 5 ? 1 : 2;
       const wallet = await tx.userWallet.upsert({
         where: { userId: session.user.id },
-        create: { userId: session.user.id, balance: amount },
-        update: { balance: { increment: amount } },
+        create: { userId: session.user.id, balance: 0 },
+        update: {},
       });
 
-      await tx.coinTransaction.create({
+      const referenceKey = `puzzle-completion:${session.user.id}:${puzzleId}`;
+      const claimed = await tx.coinTransaction.createMany({
         data: {
           userId: session.user.id,
           walletId: wallet.id,
           amount,
           reason: 'puzzle_completion',
-          referenceKey: `puzzle-completion:${session.user.id}:${puzzleId}`,
-          balanceAfter: wallet.balance,
+          referenceKey,
+          balanceAfter: wallet.balance + amount,
         },
+        skipDuplicates: true,
+      });
+
+      if (claimed.count === 0) return 0;
+
+      await tx.userWallet.update({
+        where: { userId: session.user.id },
+        data: { balance: { increment: amount } },
       });
 
       return amount;
