@@ -533,6 +533,15 @@ export default function Home() {
     setIsLoadingPuzzle(true);
     setCurrentView('playing');
     try {
+      if (startFresh) {
+        const resetResponse = await fetch('/api/puzzles/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ puzzleId: id, reset: true }),
+        });
+        if (!resetResponse.ok) throw new Error();
+      }
+
       const res = await fetch(`/api/puzzles/${id}`);
       if (!res.ok) throw new Error();
       const data = await res.json();

@@ -7,13 +7,14 @@ interface ProgressBody {
   puzzleId: string;
   userInputs: (string | null)[][];
   timeSpent: number;
+  reset?: boolean;
 }
 
 /** Persist in-progress work without revealing or checking any answers. */
 export async function POST(request: NextRequest) {
   try {
-    const { puzzleId, userInputs, timeSpent } = await request.json() as ProgressBody;
-    if (!puzzleId || !Array.isArray(userInputs) || !Number.isInteger(timeSpent) || timeSpent < 0) {
+    const { puzzleId, userInputs, timeSpent, reset = false } = await request.json() as ProgressBody;
+    if (!puzzleId || (!reset && (!Array.isArray(userInputs) || !Number.isInteger(timeSpent) || timeSpent < 0))) {
       return NextResponse.json({ error: 'Invalid progress payload' }, { status: 400 });
     }
 
@@ -23,8 +24,28 @@ export async function POST(request: NextRequest) {
     const progressUser = await getProgressUser(request);
     await db.userProgress.upsert({
       where: { puzzleId_userId: { puzzleId, userId: progressUser.userId } },
-      create: { puzzleId, userId: progressUser.userId, progress: JSON.stringify(userInputs), timeSpent },
-      update: { progress: JSON.stringify(userInputs), timeSpent },
+      create: reset
+        ? {
+            puzzleId,
+            userId: progressUser.userId,
+            completed: false,
+            completedAt: null,
+            progress: JSON.stringify({}),
+            timeSpent: 0,
+            magicWordsClaimed: JSON.stringify([]),
+            revealedCells: JSON.stringify([]),
+          }
+        : { puzzleId, userId: progressUser.userId, progress: JSON.stringify(userInputs), timeSpent },
+      update: reset
+        ? {
+            completed: false,
+            completedAt: null,
+            progress: JSON.stringify({}),
+            timeSpent: 0,
+            magicWordsClaimed: JSON.stringify([]),
+            revealedCells: JSON.stringify([]),
+          }
+        : { progress: JSON.stringify(userInputs), timeSpent },
     });
 
     return setProgressCookie(NextResponse.json({ ok: true }), progressUser.userId, progressUser.setCookie);
