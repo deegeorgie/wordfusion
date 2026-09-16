@@ -44,7 +44,7 @@ export async function GET(
     });
 
     const response = NextResponse.json({
-      puzzle: puzzleData,
+      puzzle: { ...puzzleData, magicWords: JSON.parse(puzzle.magicWords || '[]') },
       puzzleId: puzzle.id,
       language: puzzle.language,
       categoryId: puzzle.categoryId,
@@ -58,6 +58,8 @@ export async function GET(
             timeSpent: userProgress.timeSpent,
             hintsUsed: userProgress.hintsUsed,
             progress: JSON.parse(userProgress.progress),
+            magicWordsClaimed: JSON.parse(userProgress.magicWordsClaimed || '[]'),
+            revealedCells: JSON.parse(userProgress.revealedCells || '[]'),
             completedAt: userProgress.completedAt?.toISOString() ?? null,
           }
         : null,

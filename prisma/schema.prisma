@@ -99,6 +99,7 @@ model CrosswordPuzzle {
   gridData         String                         // JSON string of the grid layout
   wordsData        String                         // JSON string of word placements
   cluesData        String                         // JSON string of clues
+  magicWords       String    @default("[]")       // JSON array of words that grant free letters
   rows             Int
   cols             Int
   publishDate      DateTime?                      // Scheduled publication date
@@ -137,6 +138,8 @@ model UserProgress {
   timeSpent   Int      @default(0) // seconds
   hintsUsed   Int      @default(0)
   progress    String   @default("{}") // JSON string of filled letters
+  magicWordsClaimed String @default("[]") // JSON array of claimed magic words
+  revealedCells    String @default("[]") // JSON array of cells revealed for free
   completedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

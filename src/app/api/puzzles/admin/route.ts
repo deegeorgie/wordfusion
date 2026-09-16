@@ -27,6 +27,7 @@ interface PuzzleBody {
   grid: CrosswordPuzzleData['grid'];
   words: CrosswordPuzzleData['words'];
   clues: CrosswordPuzzleData['clues'];
+  magicWords?: string[];
   publishDate?: string | null;
   published?: boolean;
 }
@@ -40,8 +41,19 @@ function validateBody(body: unknown): body is PuzzleBody {
     Array.isArray(b.grid) && b.grid.length === b.rows &&
     b.grid.every((row) => Array.isArray(row) && row.length === b.cols) &&
     Array.isArray(b.words) && b.words.length <= 100 &&
-    Array.isArray(b.clues) && b.clues.length <= 100
+    Array.isArray(b.clues) && b.clues.length <= 100 &&
+    (b.magicWords === undefined || (Array.isArray(b.magicWords) && b.magicWords.length <= 50 && b.magicWords.every((word) => typeof word === 'string')))
   );
+}
+
+function normalizeWord(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+}
+
+function getMagicWords(body: PuzzleBody): string[] | null {
+  const answerWords = new Set(body.words.map((word) => normalizeWord(word.word)));
+  const magicWords = [...new Set((body.magicWords ?? []).map(normalizeWord).filter(Boolean))];
+  return magicWords.every((word) => answerWords.has(word)) ? magicWords : null;
 }
 
 function parsePublishDate(value: unknown): Date | null | undefined {
@@ -154,6 +166,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const magicWords = getMagicWords(body);
+    if (!magicWords) {
+      return NextResponse.json({ error: 'Chaque mot magique doit correspondre à un mot de la grille' }, { status: 400 });
+    }
+
     const language = ['fr', 'en'].includes(body.language ?? '') ? body.language! : 'fr';
     const categoryId = body.categoryId || null;
     const packId = body.packId || null;
@@ -220,6 +237,7 @@ export async function POST(request: NextRequest) {
         gridData: dbFormat.gridData,
         wordsData: dbFormat.wordsData,
         cluesData: dbFormat.cluesData,
+        magicWords: JSON.stringify(magicWords),
         published,
         publishDate: requestedPublishDate,
         firstPublishedAt: published ? new Date() : null,
@@ -262,6 +280,11 @@ export async function PUT(request: NextRequest) {
           { error: 'Données invalides' },
           { status: 400 }
         );
+      }
+
+      const magicWords = getMagicWords(body);
+      if (!magicWords) {
+        return NextResponse.json({ error: 'Chaque mot magique doit correspondre à un mot de la grille' }, { status: 400 });
       }
 
       const dbFormat = puzzleToDbFormat({
@@ -317,6 +340,7 @@ export async function PUT(request: NextRequest) {
           gridData: dbFormat.gridData,
           wordsData: dbFormat.wordsData,
           cluesData: dbFormat.cluesData,
+          magicWords: JSON.stringify(magicWords),
         },
       });
     } else {

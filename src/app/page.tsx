@@ -327,6 +327,7 @@ export default function Home() {
 
   // ── Cell status ─────────────────────────────────────────────────────
   const [revealedCells, setRevealedCells] = useState<Set<string>>(new Set());
+  const [magicRevealedCells, setMagicRevealedCells] = useState<Set<string>>(new Set());
   const [correctCellsManual, setCorrectCellsManual] = useState<Set<string>>(new Set());
   const [incorrectCellsManual, setIncorrectCellsManual] = useState<Set<string>>(new Set());
   const [completedClues, setCompletedClues] = useState<Set<string>>(new Set());
@@ -563,6 +564,16 @@ export default function Home() {
         }
       }
 
+      const persistedReveals = Array.isArray(data.progress?.revealedCells)
+        ? data.progress.revealedCells as string[]
+        : [];
+      for (const key of persistedReveals) {
+        const [row, col] = key.split(',').map(Number);
+        if (Number.isInteger(row) && Number.isInteger(col) && puzzle.grid[row]?.[col] && !puzzle.grid[row][col].isBlack) {
+          inputs[row][col] = puzzle.grid[row][col].letter;
+        }
+      }
+
       setSelectedPuzzle(puzzle);
       setPuzzleId(id);
       setUserInputs(inputs);
@@ -570,7 +581,8 @@ export default function Home() {
       setDirection('across');
       setActiveClueNumber(null);
       setActiveClueDirection('across');
-      setRevealedCells(new Set());
+      setRevealedCells(new Set(persistedReveals));
+      setMagicRevealedCells(new Set());
       setCorrectCellsManual(new Set());
       setIncorrectCellsManual(new Set());
       setCompletedClues(new Set());
@@ -686,7 +698,7 @@ export default function Home() {
 
   const handleCellChange = useCallback(
     (row: number, col: number, value: string) => {
-      if (isCompleted) return;
+      if (isCompleted || revealedCells.has(toCellKey(row, col))) return;
       setUserInputs((prev) => {
         const next = prev.map((r) => [...r]);
         next[row][col] = value || null;
@@ -699,7 +711,7 @@ export default function Home() {
         setIncorrectCellsManual(new Set());
       }
     },
-    [isCompleted, isTimerRunning, autoCheck],
+    [isCompleted, isTimerRunning, autoCheck, revealedCells],
   );
 
   const handleSelectCell = useCallback(
@@ -751,6 +763,26 @@ export default function Home() {
         (data.incorrectCells ?? []).map((c: { row: number; col: number }) => toCellKey(c.row, c.col)),
       );
       setIncorrectCellsManual(incorrect);
+
+      const magicCells = (data.revealedCells ?? []) as { row: number; col: number; letter: string }[];
+      if (magicCells.length > 0) {
+        setUserInputs((previous) => {
+          const next = previous.map((row) => [...row]);
+          for (const cell of magicCells) next[cell.row][cell.col] = cell.letter;
+          return next;
+        });
+        setRevealedCells((previous) => {
+          const next = new Set(previous);
+          for (const cell of magicCells) next.add(toCellKey(cell.row, cell.col));
+          return next;
+        });
+        setMagicRevealedCells((previous) => {
+          const next = new Set(previous);
+          for (const cell of magicCells) next.add(toCellKey(cell.row, cell.col));
+          return next;
+        });
+        toast.success(`Mot magique trouvé ! ${magicCells.length} lettre${magicCells.length > 1 ? 's' : ''} révélée${magicCells.length > 1 ? 's' : ''}`);
+      }
 
       const correct = new Set<string>();
       for (let r = 0; r < selectedPuzzle.rows; r++) {
@@ -886,6 +918,7 @@ export default function Home() {
     setCorrectCellsManual(new Set());
     setIncorrectCellsManual(new Set());
     setRevealedCells(new Set());
+    setMagicRevealedCells(new Set());
     setCompletedClues(new Set());
     toast.info('Grille effacée');
   }, [selectedPuzzle, isCompleted]);
@@ -1667,6 +1700,7 @@ export default function Home() {
                       onToggleDirection={handleToggleDirection}
                       activeWordCells={activeWordCells}
                       revealedCells={revealedCells}
+                      magicRevealedCells={magicRevealedCells}
                       correctCells={correctCells}
                       incorrectCells={incorrectCells}
                     />

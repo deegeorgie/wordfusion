@@ -32,6 +32,7 @@ export interface CrosswordPuzzleData {
   grid: CrosswordCell[][];
   words: WordPlacement[];
   clues: Clue[];
+  magicWords?: string[];
 }
 
 export interface GridState {

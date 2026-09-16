@@ -306,6 +306,7 @@ export default function PuzzleEditor({
   const [packId, setPackId] = useState<string>(nonePack);
   const [isPremium, setIsPremium] = useState(false);
   const [unlockCost, setUnlockCost] = useState("25");
+  const [magicWords, setMagicWords] = useState("");
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [packs, setPacks] = useState<PackOption[]>([]);
   const [rowsInput, setRowsInput] = useState(10);
@@ -435,6 +436,7 @@ export default function PuzzleEditor({
       setPackId(nonePack);
       setIsPremium(false);
       setUnlockCost("25");
+      setMagicWords("");
       setRowsInput(10);
       setColsInput(10);
       const emptyGrid = createEmptyGrid(10, 10);
@@ -467,6 +469,7 @@ export default function PuzzleEditor({
         else setPackId(nonePack);
         setIsPremium(data.isPremium === true);
         setUnlockCost(String(data.unlockCost || 25));
+        setMagicWords(Array.isArray(p.magicWords) ? p.magicWords.join(", ") : "");
         setRowsInput(p.rows);
         setColsInput(p.cols);
         setGrid(cloneGrid(p.grid));
@@ -964,6 +967,7 @@ export default function PuzzleEditor({
         packId: packId === nonePack ? null : packId,
         isPremium,
         unlockCost: isPremium ? Number(unlockCost) : 0,
+        magicWords: magicWords.split(",").map((word) => word.trim()).filter(Boolean),
         rows: grid.length,
         cols: grid[0]?.length ?? 0,
         grid,
@@ -1004,6 +1008,7 @@ export default function PuzzleEditor({
         setPackId(nonePack);
         setIsPremium(false);
         setUnlockCost("25");
+        setMagicWords("");
         setRowsInput(10);
         setColsInput(10);
         setGrid(createEmptyGrid(10, 10));
@@ -1017,7 +1022,7 @@ export default function PuzzleEditor({
     } finally {
       setSaving(false);
     }
-  }, [description, difficulty, language, categoryId, packId, isPremium, unlockCost, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+  }, [description, difficulty, language, categoryId, packId, isPremium, unlockCost, magicWords, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
 
   const handleSave = useCallback(() => {
     void savePuzzle();
@@ -1031,7 +1036,7 @@ export default function PuzzleEditor({
     }, 900);
 
     return () => window.clearTimeout(timeout);
-  }, [open, isEditing, loading, description, difficulty, language, categoryId, packId, isPremium, unlockCost, grid, words, clues, savePuzzle]);
+  }, [open, isEditing, loading, description, difficulty, language, categoryId, packId, isPremium, unlockCost, magicWords, grid, words, clues, savePuzzle]);
 
   // ── Render helpers ───────────────────────────────────────────────
   const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
@@ -1325,6 +1330,22 @@ export default function PuzzleEditor({
                 )}
               </div>
             </div>
+          </div>
+          <div className="space-y-1 max-w-xl">
+            <Label htmlFor="puzzle-magic-words" className="text-xs">
+              Mots magiques
+            </Label>
+            <Textarea
+              id="puzzle-magic-words"
+              value={magicWords}
+              onChange={(event) => setMagicWords(event.target.value)}
+              placeholder="Ex. CHAT, PARIS (séparés par des virgules)"
+              className="min-h-14 resize-y text-sm"
+              aria-describedby="puzzle-magic-words-help"
+            />
+            <p id="puzzle-magic-words-help" className="text-[11px] text-muted-foreground">
+              Un mot complété révèle automatiquement 3 lettres sur une petite grille et 10 sur une grande grille.
+            </p>
           </div>
         </div>
 

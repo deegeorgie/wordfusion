@@ -16,6 +16,7 @@ interface CrosswordGridProps {
   onToggleDirection: () => void;
   activeWordCells: { row: number; col: number }[];
   revealedCells: Set<string>;
+  magicRevealedCells?: Set<string>;
   correctCells: Set<string>;
   incorrectCells: Set<string>;
 }
@@ -41,6 +42,7 @@ export default function CrosswordGrid({
   onToggleDirection,
   activeWordCells,
   revealedCells,
+  magicRevealedCells = new Set(),
   correctCells,
   incorrectCells,
 }: CrosswordGridProps) {
@@ -359,6 +361,7 @@ export default function CrosswordGrid({
             const isSelected = selectedKey === key;
             const isActiveWord = activeWordSet.has(key);
             const isRevealed = revealedCells.has(key);
+            const isMagicRevealed = magicRevealedCells.has(key);
             const isCorrect = correctCells.has(key);
             const isIncorrect = incorrectCells.has(key);
             const userInput = userInputs[rowIdx]?.[colIdx] ?? '';
@@ -392,6 +395,9 @@ export default function CrosswordGrid({
             } else if (isCorrect) {
               cellBg = 'bg-emerald-50 dark:bg-emerald-950';
               cellText = 'text-emerald-700 dark:text-emerald-400';
+            } else if (isMagicRevealed) {
+              cellBg = 'bg-amber-100 dark:bg-amber-950';
+              cellText = 'text-amber-800 dark:text-amber-300';
             } else if (isRevealed) {
               cellBg = 'bg-sky-50 dark:bg-sky-950';
             }
