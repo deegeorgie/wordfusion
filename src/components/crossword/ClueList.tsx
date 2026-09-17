@@ -174,7 +174,7 @@ export default function ClueList({
 
         {/* Across Clues Tab */}
         <TabsContent value="across" className="flex-1 mt-0">
-          <ScrollArea className="h-full max-h-[60vh] lg:max-h-none">
+          <ScrollArea className="h-full max-h-[60vh]">
             <div className="space-y-0.5 px-1 pb-4">
               {acrossClues.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
@@ -202,7 +202,7 @@ export default function ClueList({
 
         {/* Down Clues Tab */}
         <TabsContent value="down" className="flex-1 mt-0">
-          <ScrollArea className="h-full max-h-[60vh] lg:max-h-none">
+          <ScrollArea className="h-full max-h-[60vh]">
             <div className="space-y-0.5 px-1 pb-4">
               {downClues.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
