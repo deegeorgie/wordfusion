@@ -1120,15 +1120,13 @@ export default function Home() {
 
           {/* ── Header ─────────────────────────────────────────── */}
           <header className="border-b border-foreground/10 bg-background/80 backdrop-blur-md">
-            <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:py-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-primary/10 bg-white shadow-lg shadow-primary/10 dark:bg-slate-900 sm:h-16 sm:w-16">
-                  <img
-                    src="/logo_WF.png"
-                    alt="WordFusion logo"
-                    className="h-12 w-12 object-contain sm:h-14 sm:w-14"
-                  />
-                </div>
+            <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-5 lg:py-4">
+              <div className="flex items-center">
+                <img
+                  src="/logo_WF.png"
+                  alt="WordFusion logo"
+                  className="h-16 w-16 object-contain sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+                />
               </div>
               {streak > 0 && (
                 <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1.5 shadow-sm">
