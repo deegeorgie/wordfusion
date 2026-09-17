@@ -1122,22 +1122,12 @@ export default function Home() {
           <header className="border-b border-foreground/10 bg-background/80 backdrop-blur-md">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-primary/10 bg-white shadow-lg shadow-primary/10 dark:bg-slate-900">
+                <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-primary/10 bg-white shadow-lg shadow-primary/10 dark:bg-slate-900 sm:h-16 sm:w-16">
                   <img
                     src="/logo_WF.png"
                     alt="WordFusion logo"
-                    className="h-9 w-9 object-contain"
+                    className="h-12 w-12 object-contain sm:h-14 sm:w-14"
                   />
-                </div>
-                <div>
-                  <h1
-                    className="font-display text-3xl font-bold tracking-tight sm:text-4xl"
-                  >
-                    Mots Croisés
-                  </h1>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Gratuits &bull; Uniques &bull; Quotidiens
-                  </p>
                 </div>
               </div>
               {streak > 0 && (
