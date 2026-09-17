@@ -205,6 +205,10 @@ function languageName(lang: string): string {
   return lang === 'en' ? 'English' : 'Français';
 }
 
+function streakDateKey(value: string): string {
+  return value.slice(0, 10);
+}
+
 // ── Streak Heatmap ──────────────────────────────────────────────
 
 function StreakHeatmap({ streakData }: { streakData: StreakCompletion[] }) {
@@ -215,7 +219,7 @@ function StreakHeatmap({ streakData }: { streakData: StreakCompletion[] }) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().slice(0, 10);
-      const completions = streakData.filter((c) => c.date === dateStr);
+      const completions = streakData.filter((c) => streakDateKey(c.date) === dateStr);
       result.push({
         date: dateStr,
         completed: completions.length > 0,
@@ -508,7 +512,7 @@ export default function Home() {
   // ── Calculate daily streak ───────────────────────────────────────────
   const streak = useMemo(() => {
     if (streakData.length === 0) return 0;
-    const dates = [...new Set(streakData.map((c) => c.date))].sort().reverse();
+    const dates = [...new Set(streakData.map((c) => streakDateKey(c.date)))].sort().reverse();
     if (dates.length === 0) return 0;
 
     const today = new Date().toISOString().slice(0, 10);
@@ -518,8 +522,8 @@ export default function Home() {
 
     let count = 1;
     for (let i = 1; i < dates.length; i++) {
-      const prev = new Date(dates[i - 1]);
-      const curr = new Date(dates[i]);
+      const prev = new Date(`${dates[i - 1]}T00:00:00Z`);
+      const curr = new Date(`${dates[i]}T00:00:00Z`);
       const diff = (prev.getTime() - curr.getTime()) / 86400000;
       if (diff === 1) count++;
       else break;

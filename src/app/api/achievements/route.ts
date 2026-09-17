@@ -24,7 +24,7 @@ export async function GET() {
       const puzzle = puzzlesById.get(item.puzzleId);
       if (!puzzle) return [];
       return [{
-        date: (item.completedAt ?? item.updatedAt).toISOString(),
+        date: (item.completedAt ?? item.updatedAt).toISOString().slice(0, 10),
         puzzleId: item.puzzleId,
         time: item.timeSpent,
         difficulty: puzzle.difficulty,
