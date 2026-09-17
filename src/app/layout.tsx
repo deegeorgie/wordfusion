@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   keywords: ["mots croisés", "crossword", "puzzle", "jeux", "français", "gratuit", "quotidien"],
   authors: [{ name: "Georges BODIONG", url: "https://deebodiong.quarto.pub" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo_WF.png",
   },
   openGraph: {
     title: "Mots Croisés - Puzzles Gratuits Quotidiens",

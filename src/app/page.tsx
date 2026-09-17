@@ -1122,8 +1122,12 @@ export default function Home() {
           <header className="border-b border-foreground/10 bg-background/80 backdrop-blur-md">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                  <Grid3X3 className="size-6" />
+                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border border-primary/10 bg-white shadow-lg shadow-primary/10 dark:bg-slate-900">
+                  <img
+                    src="/logo_WF.png"
+                    alt="WordFusion logo"
+                    className="h-9 w-9 object-contain"
+                  />
                 </div>
                 <div>
                   <h1
