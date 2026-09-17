@@ -416,10 +416,32 @@ export default function Home() {
 
     try {
       const raw = localStorage.getItem(storageKey);
-      const data = raw ? JSON.parse(raw) : [];
-      setStreakData(Array.isArray(data) ? data : []);
-      const earned = evaluateBadges(Array.isArray(data) ? data : []);
-      setEarnedBadgeIds(new Set(earned.map((b) => b.id)));
+      const localData = raw ? JSON.parse(raw) : [];
+      const fallbackData = Array.isArray(localData) ? localData : [];
+
+      if (!session?.user?.id) {
+        setStreakData(fallbackData);
+        setEarnedBadgeIds(new Set(evaluateBadges(fallbackData).map((b) => b.id)));
+        return;
+      }
+
+      fetch('/api/achievements')
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+        .then((data) => {
+          const serverData = Array.isArray(data.completions) ? data.completions : [];
+          const knownPuzzleIds = new Set(serverData.map((entry: StreakCompletion) => entry.puzzleId));
+          const merged = [
+            ...serverData,
+            ...fallbackData.filter((entry: StreakCompletion) => !knownPuzzleIds.has(entry.puzzleId)),
+          ];
+          localStorage.setItem(storageKey, JSON.stringify(merged));
+          setStreakData(merged);
+          setEarnedBadgeIds(new Set(evaluateBadges(merged).map((b) => b.id)));
+        })
+        .catch(() => {
+          setStreakData(fallbackData);
+          setEarnedBadgeIds(new Set(evaluateBadges(fallbackData).map((b) => b.id)));
+        });
     } catch {}
   }, [session?.user?.id, status]);
 

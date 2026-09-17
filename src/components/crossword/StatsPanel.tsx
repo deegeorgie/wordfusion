@@ -224,7 +224,15 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
 
   React.useEffect(() => {
     if (open) {
-      setCompletions(loadData(userId));
+      if (!userId) {
+        setCompletions(loadData());
+        return;
+      }
+
+      fetch("/api/achievements")
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+        .then((data) => setCompletions(Array.isArray(data.completions) ? data.completions : []))
+        .catch(() => setCompletions(loadData(userId)));
     }
   }, [open, userId]);
 

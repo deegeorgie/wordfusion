@@ -157,8 +157,19 @@ export function BadgePanel({ open, onOpenChange, userId }: BadgePanelProps) {
 
   React.useEffect(() => {
     if (open) {
-      const completions = loadData(userId);
-      setEarnedBadges(evaluateBadges(completions));
+      const applyCompletions = (completions: StreakCompletion[]) => {
+        setEarnedBadges(evaluateBadges(completions));
+      };
+
+      if (!userId) {
+        applyCompletions(loadData());
+        return;
+      }
+
+      fetch("/api/achievements")
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+        .then((data) => applyCompletions(Array.isArray(data.completions) ? data.completions : []))
+        .catch(() => applyCompletions(loadData(userId)));
     }
   }, [open, userId]);
 
