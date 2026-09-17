@@ -139,10 +139,10 @@ export default function ClueList({
   )
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="flex h-full min-h-0 w-full flex-col">
       <Tabs
         defaultValue={defaultTab}
-        className="flex h-full flex-col"
+        className="flex h-full min-h-0 flex-col"
       >
         {/* Sticky Tabs Header */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm pb-2">
@@ -173,8 +173,8 @@ export default function ClueList({
         </div>
 
         {/* Across Clues Tab */}
-        <TabsContent value="across" className="flex-1 mt-0">
-          <ScrollArea className="h-full max-h-[60vh]">
+        <TabsContent value="across" className="min-h-0 flex-1 mt-0">
+          <ScrollArea className="h-full max-h-none">
             <div className="space-y-0.5 px-1 pb-4">
               {acrossClues.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
@@ -201,8 +201,8 @@ export default function ClueList({
         </TabsContent>
 
         {/* Down Clues Tab */}
-        <TabsContent value="down" className="flex-1 mt-0">
-          <ScrollArea className="h-full max-h-[60vh]">
+        <TabsContent value="down" className="min-h-0 flex-1 mt-0">
+          <ScrollArea className="h-full max-h-none">
             <div className="space-y-0.5 px-1 pb-4">
               {downClues.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">

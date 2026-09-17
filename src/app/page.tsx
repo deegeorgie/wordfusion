@@ -1647,7 +1647,7 @@ export default function Home() {
           </header>
 
           {/* ── Main area ──────────────────────────────────────── */}
-          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-4 pb-8 sm:px-4 sm:pb-6">
+            <main className="mx-auto w-full max-w-6xl min-h-0 flex-1 px-3 py-4 pb-8 sm:px-4 sm:pb-6">
             {/* Loading state */}
             {isLoadingPuzzle && !selectedPuzzle && (
               <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -1778,14 +1778,14 @@ export default function Home() {
                 </div>
 
                 {/* ── Right: Clue panel (desktop) ──────────── */}
-                <div className="w-full lg:w-[340px] xl:w-[380px] lg:shrink-0">
-                  <div className="rounded-xl border bg-card shadow-sm">
+                <div className="w-full lg:w-[340px] xl:w-[380px] lg:shrink-0 lg:min-h-0">
+                  <div className="flex max-h-[calc(100vh-10rem)] flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
                     <div className="border-b px-4 py-3">
                       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                         Indications
                       </h3>
                     </div>
-                    <div className="p-1.5">
+                    <div className="min-h-0 flex-1 overflow-hidden p-1.5">
                       <ClueList
                         clues={selectedPuzzle.clues}
                         activeClueNumber={activeClueNumber}
