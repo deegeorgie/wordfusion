@@ -1779,7 +1779,7 @@ export default function Home() {
 
                 {/* ── Right: Clue panel (desktop) ──────────── */}
                 <div className="w-full lg:w-[340px] xl:w-[380px] lg:shrink-0 lg:min-h-0">
-                  <div className="flex max-h-[calc(100vh-10rem)] flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+                  <div className="flex max-h-[calc(100vh-10rem)] flex-col overflow-hidden rounded-xl border bg-card shadow-sm lg:h-[calc(100vh-12rem)] lg:max-h-none">
                     <div className="border-b px-4 py-3">
                       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                         Indications

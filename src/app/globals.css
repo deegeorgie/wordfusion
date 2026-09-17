@@ -124,3 +124,27 @@
     background-attachment: fixed;
   }
 }
+
+.clue-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: oklch(0.58 0.03 150) oklch(0.92 0.02 90);
+}
+
+.clue-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.clue-scrollbar::-webkit-scrollbar-track {
+  background: oklch(0.92 0.02 90);
+  border-radius: 9999px;
+}
+
+.clue-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(0.58 0.03 150);
+  border: 2px solid oklch(0.92 0.02 90);
+  border-radius: 9999px;
+}
+
+.clue-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.48 0.04 150);
+}
