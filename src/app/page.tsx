@@ -500,10 +500,16 @@ export default function Home() {
     return puzzles;
   }, [dailyPuzzles, effectiveTodayOnly, todayStr, selectedCategory, selectedPack]);
 
-  const dailyChallenges = useMemo(
+  const dailyPuzzleCandidates = useMemo(
     () => filteredPuzzles.filter((puzzle) => !puzzle.isPremium),
     [filteredPuzzles],
   );
+  const dailyChallenges = useMemo(
+    () => dailyPuzzleCandidates.filter((puzzle) => !puzzle.completed),
+    [dailyPuzzleCandidates],
+  );
+  const allDailyChallengesCompleted =
+    dailyPuzzleCandidates.length > 0 && dailyChallenges.length === 0;
   const expertPuzzles = useMemo(
     () => filteredPuzzles.filter((puzzle) => puzzle.isPremium && !puzzle.completed),
     [filteredPuzzles],
@@ -1529,22 +1535,24 @@ export default function Home() {
             )}
 
             {/* ── Daily challenges ── */}
-            {!isLoadingPuzzles && dailyChallenges.length > 0 && (
+            {!isLoadingPuzzles && (dailyChallenges.length > 0 || allDailyChallengesCompleted) && (
               <section className="mb-10">
                 <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
                   <CalendarDays className="size-5 text-orange-600" />
                   DAILY CHALLENGES
                 </h2>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {dailyChallenges.map((puzzle) => puzzle.completed ? (
-                    <div key={puzzle.id} className="flex min-h-32 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                      <div className="flex flex-col items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                        <CheckCircle2 className="size-12" aria-label={`${puzzle.title} terminé`} />
-                        <span className="text-sm font-medium">Défi terminé</span>
-                      </div>
+                {allDailyChallengesCompleted ? (
+                  <div className="flex min-h-32 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                    <div className="flex flex-col items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="size-12" aria-label="Tous les défis du jour sont terminés" />
+                      <span className="text-sm font-medium">Tous les défis du jour sont terminés</span>
                     </div>
-                  ) : renderPuzzleCard(puzzle))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {dailyChallenges.map(renderPuzzleCard)}
+                  </div>
+                )}
               </section>
             )}
 
