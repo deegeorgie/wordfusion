@@ -320,6 +320,7 @@ export default function PuzzleEditor({
   const [colsInput, setColsInput] = useState(10);
   const [grid, setGrid] = useState<CrosswordCell[][]>(createEmptyGrid(10, 10));
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
+  const [customShapeMode, setCustomShapeMode] = useState(false);
   const [words, setWords] = useState<WordPlacement[]>([]);
   const [clues, setClues] = useState<EditorClue[]>([]);
   const [loading, setLoading] = useState(false);
@@ -517,6 +518,18 @@ export default function PuzzleEditor({
       const cell = grid[r]?.[c];
       if (!cell) return;
 
+      if (customShapeMode) {
+        const newGrid = cloneGrid(grid);
+        newGrid[r][c] = {
+          ...newGrid[r][c],
+          isBlack: !cell.isBlack,
+          letter: "",
+        };
+        recomputeWords(newGrid);
+        setSelectedCell(null);
+        return;
+      }
+
       // If clicking the SAME selected cell again, toggle black/white
       if (
         selectedCell &&
@@ -555,7 +568,7 @@ export default function PuzzleEditor({
       // Otherwise just select the cell
       setSelectedCell({ row: r, col: c });
     },
-    [grid, selectedCell, recomputeWords]
+    [customShapeMode, grid, selectedCell, recomputeWords]
   );
 
   // ── Keyboard handler ─────────────────────────────────────────────
@@ -687,9 +700,15 @@ export default function PuzzleEditor({
         };
       })
     );
+    setCustomShapeMode(false);
     setSelectedCell(null);
     recomputeWords(newGrid);
   }, [grid, recomputeWords]);
+
+  const toggleCustomShapeMode = useCallback(() => {
+    setCustomShapeMode((active) => !active);
+    setSelectedCell(null);
+  }, []);
 
   // ── Clear all ────────────────────────────────────────────────────
   const handleClearAll = useCallback(() => {
@@ -1457,6 +1476,16 @@ export default function PuzzleEditor({
                 {preset.label}
               </Button>
             ))}
+            <Button
+              type="button"
+              variant={customShapeMode ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={toggleCustomShapeMode}
+              aria-pressed={customShapeMode}
+            >
+              {customShapeMode ? "Terminer la forme" : "Forme personnalisée"}
+            </Button>
           </div>
           {/* Action buttons */}
           <div className="flex items-center gap-1.5">
@@ -1859,9 +1888,9 @@ export default function PuzzleEditor({
         {/* ── Help text ───────────────────────────────────────────── */}
         <div className="px-4 py-2 shrink-0 border-t">
           <p className="text-[10px] sm:text-xs text-muted-foreground">
-            Cliquez sur une case noire pour la blanchir, ou sur une case blanche pour la sélectionner.
-            Tapez une lettre pour la remplir. Recliquez sur la case sélectionnée pour la rendre noire.
-            Utilisez les flèches pour naviguer, Retour pour effacer.
+            {customShapeMode
+              ? "Mode forme : cliquez sur les cases pour les rendre jouables ou noires. Terminez la forme avant de saisir les mots."
+              : "Cliquez sur une case noire pour la blanchir, ou sur une case blanche pour la sélectionner. Tapez une lettre pour la remplir. Recliquez sur la case sélectionnée pour la rendre noire. Utilisez les flèches pour naviguer, Retour pour effacer."}
           </p>
         </div>
       </>
