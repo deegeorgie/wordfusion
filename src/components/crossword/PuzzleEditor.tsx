@@ -124,6 +124,13 @@ const gridSizePresets = [
   { id: '20x20', label: '20×20', icon: LayoutGrid },
 ];
 
+const gridShapePresets = [
+  { id: 'l', label: 'L classique' },
+  { id: 'l-mirrored', label: 'L miroir' },
+  { id: 'l-rotated', label: 'L retourné' },
+  { id: 'l-thick', label: 'L épais' },
+] as const;
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /** Create an empty grid of all-black cells */
@@ -652,6 +659,37 @@ export default function PuzzleEditor({
     const [rows, cols] = presetId.split('x').map(Number);
     applyGridSize(rows, cols);
   }, [applyGridSize]);
+
+  const handleShapePreset = useCallback((shape: (typeof gridShapePresets)[number]['id']) => {
+    const rows = grid.length;
+    const cols = grid[0]?.length ?? 0;
+    const thickness = shape === 'l-thick' ? 2 : 1;
+    const isPlayable = (row: number, col: number): boolean => {
+      switch (shape) {
+        case 'l-mirrored':
+          return col >= cols - thickness || row >= rows - thickness;
+        case 'l-rotated':
+          return row < thickness || col >= cols - thickness;
+        case 'l-thick':
+        case 'l':
+        default:
+          return col < thickness || row >= rows - thickness;
+      }
+    };
+
+    const newGrid = grid.map((row, rowIndex) =>
+      row.map((cell, colIndex) => {
+        const playable = isPlayable(rowIndex, colIndex);
+        return {
+          ...cell,
+          isBlack: !playable,
+          letter: playable ? cell.letter : "",
+        };
+      })
+    );
+    setSelectedCell(null);
+    recomputeWords(newGrid);
+  }, [grid, recomputeWords]);
 
   // ── Clear all ────────────────────────────────────────────────────
   const handleClearAll = useCallback(() => {
@@ -1404,6 +1442,21 @@ export default function PuzzleEditor({
             >
               Appliquer
             </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Label className="text-xs mr-1">Forme</Label>
+            {gridShapePresets.map((preset) => (
+              <Button
+                key={preset.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-[11px]"
+                onClick={() => handleShapePreset(preset.id)}
+              >
+                {preset.label}
+              </Button>
+            ))}
           </div>
           {/* Action buttons */}
           <div className="flex items-center gap-1.5">
