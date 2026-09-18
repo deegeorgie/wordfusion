@@ -1157,17 +1157,6 @@ export default function Home() {
                   WORDFUSION
                 </span>
               </div>
-              {streak > 0 && (
-                <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1.5 shadow-sm">
-                  <motion.span
-                    className="text-lg"
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 3 }}
-                  >🔥</motion.span>
-                  <span className="text-sm font-bold text-orange-700 dark:text-orange-400">{streak}</span>
-                  <span className="text-[10px] text-orange-600/70 dark:text-orange-400/70 hidden sm:inline">jour{streak > 1 ? 's' : ''}</span>
-                </div>
-              )}
               <div className="flex items-center gap-1">
                 {session?.user && (
                   <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 shadow-sm dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
