@@ -1153,7 +1153,7 @@ export default function Home() {
                   alt="WordFusion logo"
                   className="h-16 w-16 object-contain sm:h-20 sm:w-20 lg:h-24 lg:w-24"
                 />
-                <span className="font-display text-lg font-bold tracking-[0.16em] text-primary sm:text-2xl">
+                <span className="font-display text-2xl font-bold tracking-[0.16em] text-[#123b66] sm:text-3xl lg:text-4xl dark:text-blue-200">
                   WORDFUSION
                 </span>
               </div>
