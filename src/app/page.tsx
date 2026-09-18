@@ -1147,12 +1147,15 @@ export default function Home() {
           {/* ── Header ─────────────────────────────────────────── */}
           <header className="border-b border-foreground/10 bg-background/80 backdrop-blur-md">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-5 lg:py-4">
-              <div className="flex items-center">
+              <div className="flex items-center gap-3 sm:gap-4">
                 <img
                   src="/logo_WF.png"
                   alt="WordFusion logo"
                   className="h-16 w-16 object-contain sm:h-20 sm:w-20 lg:h-24 lg:w-24"
                 />
+                <span className="font-display text-lg font-bold tracking-[0.16em] text-primary sm:text-2xl">
+                  WORDFUSION
+                </span>
               </div>
               {streak > 0 && (
                 <div className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-orange-100 to-red-100 dark:from-orange-900/30 dark:to-red-900/30 px-3 py-1.5 shadow-sm">
