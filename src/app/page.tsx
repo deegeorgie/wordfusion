@@ -500,6 +500,19 @@ export default function Home() {
     return puzzles;
   }, [dailyPuzzles, effectiveTodayOnly, todayStr, selectedCategory, selectedPack]);
 
+  const dailyChallenges = useMemo(
+    () => filteredPuzzles.filter((puzzle) => !puzzle.isPremium),
+    [filteredPuzzles],
+  );
+  const expertPuzzles = useMemo(
+    () => filteredPuzzles.filter((puzzle) => puzzle.isPremium && !puzzle.completed),
+    [filteredPuzzles],
+  );
+  const personalArchives = useMemo(
+    () => filteredPuzzles.filter((puzzle) => puzzle.completed),
+    [filteredPuzzles],
+  );
+
   // ── Available categories for filter (based on loaded puzzles) ────────
   const activeCategoryIds = useMemo(() => {
     const ids = new Set<string>();
@@ -1125,6 +1138,93 @@ export default function Home() {
     ) ?? null;
   }, [selectedPuzzle, activeClueNumber, activeClueDirection]);
 
+  const renderPuzzleCard = (puzzle: PuzzleSummary) => (
+    <div key={puzzle.id}>
+      <Card className="group relative overflow-hidden border-foreground/10 bg-card/90 py-0 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10">
+        <div
+          className={`h-1 w-full ${
+            puzzle.difficulty <= 1
+              ? 'bg-emerald-500'
+              : puzzle.difficulty <= 2
+                ? 'bg-amber-500'
+                : puzzle.difficulty <= 3
+                  ? 'bg-orange-500'
+                  : 'bg-red-500'
+          }`}
+        />
+        <CardHeader className="gap-2 px-5 pt-5 pb-0">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="font-display text-xl leading-snug">{puzzle.title}</CardTitle>
+            <div className="flex shrink-0 items-center gap-1">
+              {puzzle.isPremium && (
+                <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-300">
+                  <Lock className="mr-1 size-3" /> {puzzle.unlockCost} <Coins className="ml-1 size-3" />
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-xs">
+                {languageFlag(puzzle.language)} {languageName(puzzle.language)}
+              </Badge>
+            </div>
+          </div>
+          <CardDescription className="line-clamp-2 min-h-[2.5rem]">
+            {puzzle.description || (puzzle.language === 'en' ? 'A crossword puzzle' : 'Un puzzle de mots croisés')}
+          </CardDescription>
+          {puzzle.categoryName && (
+            <Badge variant="secondary" className="text-xs mt-1 gap-1">
+              <span>{puzzle.categoryIcon || '🏷️'}</span>
+              {puzzle.categoryName}
+            </Badge>
+          )}
+          {puzzle.packName && (
+            <Badge variant="outline" className="text-xs mt-1 gap-1">
+              <span>{puzzle.packIcon || '📦'}</span>
+              {puzzle.packName}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent className="flex items-center justify-between px-5 pb-5 pt-4">
+          <div className="flex items-center gap-2">
+            <Badge className={difficultyColor(puzzle.difficulty)} variant="secondary">
+              <Star className="size-3 mr-0.5" />
+              {difficultyLabel(puzzle.difficulty)}
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              {puzzle.rows}×{puzzle.cols}
+            </span>
+          </div>
+          {puzzle.isPremium && !puzzle.isUnlocked ? (
+            <Button
+              size="sm"
+              className="bg-amber-600 text-white shadow-sm hover:bg-amber-700"
+              onClick={() => void handleUnlockPuzzle(puzzle.id, puzzle.unlockCost ?? 0)}
+              disabled={isUnlockingPuzzle === puzzle.id}
+            >
+              <Coins className="size-3.5" />
+              {isUnlockingPuzzle === puzzle.id ? '...' : 'Déverrouiller'}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              onClick={() => void fetchPuzzle(puzzle.id, puzzle.completed)}
+            >
+              {puzzle.completed ? <CheckCircle2 className="size-3.5" /> : <Play className="size-3.5" />}
+              {puzzle.completed ? 'Rejouer' : puzzle.timeSpent ? 'Continuer' : 'Jouer'}
+            </Button>
+          )}
+        </CardContent>
+        {puzzle.completed && (
+          <div className="absolute top-3 right-3">
+            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1">
+              <Trophy className="size-3" />
+              Terminé
+            </Badge>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+
   // ══════════════════════════════════════════════════════════════════════
   // RENDER
   // ══════════════════════════════════════════════════════════════════════
@@ -1428,97 +1528,50 @@ export default function Home() {
               </div>
             )}
 
-            {/* Puzzle cards grid */}
-            {!isLoadingPuzzles && filteredPuzzles.length > 0 && (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredPuzzles.map((puzzle) => (
-                  <div key={puzzle.id}>
-                    <Card className="group relative overflow-hidden border-foreground/10 bg-card/90 py-0 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10">
-                      {/* Difficulty accent bar */}
-                      <div
-                        className={`h-1 w-full ${
-                          puzzle.difficulty <= 1
-                            ? 'bg-emerald-500'
-                            : puzzle.difficulty <= 2
-                              ? 'bg-amber-500'
-                              : puzzle.difficulty <= 3
-                                ? 'bg-orange-500'
-                                : 'bg-red-500'
-                        }`}
-                      />
-                      <CardHeader className="gap-2 px-5 pt-5 pb-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="font-display text-xl leading-snug">{puzzle.title}</CardTitle>
-                          <div className="flex shrink-0 items-center gap-1">
-                            {puzzle.isPremium && (
-                              <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-300">
-                                <Lock className="mr-1 size-3" /> {puzzle.unlockCost} <Coins className="ml-1 size-3" />
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className="text-xs">
-                              {languageFlag(puzzle.language)} {languageName(puzzle.language)}
-                            </Badge>
-                          </div>
-                        </div>
-                        <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                          {puzzle.description || (puzzle.language === 'en' ? 'A crossword puzzle' : 'Un puzzle de mots croisés')}
-                        </CardDescription>
-                        {puzzle.categoryName && (
-                          <Badge variant="secondary" className="text-xs mt-1 gap-1">
-                            <span>{puzzle.categoryIcon || '🏷️'}</span>
-                            {puzzle.categoryName}
-                          </Badge>
-                        )}
-                        {puzzle.packName && (
-                          <Badge variant="outline" className="text-xs mt-1 gap-1">
-                            <span>{puzzle.packIcon || '📦'}</span>
-                            {puzzle.packName}
-                          </Badge>
-                        )}
-                      </CardHeader>
-                      <CardContent className="flex items-center justify-between px-5 pb-5 pt-4">
-                        <div className="flex items-center gap-2">
-                          <Badge className={difficultyColor(puzzle.difficulty)} variant="secondary">
-                            <Star className="size-3 mr-0.5" />
-                            {difficultyLabel(puzzle.difficulty)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {puzzle.rows}×{puzzle.cols}
-                          </span>
-                        </div>
-                        {puzzle.isPremium && !puzzle.isUnlocked ? (
-                          <Button
-                            size="sm"
-                            className="bg-amber-600 text-white shadow-sm hover:bg-amber-700"
-                            onClick={() => void handleUnlockPuzzle(puzzle.id, puzzle.unlockCost ?? 0)}
-                            disabled={isUnlockingPuzzle === puzzle.id}
-                          >
-                            <Coins className="size-3.5" />
-                            {isUnlockingPuzzle === puzzle.id ? '...' : 'Déverrouiller'}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                            onClick={() => void fetchPuzzle(puzzle.id, puzzle.completed)}
-                          >
-                            {puzzle.completed ? <CheckCircle2 className="size-3.5" /> : <Play className="size-3.5" />}
-                            {puzzle.completed ? 'Rejouer' : puzzle.timeSpent ? 'Continuer' : 'Jouer'}
-                          </Button>
-                        )}
-                      </CardContent>
-                      {puzzle.completed && (
-                        <div className="absolute top-3 right-3">
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1">
-                            <Trophy className="size-3" />
-                            Terminé
-                          </Badge>
-                        </div>
-                      )}
-                    </Card>
-                  </div>
-                ))}
-              </div>
+            {/* ── Daily challenges ── */}
+            {!isLoadingPuzzles && dailyChallenges.length > 0 && (
+              <section className="mb-10">
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                  <CalendarDays className="size-5 text-orange-600" />
+                  DAILY CHALLENGES
+                </h2>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {dailyChallenges.map((puzzle) => puzzle.completed ? (
+                    <div key={puzzle.id} className="flex min-h-32 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                      <div className="flex flex-col items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                        <CheckCircle2 className="size-12" aria-label={`${puzzle.title} terminé`} />
+                        <span className="text-sm font-medium">Défi terminé</span>
+                      </div>
+                    </div>
+                  ) : renderPuzzleCard(puzzle))}
+                </div>
+              </section>
+            )}
+
+            {/* ── Expert puzzles ── */}
+            {!isLoadingPuzzles && expertPuzzles.length > 0 && (
+              <section className="mb-10">
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                  <Lock className="size-5 text-amber-600" />
+                  EXPERT PUZZLES
+                </h2>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {expertPuzzles.map(renderPuzzleCard)}
+                </div>
+              </section>
+            )}
+
+            {/* ── Personal archives ── */}
+            {!isLoadingPuzzles && personalArchives.length > 0 && (
+              <section className="mb-8">
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                  <FolderOpen className="size-5 text-emerald-600" />
+                  PERSONAL ARCHIVES
+                </h2>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {personalArchives.map(renderPuzzleCard)}
+                </div>
+              </section>
             )}
 
             {/* ── Collections section (admin only) ── */}
