@@ -69,26 +69,31 @@ export default function CrosswordGrid({
     [puzzle.grid],
   );
 
-  /** Move one step in the current direction, skipping black cells. */
+  const isEmptyWhiteCell = useCallback(
+    (row: number, col: number) => isWhiteCell(row, col) && !userInputs[row]?.[col],
+    [isWhiteCell, userInputs],
+  );
+
+  /** Move forward in the current direction, skipping filled and black cells. */
   const nextCell = useCallback(
     (row: number, col: number): { row: number; col: number } | null => {
       const { rows, cols } = puzzle;
       if (direction === 'across') {
         let c = col + 1;
         while (c < cols) {
-          if (isWhiteCell(row, c)) return { row, col: c };
+          if (isEmptyWhiteCell(row, c)) return { row, col: c };
           c++;
         }
       } else {
         let r = row + 1;
         while (r < rows) {
-          if (isWhiteCell(r, col)) return { row: r, col };
+          if (isEmptyWhiteCell(r, col)) return { row: r, col };
           r++;
         }
       }
       return null;
     },
-    [direction, puzzle, isWhiteCell],
+    [direction, puzzle, isEmptyWhiteCell],
   );
 
   /** Move one step backwards in the current direction, skipping black cells. */
@@ -117,7 +122,7 @@ export default function CrosswordGrid({
     if (!selectedCell) {
       const firstCell = puzzle.grid
         .flatMap((row, rowIndex) => row.map((cell, colIndex) => ({ cell, rowIndex, colIndex })))
-        .find(({ cell }) => !cell.isBlack);
+        .find(({ rowIndex, colIndex }) => isEmptyWhiteCell(rowIndex, colIndex));
       if (firstCell) onSelectCell(firstCell.rowIndex, firstCell.colIndex);
       return;
     }
@@ -126,7 +131,7 @@ export default function CrosswordGrid({
     } else {
       gridRef.current?.focus({ preventScroll: true });
     }
-  }, [selectedCell, puzzle.grid, onSelectCell]);
+  }, [selectedCell, puzzle.grid, isEmptyWhiteCell, onSelectCell]);
 
   const focusMobileKeyboard = useCallback(() => {
     mobileInputRef.current?.focus({ preventScroll: true });
@@ -213,7 +218,7 @@ export default function CrosswordGrid({
         e.preventDefault();
         let c = col + 1;
         while (c < puzzle.cols) {
-          if (isWhiteCell(row, c)) {
+          if (isEmptyWhiteCell(row, c)) {
             onSelectCell(row, c);
             break;
           }
@@ -225,7 +230,7 @@ export default function CrosswordGrid({
         e.preventDefault();
         let c = col - 1;
         while (c >= 0) {
-          if (isWhiteCell(row, c)) {
+          if (isEmptyWhiteCell(row, c)) {
             onSelectCell(row, c);
             break;
           }
@@ -237,7 +242,7 @@ export default function CrosswordGrid({
         e.preventDefault();
         let r = row + 1;
         while (r < puzzle.rows) {
-          if (isWhiteCell(r, col)) {
+          if (isEmptyWhiteCell(r, col)) {
             onSelectCell(r, col);
             break;
           }
@@ -249,7 +254,7 @@ export default function CrosswordGrid({
         e.preventDefault();
         let r = row - 1;
         while (r >= 0) {
-          if (isWhiteCell(r, col)) {
+          if (isEmptyWhiteCell(r, col)) {
             onSelectCell(r, col);
             break;
           }
@@ -273,7 +278,7 @@ export default function CrosswordGrid({
       onToggleDirection,
       nextCell,
       prevCell,
-      isWhiteCell,
+      isEmptyWhiteCell,
       puzzle,
     ],
   );
