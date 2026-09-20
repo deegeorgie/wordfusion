@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Mots Croises - Puzzles gratuits quotidiens',
-    short_name: 'Mots Croises',
+    name: 'WordFusion',
+    short_name: 'WordFusion',
     description: 'Jouez aux mots croises gratuits en francais. Un nouveau puzzle chaque jour !',
     start_url: '/',
     display: 'standalone',

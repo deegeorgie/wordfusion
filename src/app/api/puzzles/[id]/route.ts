@@ -61,6 +61,7 @@ export async function GET(
             magicWordsClaimed: JSON.parse(userProgress.magicWordsClaimed || '[]'),
             revealedCells: JSON.parse(userProgress.revealedCells || '[]'),
             completedAt: userProgress.completedAt?.toISOString() ?? null,
+            updatedAt: userProgress.updatedAt.toISOString(),
           }
         : null,
       totalPublished,

@@ -7,21 +7,31 @@ interface ProgressBody {
   puzzleId: string;
   userInputs: (string | null)[][];
   timeSpent: number;
+  revealedCells?: string[];
   reset?: boolean;
 }
 
 /** Persist in-progress work without revealing or checking any answers. */
 export async function POST(request: NextRequest) {
   try {
-    const { puzzleId, userInputs, timeSpent, reset = false } = await request.json() as ProgressBody;
+    const { puzzleId, userInputs, timeSpent, revealedCells, reset = false } = await request.json() as ProgressBody;
     if (!puzzleId || (!reset && (!Array.isArray(userInputs) || !Number.isInteger(timeSpent) || timeSpent < 0))) {
       return NextResponse.json({ error: 'Invalid progress payload' }, { status: 400 });
+    }
+    if (!reset && revealedCells !== undefined && !Array.isArray(revealedCells)) {
+      return NextResponse.json({ error: 'Invalid revealed cells payload' }, { status: 400 });
     }
 
     const puzzle = await getAccessiblePuzzle(puzzleId);
     if (!puzzle) return NextResponse.json({ error: 'Puzzle not found' }, { status: 404 });
 
     const progressUser = await getProgressUser(request);
+    const progressUpdate = {
+      progress: JSON.stringify(userInputs),
+      timeSpent,
+      ...(revealedCells ? { revealedCells: JSON.stringify(revealedCells) } : {}),
+    };
+
     await db.userProgress.upsert({
       where: { puzzleId_userId: { puzzleId, userId: progressUser.userId } },
       create: reset
@@ -35,7 +45,7 @@ export async function POST(request: NextRequest) {
             magicWordsClaimed: JSON.stringify([]),
             revealedCells: JSON.stringify([]),
           }
-        : { puzzleId, userId: progressUser.userId, progress: JSON.stringify(userInputs), timeSpent },
+        : { puzzleId, userId: progressUser.userId, ...progressUpdate },
       update: reset
         ? {
             completed: false,
@@ -45,7 +55,7 @@ export async function POST(request: NextRequest) {
             magicWordsClaimed: JSON.stringify([]),
             revealedCells: JSON.stringify([]),
           }
-        : { progress: JSON.stringify(userInputs), timeSpent },
+        : progressUpdate,
     });
 
     return setProgressCookie(NextResponse.json({ ok: true }), progressUser.userId, progressUser.setCookie);

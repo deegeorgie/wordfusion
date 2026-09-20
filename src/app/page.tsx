@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useSession, signOut } from 'next-auth/react';
@@ -67,6 +67,15 @@ import { BadgeNotification } from '@/components/crossword/BadgeNotification';
 import { AuthModal } from '@/components/crossword/AuthModal';
 import { exportPuzzleToPdf } from '@/lib/crossword/pdf-export';
 import { evaluateBadges, getNewBadges, type EarnedBadge } from '@/lib/crossword/badges';
+import {
+  deleteOfflineDraft,
+  getOfflineDraft,
+  getPendingOfflineDrafts,
+  markOfflineDraftSynced,
+  saveOfflineDraft,
+  type OfflinePuzzleCache,
+  type OfflinePuzzleDraft,
+} from '@/lib/crossword/offline-drafts';
 import { cn } from '@/lib/utils';
 import type {
   CrosswordPuzzleData,
@@ -122,6 +131,18 @@ interface StreakCompletion {
   difficulty: number;
   title: string;
   language: string;
+}
+
+interface PuzzleResponse {
+  puzzle: CrosswordPuzzleData & { magicWords?: string[] };
+  language?: string;
+  progress?: {
+    progress?: (string | null)[][];
+    cells?: { row: number; col: number; letter: string }[];
+    timeSpent?: number;
+    revealedCells?: string[];
+    updatedAt?: string;
+  } | null;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -364,6 +385,13 @@ export default function Home() {
   const [lastCoinReward, setLastCoinReward] = useState(0);
   const [isRevealingLetters, setIsRevealingLetters] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const offlineOwnerKey = session?.user?.id ?? 'anonymous';
+  const skipNextDraftSaveRef = useRef(false);
+
+  const offlineDraftKey = useCallback(
+    (id: string) => `${offlineOwnerKey}:${id}`,
+    [offlineOwnerKey],
+  );
 
   // ── Timer interval ──────────────────────────────────────────────────
   const saveTick = Math.floor(timer / 15);
@@ -597,11 +625,44 @@ export default function Home() {
           body: JSON.stringify({ puzzleId: id, reset: true }),
         });
         if (!resetResponse.ok) throw new Error();
+        await deleteOfflineDraft(offlineDraftKey(id));
       }
 
-      const res = await fetch(`/api/puzzles/${id}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
+      const localDraft = startFresh ? null : await getOfflineDraft(offlineDraftKey(id));
+      let data: PuzzleResponse;
+      try {
+        const res = await fetch(`/api/puzzles/${id}`);
+        if (!res.ok) throw new Error();
+        data = await res.json() as PuzzleResponse;
+
+        const cachedPuzzle: OfflinePuzzleCache = {
+          puzzle: data.puzzle,
+          language: data.language === 'en' ? 'en' : 'fr',
+        };
+        await saveOfflineDraft({
+          key: offlineDraftKey(id),
+          ownerKey: offlineOwnerKey,
+          puzzleId: id,
+          userInputs: localDraft?.userInputs ?? [],
+          timeSpent: localDraft?.timeSpent ?? 0,
+          revealedCells: localDraft?.revealedCells ?? [],
+          updatedAt: localDraft?.updatedAt ?? 0,
+          needsSync: localDraft?.needsSync ?? false,
+          puzzle: cachedPuzzle,
+        });
+      } catch (error) {
+        if (!localDraft?.puzzle) throw error;
+        data = {
+          puzzle: localDraft.puzzle.puzzle,
+          language: localDraft.puzzle.language,
+          progress: {
+            progress: localDraft.userInputs,
+            timeSpent: localDraft.timeSpent,
+            revealedCells: localDraft.revealedCells,
+            updatedAt: new Date(localDraft.updatedAt).toISOString(),
+          },
+        };
+      }
       const puzzle: SelectedPuzzle = {
         ...data.puzzle,
         language: data.language === 'en' ? 'en' : 'fr',
@@ -630,9 +691,24 @@ export default function Home() {
         }
       }
 
-      const persistedReveals = Array.isArray(data.progress?.revealedCells)
+      let persistedReveals = Array.isArray(data.progress?.revealedCells)
         ? data.progress.revealedCells as string[]
         : [];
+      const serverUpdatedAt = data.progress?.updatedAt ? Date.parse(data.progress.updatedAt) : 0;
+      const restoreLocalDraft = Boolean(
+        localDraft && (localDraft.needsSync || localDraft.updatedAt > serverUpdatedAt),
+      );
+
+      if (restoreLocalDraft && localDraft) {
+        for (let row = 0; row < puzzle.rows; row++) {
+          for (let col = 0; col < puzzle.cols; col++) {
+            const value = localDraft.userInputs[row]?.[col];
+            if (typeof value === 'string') inputs[row][col] = value;
+          }
+        }
+        persistedReveals = localDraft.revealedCells;
+      }
+
       for (const key of persistedReveals) {
         const [row, col] = key.split(',').map(Number);
         if (Number.isInteger(row) && Number.isInteger(col) && puzzle.grid[row]?.[col] && !puzzle.grid[row][col].isBlack) {
@@ -641,6 +717,7 @@ export default function Home() {
       }
 
       setSelectedPuzzle(puzzle);
+      skipNextDraftSaveRef.current = true;
       setPuzzleId(id);
       setUserInputs(inputs);
       setSelectedCell(null);
@@ -652,7 +729,9 @@ export default function Home() {
       setCorrectCellsManual(new Set());
       setIncorrectCellsManual(new Set());
       setCompletedClues(new Set());
-      setTimer(startFresh ? 0 : (data.progress?.timeSpent ?? 0));
+      setTimer(startFresh ? 0 : restoreLocalDraft && localDraft
+        ? localDraft.timeSpent
+        : (data.progress?.timeSpent ?? 0));
       setIsTimerRunning(false);
       setIsCompleted(false);
       setLastCoinReward(0);
@@ -663,7 +742,7 @@ export default function Home() {
     } finally {
       setIsLoadingPuzzle(false);
     }
-  }, []);
+  }, [offlineDraftKey, offlineOwnerKey]);
 
   const handleUnlockPuzzle = useCallback(async (id: string, cost: number) => {
     if (!session?.user) {
@@ -695,18 +774,79 @@ export default function Home() {
     }
   }, [session, coinBalance]);
 
+  const syncPendingDrafts = useCallback(async () => {
+    if (!navigator.onLine) return;
+
+    const drafts = await getPendingOfflineDrafts(offlineOwnerKey);
+    await Promise.all(drafts.map(async (draft) => {
+      try {
+        const response = await fetch('/api/puzzles/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            puzzleId: draft.puzzleId,
+            userInputs: draft.userInputs,
+            timeSpent: draft.timeSpent,
+            revealedCells: draft.revealedCells,
+          }),
+        });
+        if (response.ok) await markOfflineDraftSynced(draft.key, draft.updatedAt);
+      } catch {
+        // Keep the draft marked for the next online retry.
+      }
+    }));
+  }, [offlineOwnerKey]);
+
+  useEffect(() => {
+    const handleOnline = () => { void syncPendingDrafts(); };
+    window.addEventListener('online', handleOnline);
+    void syncPendingDrafts();
+    return () => window.removeEventListener('online', handleOnline);
+  }, [syncPendingDrafts]);
+
   useEffect(() => {
     if (!puzzleId || !selectedPuzzle || isCompleted) return;
-    if (!userInputs.some((row) => row.some(Boolean))) return;
+    if (skipNextDraftSaveRef.current) {
+      skipNextDraftSaveRef.current = false;
+      return;
+    }
+    const draft: OfflinePuzzleDraft = {
+      key: offlineDraftKey(puzzleId),
+      ownerKey: offlineOwnerKey,
+      puzzleId,
+      userInputs,
+      timeSpent: saveTick * 15,
+      revealedCells: Array.from(revealedCells),
+      updatedAt: Date.now(),
+      needsSync: true,
+    };
+    void saveOfflineDraft(draft).catch(() => {});
     const timeout = window.setTimeout(() => {
       void fetch('/api/puzzles/progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ puzzleId, userInputs, timeSpent: saveTick * 15 }),
-      });
+        body: JSON.stringify({
+          puzzleId,
+          userInputs,
+          timeSpent: saveTick * 15,
+          revealedCells: Array.from(revealedCells),
+        }),
+      }).then((response) => {
+        if (response.ok) return markOfflineDraftSynced(draft.key, draft.updatedAt);
+        return undefined;
+      }).catch(() => undefined);
     }, 750);
     return () => window.clearTimeout(timeout);
-  }, [puzzleId, selectedPuzzle, userInputs, saveTick, isCompleted]);
+  }, [
+    puzzleId,
+    selectedPuzzle,
+    userInputs,
+    revealedCells,
+    saveTick,
+    isCompleted,
+    offlineDraftKey,
+    offlineOwnerKey,
+  ]);
 
   // ── Get active word cells for highlighting ──────────────────────────
   const getActiveWordCells = useCallback(
