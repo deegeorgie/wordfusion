@@ -35,6 +35,7 @@ import {
   Shield,
   PenTool,
   User as UserIcon,
+  Menu,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -60,6 +61,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 
 import { StatsPanel } from '@/components/crossword/StatsPanel';
 import { BadgePanel } from '@/components/crossword/BadgePanel';
@@ -339,6 +347,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
   const [statsOpen, setStatsOpen] = useState(false);
   const [badgesOpen, setBadgesOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newBadge, setNewBadge] = useState<EarnedBadge | null>(null);
   const [earnedBadgeIds, setEarnedBadgeIds] = useState<Set<string>>(new Set());
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
@@ -1397,19 +1406,20 @@ export default function Home() {
                 <img
                   src="/logo_WF.png"
                   alt="WordFusion logo"
-                  className="h-16 w-16 object-contain sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+                  className="h-10 w-10 object-contain sm:h-20 sm:w-20 lg:h-24 lg:w-24"
                 />
-                <span className="font-sans text-2xl font-bold tracking-[0.16em] text-[#123b66] sm:text-3xl lg:text-4xl dark:text-blue-200">
+                <span className="font-sans text-lg font-bold tracking-[0.1em] text-[#123b66] sm:text-3xl sm:tracking-[0.16em] lg:text-4xl dark:text-blue-200">
                   WORDFUSION
                 </span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 {session?.user && (
                   <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 shadow-sm dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
                     <Coins className="size-4" />
                     <span className="text-sm font-bold">{coinBalance}</span>
                   </div>
                 )}
+                <div className="hidden items-center gap-1 md:flex">
                 {streakData.length > 0 && (
                   <>
                     <Button
@@ -1493,9 +1503,102 @@ export default function Home() {
                     </Button>
                   )}
                 </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={() => setMobileMenuOpen(true)}
+                  aria-label="Ouvrir le menu"
+                  title="Menu"
+                >
+                  <Menu className="size-5" />
+                </Button>
               </div>
             </div>
           </header>
+
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetContent side="right" className="w-[min(88vw,22rem)]">
+              <SheetHeader className="border-b px-5 pb-4">
+                <SheetTitle>Menu WordFusion</SheetTitle>
+                <SheetDescription>Accédez à votre compte et à vos outils.</SheetDescription>
+              </SheetHeader>
+              <div className="flex flex-col gap-2 px-5">
+                {session?.user && (
+                  <div className="mb-2 flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <UserIcon className="size-4" />
+                    </div>
+                    <div className="min-w-0 leading-tight">
+                      <p className="truncate text-sm font-medium">{session.user.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isAdmin ? 'Administrateur' : isCreator ? 'Créateur' : 'Joueur'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {streakData.length > 0 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="justify-start gap-3"
+                      onClick={() => { setMobileMenuOpen(false); setStatsOpen(true); }}
+                    >
+                      <BarChart3 className="size-4" />
+                      Statistiques
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="justify-start gap-3"
+                      onClick={() => { setMobileMenuOpen(false); setBadgesOpen(true); }}
+                    >
+                      <Award className="size-4" />
+                      <span>Badges</span>
+                      {earnedBadgeIds.size > 0 && (
+                        <Badge variant="secondary" className="ml-auto">{earnedBadgeIds.size}</Badge>
+                      )}
+                    </Button>
+                  </>
+                )}
+                {session?.user ? (
+                  <>
+                    {(isAdmin || isCreator) && (
+                      <Button
+                        variant="ghost"
+                        className="justify-start gap-3"
+                        onClick={() => { window.location.href = '/admin'; }}
+                      >
+                        <Settings className="size-4" />
+                        {isAdmin ? 'Administration' : 'Créateur'}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      className="justify-start gap-3 text-muted-foreground hover:text-destructive"
+                      onClick={async () => {
+                        setMobileMenuOpen(false);
+                        await signOut({ redirect: false });
+                        window.location.href = '/';
+                      }}
+                    >
+                      <LogOut className="size-4" />
+                      Déconnexion
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="justify-start gap-3"
+                    onClick={() => { setMobileMenuOpen(false); setAuthOpen(true); }}
+                  >
+                    <LogIn className="size-4" />
+                    Connexion
+                  </Button>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
 
           {/* ── Main Content ───────────────────────────────────── */}
           <main className="flex-1 mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
