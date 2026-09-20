@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
@@ -21,7 +21,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Georges BODIONG", url: "https://deebodiong.quarto.pub" }],
   icons: {
     icon: "/logo_WF.png",
+    apple: "/icons/icon-192.png",
   },
+  manifest: "/manifest.webmanifest",
   openGraph: {
     title: "Mots Croisés - Puzzles Gratuits Quotidiens",
     description: "Jouez aux mots croisés gratuits en français. Un nouveau puzzle chaque jour !",
@@ -33,6 +35,13 @@ export const metadata: Metadata = {
     title: "Mots Croisés - Puzzles Gratuits Quotidiens",
     description: "Jouez aux mots croisés gratuits en français. Un nouveau puzzle chaque jour !",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#16a6c9",
 };
 
 export default function RootLayout({
