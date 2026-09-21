@@ -137,6 +137,8 @@ interface PuzzleSummary {
   rows: number;
   cols: number;
   publishDate: string;
+  firstPublishedAt?: string | null;
+  isNew?: boolean;
   language: string;
   categoryId?: string | null;
   categoryName?: string | null;
@@ -1347,6 +1349,9 @@ export default function Home() {
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="font-display text-xl leading-snug">{puzzle.title}</CardTitle>
             <div className="flex shrink-0 items-center gap-1">
+              {puzzle.isNew && (
+                <Badge className="bg-sky-600 text-xs text-white hover:bg-sky-600">NEW</Badge>
+              )}
               {puzzle.isPremium && (
                 <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-300">
                   <Lock className="mr-1 size-3" /> {puzzle.unlockCost} <Coins className="ml-1 size-3" />

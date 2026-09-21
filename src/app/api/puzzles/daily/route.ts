@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
     });
     const progressByPuzzleId = new Map(progress.map((entry) => [entry.puzzleId, entry]));
 
+    const newPuzzleCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const summaries = puzzles.map((p) => {
       const isBiteSized = isBiteSizedPuzzle(p);
       return {
@@ -85,6 +86,7 @@ export async function GET(request: NextRequest) {
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? '',
       firstPublishedAt: p.firstPublishedAt?.toISOString() ?? null,
+      isNew: p.firstPublishedAt ? p.firstPublishedAt >= newPuzzleCutoff : false,
       categoryId: p.categoryId,
       categoryName: p.category?.name ?? null,
       categoryIcon: p.category?.icon ?? null,
