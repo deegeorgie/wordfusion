@@ -8,17 +8,29 @@ import { useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faAward,
+  faArrowLeft,
   faBars,
   faCalendarDay,
   faChartLine,
+  faCircleCheck,
   faCoins,
+  faClock,
+  faDownload,
+  faFileLines,
   faFire,
   faFolderOpen,
   faGlobe,
   faLayerGroup,
+  faLightbulb,
   faRightFromBracket,
   faRightToBracket,
+  faShareNodes,
+  faStar,
+  faTrash,
+  faTrophy,
   faUser,
+  faVolumeHigh,
+  faVolumeXmark,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   ArrowLeft,
@@ -1900,7 +1912,7 @@ export default function Home() {
                 onClick={handleBack}
                 className="shrink-0 -ml-1"
               >
-                <ArrowLeft className="size-4" />
+                <FontAwesomeIcon icon={faArrowLeft} className="size-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">Retour</span>
               </Button>
 
@@ -1919,7 +1931,7 @@ export default function Home() {
 
               {/* Timer */}
               <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2.5 py-1 text-sm tabular-nums">
-                <Clock className="size-3.5 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faClock} className="size-3 text-muted-foreground" aria-hidden="true" />
                 <span className="font-medium">{formatTimer(timer)}</span>
               </div>
               {selectedPuzzle && (
@@ -1933,7 +1945,7 @@ export default function Home() {
                     title="Effacer la grille"
                     aria-label="Effacer la grille"
                   >
-                    <Trash2 className="size-3.5 text-red-500" />
+                    <FontAwesomeIcon icon={faTrash} className="size-3 text-red-500" aria-hidden="true" />
                     <span className="hidden sm:inline">Effacer</span>
                   </Button>
                   <Button
@@ -1945,7 +1957,7 @@ export default function Home() {
                     title="PDF : 5 pièces"
                     aria-label="Télécharger le PDF pour 5 pièces"
                   >
-                    <Download className="size-3.5 text-emerald-600" />
+                    <FontAwesomeIcon icon={faDownload} className="size-3 text-emerald-600" aria-hidden="true" />
                     <span className="hidden sm:inline">PDF · 5</span>
                   </Button>
                   <Button
@@ -1957,7 +1969,7 @@ export default function Home() {
                     title="PDF avec réponses : 15 pièces"
                     aria-label="Télécharger le PDF avec réponses pour 15 pièces"
                   >
-                    <FileText className="size-3.5 text-amber-500" />
+                    <FontAwesomeIcon icon={faFileLines} className="size-3 text-amber-500" aria-hidden="true" />
                     <span className="hidden sm:inline">Réponses · 15</span>
                   </Button>
                 </div>
@@ -2028,7 +2040,7 @@ export default function Home() {
                       aria-label={soundEnabled ? 'Désactiver les sons' : 'Activer les sons'}
                       title={soundEnabled ? 'Désactiver les sons' : 'Activer les sons'}
                     >
-                      {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+                      <FontAwesomeIcon icon={soundEnabled ? faVolumeHigh : faVolumeXmark} className="size-3.5" aria-hidden="true" />
                       <span className="hidden sm:inline">Son</span>
                     </Button>
                     <Separator orientation="vertical" className="h-6 hidden sm:block" />
@@ -2038,7 +2050,7 @@ export default function Home() {
                       onClick={() => void handleCheck()}
                       disabled={isChecking || isCompleted}
                     >
-                      <CheckCircle2 className="size-4 text-emerald-600" />
+                      <FontAwesomeIcon icon={faCircleCheck} className="size-3.5 text-emerald-600" aria-hidden="true" />
                       Vérifier
                     </Button>
                     <Button
@@ -2047,7 +2059,7 @@ export default function Home() {
                       onClick={handleHint}
                       disabled={!selectedCell || isCompleted}
                     >
-                      <Lightbulb className="size-4 text-amber-500" />
+                      <FontAwesomeIcon icon={faLightbulb} className="size-3.5 text-amber-500" aria-hidden="true" />
                       Indice
                     </Button>
                     <Button
@@ -2057,7 +2069,7 @@ export default function Home() {
                       disabled={!session?.user || isCompleted || isRevealingLetters || coinBalance < 5}
                       title="Révéler 5 lettres pour 5 pièces"
                     >
-                      <Coins className="size-4 text-amber-500" />
+                      <FontAwesomeIcon icon={faCoins} className="size-3.5 text-amber-500" aria-hidden="true" />
                       5 lettres
                     </Button>
                     <Button
@@ -2067,7 +2079,7 @@ export default function Home() {
                       disabled={!session?.user || isCompleted || isRevealingLetters || coinBalance < 10}
                       title="Révéler 10 lettres pour 10 pièces"
                     >
-                      <Coins className="size-4 text-amber-500" />
+                      <FontAwesomeIcon icon={faCoins} className="size-3.5 text-amber-500" aria-hidden="true" />
                       10 lettres
                     </Button>
                   </div>
@@ -2145,7 +2157,7 @@ export default function Home() {
                   className="mx-4 rounded-2xl bg-card p-8 text-center shadow-2xl sm:p-12 max-w-md w-full"
                 >
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40">
-                    <Trophy className="size-8 text-emerald-600 dark:text-emerald-400" />
+                    <FontAwesomeIcon icon={faTrophy} className="size-7 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
                   </div>
                   <h2
                     className="font-display text-2xl font-bold sm:text-3xl"
@@ -2158,33 +2170,33 @@ export default function Home() {
                   </p>
                   <div className="mt-4 flex items-center justify-center gap-4 text-sm">
                     <div className="flex items-center gap-1.5">
-                      <span>⭐</span>
+                      <FontAwesomeIcon icon={faStar} className="size-3.5 text-amber-500" aria-hidden="true" />
                       <span className="text-muted-foreground">{selectedPuzzle?.clues.length} mots</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span>💡</span>
+                      <FontAwesomeIcon icon={faLightbulb} className="size-3.5 text-amber-500" aria-hidden="true" />
                       <span className="text-muted-foreground">{revealedCells.size} indices</span>
                     </div>
                     {streak > 0 && (
                       <div className="flex items-center gap-1.5">
-                        <span>🔥</span>
+                        <FontAwesomeIcon icon={faFire} className="size-3.5 text-orange-500" aria-hidden="true" />
                         <span className="text-muted-foreground">Série: {streak}</span>
                       </div>
                     )}
                   </div>
                   {lastCoinReward > 0 && (
                     <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                      <Coins className="size-4" />
+                      <FontAwesomeIcon icon={faCoins} className="size-3.5" aria-hidden="true" />
                       +{lastCoinReward} pièces
                     </div>
                   )}
                   <div className="mt-6 flex items-center justify-center gap-3">
                     <Button variant="outline" onClick={handleShare}>
-                      <Share2 className="size-4" />
+                      <FontAwesomeIcon icon={faShareNodes} className="size-3.5" aria-hidden="true" />
                       Partager
                     </Button>
                     <Button variant="outline" onClick={handleBack}>
-                      <ArrowLeft className="size-4" />
+                      <FontAwesomeIcon icon={faArrowLeft} className="size-3.5" aria-hidden="true" />
                       Retour
                     </Button>
                   </div>
