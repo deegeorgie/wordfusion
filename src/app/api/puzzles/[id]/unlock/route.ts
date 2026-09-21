@@ -17,7 +17,15 @@ export async function POST(
     const { id: puzzleId } = await params;
     const puzzle = await db.crosswordPuzzle.findUnique({
       where: { id: puzzleId },
-      select: { id: true, creatorId: true, published: true, isPremium: true, unlockCost: true },
+      select: {
+        id: true,
+        creatorId: true,
+        published: true,
+        isPremium: true,
+        unlockCost: true,
+        rows: true,
+        cols: true,
+      },
     });
     if (!puzzle) return NextResponse.json({ error: 'Puzzle introuvable' }, { status: 404 });
     if (!puzzle.isPremium || puzzle.unlockCost <= 0 || isBiteSizedPuzzle(puzzle)) {
