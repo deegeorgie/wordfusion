@@ -379,7 +379,7 @@ export default function CrosswordGrid({
                   role="presentation"
                   className="
                     bg-gray-900
-                    dark:bg-gray-950
+                    dark:bg-[#0b0f11]
                     w-8 h-8
                     sm:w-10 sm:h-10
                     md:w-10 md:h-10
@@ -390,8 +390,8 @@ export default function CrosswordGrid({
             }
 
             // ── White cell styling ──
-            let cellBg = 'bg-white dark:bg-gray-50';
-            let cellText = 'text-gray-900 dark:text-gray-900';
+            let cellBg = 'bg-white dark:bg-[#1d292e]';
+            let cellText = 'text-gray-900 dark:text-[#edf4f1]';
 
             // Status colours (highest priority)
             if (isIncorrect) {
@@ -443,7 +443,7 @@ export default function CrosswordGrid({
                   transition-colors
                   duration-100
                   border border-gray-300
-                  dark:border-gray-600
+                  dark:border-[#3b5056]
                   hover:brightness-95
                   dark:hover:brightness-110
                   ${isSelected ? 'ring-2 ring-primary ring-inset' : ''}

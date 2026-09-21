@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faAward,
@@ -24,6 +25,7 @@ import {
   faLanguage,
   faLayerGroup,
   faLightbulb,
+  faMoon,
   faRightFromBracket,
   faRightToBracket,
   faShareNodes,
@@ -32,6 +34,7 @@ import {
   faTrash,
   faTrophy,
   faUser,
+  faSun,
   faVolumeHigh,
   faVolumeXmark,
 } from '@fortawesome/free-solid-svg-icons';
@@ -362,6 +365,28 @@ function PuzzleCardSkeleton() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-8 text-muted-foreground hover:text-foreground"
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      aria-label="Changer de thème"
+      title="Changer de thème"
+    >
+      <span className="dark:hidden">
+        <FontAwesomeIcon icon={faMoon} className="size-3.5" aria-hidden="true" />
+      </span>
+      <span className="hidden dark:inline">
+        <FontAwesomeIcon icon={faSun} className="size-3.5" aria-hidden="true" />
+      </span>
+    </Button>
   );
 }
 
@@ -1458,6 +1483,7 @@ export default function Home() {
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <ThemeToggle />
                 {session?.user && (
                   <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 shadow-sm dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
                     <FontAwesomeIcon icon={faCoins} className="size-3.5" aria-hidden="true" />
@@ -1950,6 +1976,8 @@ export default function Home() {
               <h2 className="min-w-0 flex-1 truncate text-sm font-semibold sm:text-base">
                 {selectedPuzzle?.title ?? 'Chargement…'}
               </h2>
+
+              <ThemeToggle />
 
               {selectedPuzzle && (
                 <Badge className={difficultyColor(selectedPuzzle.difficulty)} variant="secondary">
