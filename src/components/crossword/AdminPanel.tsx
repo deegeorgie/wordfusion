@@ -1568,7 +1568,15 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                                         </Button>
                                       </PopoverTrigger>
                                       <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} initialFocus />
+                                        <Calendar
+                                          mode="single"
+                                          selected={selectedDate}
+                                          onSelect={setSelectedDate}
+                                          defaultMonth={selectedDate ?? new Date()}
+                                          startMonth={new Date(2000, 0, 1)}
+                                          endMonth={new Date(2100, 11, 31)}
+                                          initialFocus
+                                        />
                                         <div className="flex justify-end gap-2 border-t p-2">
                                           <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setDatePickerPuzzleId(null)}>
                                             Annuler
