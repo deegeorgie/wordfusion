@@ -4,6 +4,22 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faAward,
+  faBars,
+  faCalendarDay,
+  faChartLine,
+  faCoins,
+  faFire,
+  faFolderOpen,
+  faGlobe,
+  faLayerGroup,
+  faRightFromBracket,
+  faRightToBracket,
+  faUser,
+} from '@fortawesome/free-solid-svg-icons';
 import {
   ArrowLeft,
   CalendarDays,
@@ -336,6 +352,7 @@ function PuzzleCardSkeleton() {
 // ════════════════════════════════════════════════════════════════════════
 
 export default function Home() {
+  const router = useRouter();
   // ── Auth ───────────────────────────────────────────────────────────
   const { data: session, status } = useSession();
   const [authOpen, setAuthOpen] = useState(false);
@@ -384,7 +401,11 @@ export default function Home() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(() =>
+    typeof window === 'undefined'
+      ? true
+      : localStorage.getItem('crossword-sound-enabled') !== 'false',
+  );
   const [isLoadingPuzzle, setIsLoadingPuzzle] = useState(false);
   const [isUnlockingPuzzle, setIsUnlockingPuzzle] = useState<string | null>(null);
 
@@ -433,7 +454,6 @@ export default function Home() {
   // ── Load authenticated coin balance ─────────────────────────────────
   useEffect(() => {
     if (status !== 'authenticated') {
-      setCoinBalance(0);
       return;
     }
 
@@ -442,10 +462,6 @@ export default function Home() {
       .then((data) => setCoinBalance(data.balance ?? 0))
       .catch(() => {});
   }, [status]);
-
-  useEffect(() => {
-    setSoundEnabled(localStorage.getItem('crossword-sound-enabled') !== 'false');
-  }, []);
 
   // ── Load account-scoped streak data from localStorage ────────────────
   useEffect(() => {
@@ -461,8 +477,10 @@ export default function Home() {
       const fallbackData = Array.isArray(localData) ? localData : [];
 
       if (!session?.user?.id) {
-        setStreakData(fallbackData);
-        setEarnedBadgeIds(new Set(evaluateBadges(fallbackData).map((b) => b.id)));
+        queueMicrotask(() => {
+          setStreakData(fallbackData);
+          setEarnedBadgeIds(new Set(evaluateBadges(fallbackData).map((b) => b.id)));
+        });
         return;
       }
 
@@ -598,27 +616,27 @@ export default function Home() {
       title: selectedPuzzle.title,
       language: dailyPuzzles.find((p) => p.id === puzzleId)?.language || 'fr',
     };
-    setStreakData((prev) => {
-      const updated = [...prev, entry];
-      const storageKey = session?.user?.id
-        ? `crossword-streak-data:${session.user.id}`
-        : 'crossword-streak-data:anonymous';
-      localStorage.setItem(storageKey, JSON.stringify(updated));
+    queueMicrotask(() => {
+      setStreakData((prev) => {
+        const updated = [...prev, entry];
+        const storageKey = session?.user?.id
+          ? `crossword-streak-data:${session.user.id}`
+          : 'crossword-streak-data:anonymous';
+        localStorage.setItem(storageKey, JSON.stringify(updated));
 
-      // Check for newly earned badges
-      const previouslyEarned = Array.from(earnedBadgeIds);
-      const newBadges = getNewBadges(updated, previouslyEarned);
-      if (newBadges.length > 0) {
-        setEarnedBadgeIds((prev) => {
-          const next = new Set(prev);
-          for (const b of newBadges) next.add(b.id);
-          return next;
-        });
-        // Show the first new badge as notification
-        setNewBadge(newBadges[0]);
-      }
+        const previouslyEarned = Array.from(earnedBadgeIds);
+        const newBadges = getNewBadges(updated, previouslyEarned);
+        if (newBadges.length > 0) {
+          setEarnedBadgeIds((prev) => {
+            const next = new Set(prev);
+            for (const b of newBadges) next.add(b.id);
+            return next;
+          });
+          setNewBadge(newBadges[0]);
+        }
 
-      return updated;
+        return updated;
+      });
     });
   }, [isCompleted, session?.user?.id]);
 
@@ -1415,7 +1433,7 @@ export default function Home() {
               <div className="flex shrink-0 items-center gap-1">
                 {session?.user && (
                   <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 shadow-sm dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
-                    <Coins className="size-4" />
+                    <FontAwesomeIcon icon={faCoins} className="size-3.5" aria-hidden="true" />
                     <span className="text-sm font-bold">{coinBalance}</span>
                   </div>
                 )}
@@ -1428,7 +1446,7 @@ export default function Home() {
                       className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
                       onClick={() => setStatsOpen(true)}
                     >
-                      <BarChart3 className="size-3.5" />
+                      <FontAwesomeIcon icon={faChartLine} className="size-3.5" aria-hidden="true" />
                       <span className="hidden sm:inline">Statistiques</span>
                     </Button>
                     <Button
@@ -1437,7 +1455,7 @@ export default function Home() {
                       className="text-xs text-muted-foreground hover:text-foreground gap-1.5 relative"
                       onClick={() => setBadgesOpen(true)}
                     >
-                      <Award className="size-3.5" />
+                      <FontAwesomeIcon icon={faAward} className="size-3.5" aria-hidden="true" />
                       <span className="hidden sm:inline">Badges</span>
                       {earnedBadgeIds.size > 0 && (
                         <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white px-1">
@@ -1455,7 +1473,7 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
                           <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            <UserIcon className="size-3.5" />
+                            <FontAwesomeIcon icon={faUser} className="size-3" aria-hidden="true" />
                           </div>
                           <div className="hidden sm:flex flex-col leading-none">
                             <span className="text-xs font-medium max-w-[120px] truncate">{session.user.name}</span>
@@ -1472,10 +1490,10 @@ export default function Home() {
                           className="text-xs text-muted-foreground hover:text-destructive gap-1"
                           onClick={async () => {
                             await signOut({ redirect: false });
-                            window.location.href = '/';
+                            router.push('/');
                           }}
                         >
-                          <LogOut className="size-3.5" />
+                              <FontAwesomeIcon icon={faRightFromBracket} className="size-3" aria-hidden="true" />
                           <span className="hidden sm:inline">Déconnexion</span>
                         </Button>
                       </div>
@@ -1484,9 +1502,9 @@ export default function Home() {
                           variant="ghost"
                           size="sm"
                           className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
-                          onClick={() => { window.location.href = '/admin'; }}
+                          onClick={() => router.push('/admin')}
                         >
-                          <Settings className="size-3.5" />
+                          <FontAwesomeIcon icon={faLayerGroup} className="size-3" aria-hidden="true" />
                           <span className="hidden sm:inline">{isAdmin ? 'Administration' : 'Créateur'}</span>
                         </Button>
                       )}
@@ -1498,7 +1516,7 @@ export default function Home() {
                       className="text-xs text-muted-foreground hover:text-foreground gap-1.5"
                       onClick={() => setAuthOpen(true)}
                     >
-                      <LogIn className="size-3.5" />
+                      <FontAwesomeIcon icon={faRightToBracket} className="size-3" aria-hidden="true" />
                       <span className="hidden sm:inline">Connexion</span>
                     </Button>
                   )}
@@ -1512,7 +1530,7 @@ export default function Home() {
                   aria-label="Ouvrir le menu"
                   title="Menu"
                 >
-                  <Menu className="size-5" />
+                  <FontAwesomeIcon icon={faBars} className="size-4" aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -1528,7 +1546,7 @@ export default function Home() {
                 {session?.user && (
                   <div className="mb-2 flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <UserIcon className="size-4" />
+                      <FontAwesomeIcon icon={faUser} className="size-3.5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0 leading-tight">
                       <p className="truncate text-sm font-medium">{session.user.name}</p>
@@ -1545,7 +1563,7 @@ export default function Home() {
                       className="justify-start gap-3"
                       onClick={() => { setMobileMenuOpen(false); setStatsOpen(true); }}
                     >
-                      <BarChart3 className="size-4" />
+                      <FontAwesomeIcon icon={faChartLine} className="size-3.5" aria-hidden="true" />
                       Statistiques
                     </Button>
                     <Button
@@ -1553,7 +1571,7 @@ export default function Home() {
                       className="justify-start gap-3"
                       onClick={() => { setMobileMenuOpen(false); setBadgesOpen(true); }}
                     >
-                      <Award className="size-4" />
+                      <FontAwesomeIcon icon={faAward} className="size-3.5" aria-hidden="true" />
                       <span>Badges</span>
                       {earnedBadgeIds.size > 0 && (
                         <Badge variant="secondary" className="ml-auto">{earnedBadgeIds.size}</Badge>
@@ -1567,9 +1585,9 @@ export default function Home() {
                       <Button
                         variant="ghost"
                         className="justify-start gap-3"
-                        onClick={() => { window.location.href = '/admin'; }}
+                        onClick={() => router.push('/admin')}
                       >
-                        <Settings className="size-4" />
+                        <FontAwesomeIcon icon={faLayerGroup} className="size-3.5" aria-hidden="true" />
                         {isAdmin ? 'Administration' : 'Créateur'}
                       </Button>
                     )}
@@ -1579,10 +1597,10 @@ export default function Home() {
                       onClick={async () => {
                         setMobileMenuOpen(false);
                         await signOut({ redirect: false });
-                        window.location.href = '/';
+                        router.push('/');
                       }}
                     >
-                      <LogOut className="size-4" />
+                      <FontAwesomeIcon icon={faRightFromBracket} className="size-3.5" aria-hidden="true" />
                       Déconnexion
                     </Button>
                   </>
@@ -1592,7 +1610,7 @@ export default function Home() {
                     className="justify-start gap-3"
                     onClick={() => { setMobileMenuOpen(false); setAuthOpen(true); }}
                   >
-                    <LogIn className="size-4" />
+                    <FontAwesomeIcon icon={faRightToBracket} className="size-3.5" aria-hidden="true" />
                     Connexion
                   </Button>
                 )}
@@ -1605,7 +1623,8 @@ export default function Home() {
             {/* Date display */}
             <div className="mb-6">
               <p className="text-sm text-muted-foreground capitalize">
-                📅 {formatFrenchDate()}
+                <FontAwesomeIcon icon={faCalendarDay} className="mr-1.5 size-3.5 text-primary" aria-hidden="true" />
+                {formatFrenchDate()}
               </p>
               <h2
                 className="font-display mt-2 text-xl font-semibold sm:text-2xl"
@@ -1626,7 +1645,7 @@ export default function Home() {
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="relative">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-lg shadow-orange-500/20">
-                        <span className="text-xl">🔥</span>
+                        <FontAwesomeIcon icon={faFire} className="size-5" aria-hidden="true" />
                       </div>
                       {streak > 0 && (
                         <motion.div
@@ -1673,7 +1692,7 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-3 mb-6">
               {/* Language selector */}
               <div className="flex items-center gap-2">
-                <Globe className="size-4 text-muted-foreground" />
+                <FontAwesomeIcon icon={faGlobe} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                 <Select value={selectedLanguage} onValueChange={(v) => {
                   setSelectedLanguage(v);
                   setSelectedCategory('all');
@@ -1716,7 +1735,7 @@ export default function Home() {
               {/* Category selector — only show if there are categories with puzzles */}
               {activeCategoryIds.size > 0 && (
                 <div className="flex items-center gap-2">
-                  <FolderOpen className="size-4 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faFolderOpen} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger className="h-9 w-44 text-sm">
                       <SelectValue placeholder="Catégorie" />
@@ -1744,7 +1763,7 @@ export default function Home() {
               {/* Puzzle count */}
               <div className="ml-auto">
                 <Badge variant="secondary" className="text-xs">
-                  <Layers className="size-3 mr-1" />
+                    <FontAwesomeIcon icon={faLayerGroup} className="mr-1 size-3" aria-hidden="true" />
                   {filteredPuzzles.length} puzzle{filteredPuzzles.length !== 1 ? 's' : ''}
                 </Badge>
               </div>
