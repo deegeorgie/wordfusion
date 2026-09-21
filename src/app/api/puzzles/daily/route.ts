@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
+import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,7 +72,9 @@ export async function GET(request: NextRequest) {
     });
     const progressByPuzzleId = new Map(progress.map((entry) => [entry.puzzleId, entry]));
 
-    const summaries = puzzles.map((p) => ({
+    const summaries = puzzles.map((p) => {
+      const isBiteSized = isBiteSizedPuzzle(p);
+      return {
       id: p.id,
       puzzleNumber: p.puzzleNumber,
       title: p.title,
@@ -88,16 +91,17 @@ export async function GET(request: NextRequest) {
       packId: p.packId,
       packName: p.pack?.name ?? null,
       packIcon: p.pack?.icon ?? null,
-      isPremium: p.isPremium,
-      unlockCost: p.unlockCost,
-      isUnlocked: !p.isPremium || unlockedPuzzleIds.has(p.id) ||
+      isPremium: p.isPremium && !isBiteSized,
+      unlockCost: isBiteSized ? 0 : p.unlockCost,
+      isUnlocked: !p.isPremium || isBiteSized || unlockedPuzzleIds.has(p.id) ||
         session?.user.role === 'ADMIN' || p.creatorId === session?.user.id ||
         progressByPuzzleId.get(p.id)?.completed === true,
       categorySlug: p.category?.slug ?? null,
       completed: progressByPuzzleId.get(p.id)?.completed ?? false,
       timeSpent: progressByPuzzleId.get(p.id)?.timeSpent ?? 0,
       lastPlayedAt: progressByPuzzleId.get(p.id)?.updatedAt.toISOString() ?? null,
-    }));
+      };
+    });
 
     return setProgressCookie(NextResponse.json({ puzzles: summaries }), progressUser.userId, progressUser.setCookie);
   } catch (error) {

@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 
 /** Return a public puzzle, or a draft only to its creator/admin. */
 export async function getAccessiblePuzzle(id: string) {
@@ -10,9 +11,10 @@ export async function getAccessiblePuzzle(id: string) {
   const session = await getServerSession(authOptions);
   const isAdmin = session?.user.role === 'ADMIN';
   const isOwner = session?.user.id === puzzle.creatorId;
+  const isBiteSized = isBiteSizedPuzzle(puzzle);
 
   if (!puzzle.published) return isAdmin || isOwner ? puzzle : null;
-  if (!puzzle.isPremium || isAdmin || isOwner) return puzzle;
+  if (!puzzle.isPremium || isBiteSized || isAdmin || isOwner) return puzzle;
   if (!session?.user.id) return null;
 
   const [unlock, completedProgress] = await Promise.all([

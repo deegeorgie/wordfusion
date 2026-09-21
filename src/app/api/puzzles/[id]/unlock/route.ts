@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 
 export async function POST(
   _request: Request,
@@ -19,7 +20,7 @@ export async function POST(
       select: { id: true, creatorId: true, published: true, isPremium: true, unlockCost: true },
     });
     if (!puzzle) return NextResponse.json({ error: 'Puzzle introuvable' }, { status: 404 });
-    if (!puzzle.isPremium || puzzle.unlockCost <= 0) {
+    if (!puzzle.isPremium || puzzle.unlockCost <= 0 || isBiteSizedPuzzle(puzzle)) {
       return NextResponse.json({ error: 'Ce puzzle est déjà gratuit' }, { status: 400 });
     }
     if (!puzzle.published) {

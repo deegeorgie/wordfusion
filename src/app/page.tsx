@@ -113,6 +113,7 @@ import {
   type OfflinePuzzleDraft,
 } from '@/lib/crossword/offline-drafts';
 import { cn } from '@/lib/utils';
+import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 import type {
   CrosswordPuzzleData,
   WordPlacement,
@@ -555,7 +556,8 @@ export default function Home() {
       puzzles = puzzles.filter((p) =>
         (p.publishDate && p.publishDate.slice(0, 10) === todayStr) ||
         p.completed ||
-        p.isPremium,
+        p.isPremium ||
+        isBiteSizedPuzzle(p),
       );
     }
     if (selectedCategory !== 'all') {
@@ -568,7 +570,11 @@ export default function Home() {
   }, [dailyPuzzles, effectiveTodayOnly, todayStr, selectedCategory, selectedPack]);
 
   const dailyPuzzleCandidates = useMemo(
-    () => filteredPuzzles.filter((puzzle) => !puzzle.isPremium),
+    () => filteredPuzzles.filter((puzzle) => !isBiteSizedPuzzle(puzzle) && !puzzle.isPremium),
+    [filteredPuzzles],
+  );
+  const biteSizedPuzzles = useMemo(
+    () => filteredPuzzles.filter((puzzle) => isBiteSizedPuzzle(puzzle)),
     [filteredPuzzles],
   );
   const dailyChallenges = useMemo(
@@ -578,11 +584,11 @@ export default function Home() {
   const allDailyChallengesCompleted =
     dailyPuzzleCandidates.length > 0 && dailyChallenges.length === 0;
   const expertPuzzles = useMemo(
-    () => filteredPuzzles.filter((puzzle) => puzzle.isPremium && !puzzle.completed),
+    () => filteredPuzzles.filter((puzzle) => !isBiteSizedPuzzle(puzzle) && puzzle.isPremium && !puzzle.completed),
     [filteredPuzzles],
   );
   const personalArchives = useMemo(
-    () => filteredPuzzles.filter((puzzle) => puzzle.completed),
+    () => filteredPuzzles.filter((puzzle) => !isBiteSizedPuzzle(puzzle) && puzzle.completed),
     [filteredPuzzles],
   );
 
@@ -1839,6 +1845,20 @@ export default function Home() {
                 </h2>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {expertPuzzles.map(renderPuzzleCard)}
+                </div>
+              </section>
+            )}
+
+            {/* ── Bite-sized puzzles ── */}
+            {!isLoadingPuzzles && biteSizedPuzzles.length > 0 && (
+              <section className="mb-10">
+                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                  <Grid3X3 className="size-5 text-sky-600" />
+                  BITE-SIZED
+                  <Badge variant="secondary" className="text-xs font-normal">5×5 · Free</Badge>
+                </h2>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {biteSizedPuzzles.map(renderPuzzleCard)}
                 </div>
               </section>
             )}
