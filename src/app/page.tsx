@@ -10,6 +10,7 @@ import {
   faAward,
   faArrowLeft,
   faBars,
+  faBoxOpen,
   faCalendarDay,
   faChartLine,
   faCircleCheck,
@@ -20,12 +21,14 @@ import {
   faFire,
   faFolderOpen,
   faGlobe,
+  faLanguage,
   faLayerGroup,
   faLightbulb,
   faRightFromBracket,
   faRightToBracket,
   faShareNodes,
   faStar,
+  faTag,
   faTrash,
   faTrophy,
   faUser,
@@ -1358,7 +1361,8 @@ export default function Home() {
                 </Badge>
               )}
               <Badge variant="outline" className="text-xs">
-                {languageFlag(puzzle.language)} {languageName(puzzle.language)}
+                <FontAwesomeIcon icon={puzzle.language === 'en' ? faGlobe : faLanguage} className="mr-1 size-3" aria-hidden="true" />
+                {languageName(puzzle.language)}
               </Badge>
             </div>
           </div>
@@ -1367,13 +1371,13 @@ export default function Home() {
           </CardDescription>
           {puzzle.categoryName && (
             <Badge variant="secondary" className="text-xs mt-1 gap-1">
-              <span>{puzzle.categoryIcon || '🏷️'}</span>
+              <FontAwesomeIcon icon={faTag} className="size-3 text-muted-foreground" aria-hidden="true" />
               {puzzle.categoryName}
             </Badge>
           )}
           {puzzle.packName && (
             <Badge variant="outline" className="text-xs mt-1 gap-1">
-              <span>{puzzle.packIcon || '📦'}</span>
+              <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
               {puzzle.packName}
             </Badge>
           )}
@@ -1885,7 +1889,7 @@ export default function Home() {
             {isAdmin && packs.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Package className="size-5 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faBoxOpen} className="size-4 text-muted-foreground" aria-hidden="true" />
                   Collections
                 </h2>
                 <div className="flex flex-wrap gap-2">
@@ -1899,7 +1903,7 @@ export default function Home() {
                         className="gap-1.5 text-sm"
                         onClick={() => setSelectedPack(selectedPack === pack.id ? 'all' : pack.id)}
                       >
-                        <span className="text-base">{pack.icon}</span>
+                        <FontAwesomeIcon icon={faBoxOpen} className="size-3.5" aria-hidden="true" />
                         {pack.name}
                         <Badge variant="secondary" className="ml-1 text-xs">{pack._count.puzzles}</Badge>
                       </Button>

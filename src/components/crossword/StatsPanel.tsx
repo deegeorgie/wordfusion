@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import { motion, useSpring, useTransform, useMotionValue } from "framer-motion";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  BarChart3,
-  Trophy,
-  Flame,
-  Clock,
-  Target,
-  TrendingUp,
-  Calendar,
-} from "lucide-react";
+  faChartLine,
+  faCalendarDays,
+  faChartColumn,
+  faClock,
+  faFire,
+  faMedal,
+  faBullseye,
+} from "@fortawesome/free-solid-svg-icons";
 import {
   BarChart,
   Bar,
@@ -225,7 +226,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
   React.useEffect(() => {
     if (open) {
       if (!userId) {
-        setCompletions(loadData());
+        queueMicrotask(() => setCompletions(loadData()));
         return;
       }
 
@@ -262,7 +263,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
   // Stat cards config
   const statCards = [
     {
-      icon: Target,
+      icon: faBullseye,
       label: "Puzzles résolus",
       value: totalSolved,
       format: (v: number) => String(v),
@@ -270,7 +271,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
       bg: "bg-emerald-500/10",
     },
     {
-      icon: Flame,
+      icon: faFire,
       label: "Série en cours",
       value: currentStreak,
       format: (v: number) => String(v),
@@ -278,7 +279,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
       bg: "bg-amber-500/10",
     },
     {
-      icon: Trophy,
+      icon: faMedal,
       label: "Meilleure série",
       value: bestStreak,
       format: (v: number) => String(v),
@@ -286,7 +287,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
       bg: "bg-orange-500/10",
     },
     {
-      icon: Clock,
+      icon: faClock,
       label: "Temps moyen",
       value: avgTime,
       format: (v: number) => formatTime(v),
@@ -302,7 +303,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
         <div className="px-6 pt-6 pb-4">
           <DialogHeader>
             <DialogTitle className="text-xl flex items-center gap-2">
-              <BarChart3 className="size-5 text-emerald-600" />
+              <FontAwesomeIcon icon={faChartLine} className="size-4 text-emerald-600" aria-hidden="true" />
               Statistiques Personnelles
             </DialogTitle>
             <DialogDescription>
@@ -315,7 +316,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
           <div className="flex-1 flex items-center justify-center px-6 pb-10">
             <div className="text-center space-y-3">
               <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <TrendingUp className="size-8 text-emerald-500" />
+                <FontAwesomeIcon icon={faChartLine} className="size-7 text-emerald-500" aria-hidden="true" />
               </div>
               <p className="text-muted-foreground text-sm max-w-xs mx-auto">
                 Commencez à résoudre des puzzles pour voir vos statistiques&nbsp;!
@@ -328,7 +329,6 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
               {/* Stat cards grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {statCards.map((card, i) => {
-                  const Icon = card.icon;
                   return (
                     <motion.div
                       key={card.label}
@@ -344,7 +344,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
                               card.bg
                             )}
                           >
-                            <Icon className={cn("size-5", card.color)} />
+                            <FontAwesomeIcon icon={card.icon} className={cn("size-4", card.color)} aria-hidden="true" />
                           </div>
                           <div className="min-w-0">
                             <div className={cn("text-2xl font-bold tabular-nums", card.color)}>
@@ -372,7 +372,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
                 {/* Daily activity bar chart */}
                 <div>
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <Calendar className="size-4 text-muted-foreground" />
+                    <FontAwesomeIcon icon={faCalendarDays} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                     Activité des 14 derniers jours
                   </h3>
                   <div className="h-[180px] w-full">
@@ -421,7 +421,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
                 {difficultyData.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                      <TrendingUp className="size-4 text-muted-foreground" />
+                      <FontAwesomeIcon icon={faChartColumn} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                       Répartition par difficulté
                     </h3>
                     <div className="flex items-center gap-4">
@@ -477,7 +477,7 @@ export function StatsPanel({ open, onOpenChange, userId }: StatsPanelProps) {
               {/* Recent activity */}
               <div>
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                  <BarChart3 className="size-4 text-muted-foreground" />
+                  <FontAwesomeIcon icon={faChartLine} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                   Activité récente
                 </h3>
                 <div className="max-h-[300px]">

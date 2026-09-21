@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faBoxOpen } from "@fortawesome/free-solid-svg-icons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +32,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Languages,
   FolderOpen,
-  Package,
   Coins,
   Grid2X2,
   Grid3X3,
@@ -380,7 +381,7 @@ export default function PuzzleEditor({
   }, []);
 
   useEffect(() => {
-    if (open) void loadGlossary();
+    if (open) queueMicrotask(() => void loadGlossary());
   }, [open, loadGlossary]);
 
   // ── Derived: number grid for display ─────────────────────────────
@@ -435,30 +436,32 @@ export default function PuzzleEditor({
     if (!open) return;
     if (!editPuzzleId) {
       // New puzzle: reset everything
-      autosaveReady.current = false;
-      setAutosaveStatus('idle');
-      setDescription("");
-      setDifficulty("2");
-      setLanguage("fr");
-      setCategoryId(noneCategory);
-      setPackId(nonePack);
-      setIsPremium(false);
-      setUnlockCost("25");
-      setMagicWords("");
-      setRowsInput(10);
-      setColsInput(10);
-      const emptyGrid = createEmptyGrid(10, 10);
-      setGrid(emptyGrid);
-      setSelectedCell(null);
-      setWords([]);
-      setClues([]);
-      setLoading(false);
+      queueMicrotask(() => {
+        autosaveReady.current = false;
+        setAutosaveStatus('idle');
+        setDescription("");
+        setDifficulty("2");
+        setLanguage("fr");
+        setCategoryId(noneCategory);
+        setPackId(nonePack);
+        setIsPremium(false);
+        setUnlockCost("25");
+        setMagicWords("");
+        setRowsInput(10);
+        setColsInput(10);
+        const emptyGrid = createEmptyGrid(10, 10);
+        setGrid(emptyGrid);
+        setSelectedCell(null);
+        setWords([]);
+        setClues([]);
+        setLoading(false);
+      });
       return;
     }
 
     // Fetch puzzle data
     let cancelled = false;
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     fetch(`/api/puzzles/${editPuzzleId}`)
       .then((res) => {
         if (!res.ok) throw new Error("Erreur de chargement");
@@ -1332,14 +1335,17 @@ export default function PuzzleEditor({
               <Label className="text-xs">Collection</Label>
               <Select value={packId} onValueChange={setPackId}>
                 <SelectTrigger className="h-8 text-sm w-full">
-                  <Package className="size-3 mr-1" />
+                  <FontAwesomeIcon icon={faBoxOpen} className="mr-1 size-3" aria-hidden="true" />
                   <SelectValue placeholder="Sans collection" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={nonePack}>Sans collection</SelectItem>
                   {packs.map((pack) => (
                     <SelectItem key={pack.id} value={pack.id}>
-                      {pack.icon || "📦"} {pack.language === "en" ? "🇬🇧" : "🇫🇷"} {pack.name}
+                      <span className="inline-flex items-center gap-1.5">
+                        <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
+                        {pack.language === "en" ? "🇬🇧" : "🇫🇷"} {pack.name}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

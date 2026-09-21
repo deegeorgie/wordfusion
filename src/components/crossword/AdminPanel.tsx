@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBoxOpen } from '@fortawesome/free-solid-svg-icons';
 import {
   CalendarIcon,
   CheckCircle2,
@@ -13,7 +15,6 @@ import {
   Grid3X3,
   LayoutGrid,
   Loader2,
-  Package,
   Pencil,
   Plus,
   Save,
@@ -663,7 +664,7 @@ function PackManager({ packs, onRefresh }: { packs: PackItem[]; onRefresh: () =>
                       </div>
                     ) : (
                       <span className="flex items-center gap-1.5">
-                        <span className="text-sm">{pack.icon || '📦'}</span>
+                        <FontAwesomeIcon icon={faBoxOpen} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                         {pack.name}
                       </span>
                     )}
@@ -962,7 +963,10 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
                 .filter((p) => p.language === language)
                 .map((pack) => (
                   <SelectItem key={pack.id} value={pack.id}>
-                    {pack.icon} {pack.name}
+                    <span className="inline-flex items-center gap-1.5">
+                      <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
+                      {pack.name}
+                    </span>
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -1109,15 +1113,17 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
 
   useEffect(() => {
     if (open) {
-      fetchData();
+      queueMicrotask(() => void fetchData());
     }
   }, [open, fetchData]);
 
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (!open) {
-      setDatePickerPuzzleId(null);
-      setSelectedDate(undefined);
+      queueMicrotask(() => {
+        setDatePickerPuzzleId(null);
+        setSelectedDate(undefined);
+      });
     }
   }, [open]);
 
@@ -1339,7 +1345,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                 )}
                 {isAdmin && (
                   <TabsTrigger value="packs" className="text-xs sm:text-sm gap-1.5">
-                    <Package className="size-3.5" />
+                    <FontAwesomeIcon icon={faBoxOpen} className="size-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Collections</span>
                     <span className="sm:hidden">Coll.</span>
                   </TabsTrigger>
@@ -1399,7 +1405,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
               <TabsContent value="packs" className="mt-4">
                 <section className="rounded-lg border bg-muted/30 p-4">
                   <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
-                    <Package className="size-4 text-muted-foreground" />
+                    <FontAwesomeIcon icon={faBoxOpen} className="size-3.5 text-muted-foreground" aria-hidden="true" />
                     Gestion des Collections
                     <Badge variant="secondary" className="ml-1">
                       {data?.packs.length ?? 0}
@@ -1460,14 +1466,17 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
 
                       <Select value={packFilter} onValueChange={setPackFilter}>
                         <SelectTrigger className="h-8 text-xs w-36">
-                          <Package className="size-3 mr-1" />
+                          <FontAwesomeIcon icon={faBoxOpen} className="mr-1 size-3" aria-hidden="true" />
                           <SelectValue placeholder="Collection" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Toutes</SelectItem>
                           {data?.packs.map((pack) => (
                             <SelectItem key={pack.id} value={pack.id}>
-                              {pack.icon || '📦'} {pack.name}
+                              <span className="inline-flex items-center gap-1.5">
+                                <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
+                                {pack.name}
+                              </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1538,7 +1547,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                                 <TableCell>
                                   {puzzle.packName ? (
                                     <Badge variant="outline" className="text-xs gap-1">
-                                      <span>{puzzle.packIcon || '📦'}</span>
+                                      <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
                                       {puzzle.packName}
                                     </Badge>
                                   ) : (
