@@ -1333,8 +1333,8 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
               <div className={fullPage ? 'space-y-6' : ''}>
             <Tabs defaultValue={isCreator && !isAdmin ? 'generator' : 'categories'} className="w-full">
               <TabsList className={cn(
-                'grid w-full',
-                isAdmin ? 'grid-cols-6' : isCreator ? 'grid-cols-2' : 'grid-cols-1'
+                'flex w-full justify-start overflow-x-auto',
+                isAdmin ? 'sm:grid sm:grid-cols-6' : isCreator ? 'sm:grid sm:grid-cols-2' : 'grid'
               )}>
                 {isAdmin && (
                   <TabsTrigger value="categories" className="text-xs sm:text-sm gap-1.5">
@@ -1436,7 +1436,7 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                       </Badge>
                     </h3>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                       <Select value={languageFilter} onValueChange={setLanguageFilter}>
                         <SelectTrigger className="h-8 text-xs w-28">
                           <Languages className="size-3 mr-1" />

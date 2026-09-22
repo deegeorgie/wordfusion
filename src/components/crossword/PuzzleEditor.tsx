@@ -349,6 +349,7 @@ export default function PuzzleEditor({
   const autosaveReady = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const glossaryFileRef = useRef<HTMLInputElement>(null);
   const isEditing = !!editPuzzleId;
 
@@ -450,8 +451,9 @@ export default function PuzzleEditor({
         setRowsInput(10);
         setColsInput(10);
         const emptyGrid = createEmptyGrid(10, 10);
+        emptyGrid[0][0] = { ...emptyGrid[0][0], isBlack: false };
         setGrid(emptyGrid);
-        setSelectedCell(null);
+        setSelectedCell({ row: 0, col: 0 });
         setWords([]);
         setClues([]);
         setLoading(false);
@@ -574,6 +576,27 @@ export default function PuzzleEditor({
     [customShapeMode, grid, selectedCell, recomputeWords]
   );
 
+  const handleLetterInput = useCallback((value: string) => {
+    if (!selectedCell) return;
+    const letter = value.slice(-1).toUpperCase();
+    if (!/^[A-ZÀ-Ý]$/.test(letter)) return;
+
+    const { row, col } = selectedCell;
+    const maxRow = grid.length - 1;
+    const maxCol = (grid[0]?.length ?? 1) - 1;
+    const cell = grid[row]?.[col];
+    if (!cell || cell.isBlack) return;
+
+    const newGrid = cloneGrid(grid);
+    newGrid[row][col] = { ...newGrid[row][col], letter };
+    recomputeWords(newGrid);
+    if (col < maxCol && !newGrid[row][col + 1].isBlack) {
+      setSelectedCell({ row, col: col + 1 });
+    } else if (row < maxRow) {
+      setSelectedCell({ row: row + 1, col: 0 });
+    }
+  }, [selectedCell, grid, recomputeWords]);
+
   // ── Keyboard handler ─────────────────────────────────────────────
   useEffect(() => {
     if (!selectedCell) return;
@@ -623,23 +646,8 @@ export default function PuzzleEditor({
             setSelectedCell({ row: row - 1, col: maxCol });
           }
         }
-      } else if (/^[a-zA-Z]$/.test(e.key)) {
-        const cell = grid[row]?.[col];
-        if (cell && !cell.isBlack) {
-          const newGrid = cloneGrid(grid);
-          newGrid[row][col] = {
-            ...newGrid[row][col],
-            letter: e.key.toUpperCase(),
-          };
-          recomputeWords(newGrid);
-          // Auto-advance
-          if (col < maxCol && !newGrid[row][col + 1].isBlack) {
-            setSelectedCell({ row, col: col + 1 });
-          } else if (row < maxRow) {
-            // Try to move to next row
-            setSelectedCell({ row: row + 1, col: 0 });
-          }
-        }
+      } else if (/^[a-zA-ZÀ-Ý]$/.test(e.key)) {
+        handleLetterInput(e.key);
       } else if (e.key === "Escape") {
         setSelectedCell(null);
       }
@@ -647,7 +655,12 @@ export default function PuzzleEditor({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedCell, grid, recomputeWords]);
+  }, [selectedCell, grid, recomputeWords, handleLetterInput]);
+
+  useEffect(() => {
+    if (!selectedCell || !window.matchMedia('(pointer: coarse)').matches) return;
+    mobileInputRef.current?.focus({ preventScroll: true });
+  }, [selectedCell]);
 
   // ── Resize grid ──────────────────────────────────────────────────
   const applyGridSize = useCallback((rows: number, cols: number) => {
@@ -1246,6 +1259,21 @@ export default function PuzzleEditor({
   // ── Main render ──────────────────────────────────────────────────
   const editorBody = (
     <>
+        <input
+          ref={mobileInputRef}
+          type="text"
+          inputMode="text"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-label="Saisie des lettres de la grille"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          value=""
+          onChange={(event) => {
+            handleLetterInput(event.target.value);
+            event.target.value = '';
+          }}
+        />
         <DialogHeader className={`px-4 pt-4 pb-2 shrink-0 ${pageMode ? "flex-row items-start justify-between gap-4 border-b px-5 py-4" : ""}`}>
           <div>
           {pageMode ? (
