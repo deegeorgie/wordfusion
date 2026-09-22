@@ -310,8 +310,8 @@ export default function PuzzleEditor({
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState<string>("2");
   const [language, setLanguage] = useState<string>("fr");
-  const [categoryId, setCategoryId] = useState<string>(noneCategory);
-  const [packId, setPackId] = useState<string>(nonePack);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [packIds, setPackIds] = useState<string[]>([]);
   const [isPremium, setIsPremium] = useState(false);
   const [unlockCost, setUnlockCost] = useState("25");
   const [magicWords, setMagicWords] = useState("");
@@ -443,8 +443,8 @@ export default function PuzzleEditor({
         setDescription("");
         setDifficulty("2");
         setLanguage("fr");
-        setCategoryId(noneCategory);
-        setPackId(nonePack);
+        setCategoryIds([]);
+        setPackIds([]);
         setIsPremium(false);
         setUnlockCost("25");
         setMagicWords("");
@@ -476,10 +476,8 @@ export default function PuzzleEditor({
         setDifficulty(String(p.difficulty));
         // Load language and category from puzzle metadata
         if (data.language) setLanguage(data.language);
-        if (data.categoryId) setCategoryId(data.categoryId);
-        else setCategoryId(noneCategory);
-        if (data.packId) setPackId(data.packId);
-        else setPackId(nonePack);
+        setCategoryIds(Array.isArray(data.categoryIds) ? data.categoryIds : data.categoryId ? [data.categoryId] : []);
+        setPackIds(Array.isArray(data.packIds) ? data.packIds : data.packId ? [data.packId] : []);
         setIsPremium(data.isPremium === true);
         setUnlockCost(String(data.unlockCost || 25));
         setMagicWords(Array.isArray(p.magicWords) ? p.magicWords.join(", ") : "");
@@ -1036,8 +1034,8 @@ export default function PuzzleEditor({
         description: description.trim() || undefined,
         difficulty: Number(difficulty),
         language,
-        categoryId: categoryId === noneCategory ? null : categoryId,
-        packId: packId === nonePack ? null : packId,
+        categoryIds,
+        packIds,
         isPremium,
         unlockCost: isPremium ? Number(unlockCost) : 0,
         magicWords: magicWords.split(",").map((word) => word.trim()).filter(Boolean),
@@ -1077,8 +1075,8 @@ export default function PuzzleEditor({
         setDescription("");
         setDifficulty("2");
         setLanguage("fr");
-        setCategoryId(noneCategory);
-        setPackId(nonePack);
+        setCategoryIds([]);
+        setPackIds([]);
         setIsPremium(false);
         setUnlockCost("25");
         setMagicWords("");
@@ -1095,7 +1093,7 @@ export default function PuzzleEditor({
     } finally {
       setSaving(false);
     }
-  }, [description, difficulty, language, categoryId, packId, isPremium, unlockCost, magicWords, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
+  }, [description, difficulty, language, categoryIds, packIds, isPremium, unlockCost, magicWords, grid, words, clues, isEditing, editPuzzleId, onSaved, onOpenChange]);
 
   const handleSave = useCallback(() => {
     void savePuzzle();
@@ -1109,7 +1107,7 @@ export default function PuzzleEditor({
     }, 900);
 
     return () => window.clearTimeout(timeout);
-  }, [open, isEditing, loading, description, difficulty, language, categoryId, packId, isPremium, unlockCost, magicWords, grid, words, clues, savePuzzle]);
+  }, [open, isEditing, loading, description, difficulty, language, categoryIds, packIds, isPremium, unlockCost, magicWords, grid, words, clues, savePuzzle]);
 
   // ── Render helpers ───────────────────────────────────────────────
   const cellSize = "w-9 h-9 sm:w-10 sm:h-10 text-base sm:text-lg";
@@ -1343,41 +1341,34 @@ export default function PuzzleEditor({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Catégorie</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger className="h-8 text-sm w-full">
-                  <FolderOpen className="size-3 mr-1" />
-                  <SelectValue placeholder="Sans catégorie" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={noneCategory}>Sans catégorie</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.icon || "🏷️"} {cat.language === "en" ? "🇬🇧" : "🇫🇷"} {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Catégories ({categoryIds.length})</Label>
+              <div className="max-h-24 space-y-1 overflow-y-auto rounded-md border p-1">
+                {categories.length === 0 ? <span className="px-2 text-xs text-muted-foreground">Aucune catégorie</span> : categories.map((cat) => (
+                  <label key={cat.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted">
+                    <input
+                      type="checkbox"
+                      checked={categoryIds.includes(cat.id)}
+                      onChange={(event) => setCategoryIds((current) => event.target.checked ? [...current, cat.id] : current.filter((id) => id !== cat.id))}
+                    />
+                    <span>{cat.icon || "🏷️"} {cat.language === "en" ? "🇬🇧" : "🇫🇷"} {cat.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Collection</Label>
-              <Select value={packId} onValueChange={setPackId}>
-                <SelectTrigger className="h-8 text-sm w-full">
-                  <FontAwesomeIcon icon={faBoxOpen} className="mr-1 size-3" aria-hidden="true" />
-                  <SelectValue placeholder="Sans collection" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={nonePack}>Sans collection</SelectItem>
-                  {packs.map((pack) => (
-                    <SelectItem key={pack.id} value={pack.id}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
-                        {pack.language === "en" ? "🇬🇧" : "🇫🇷"} {pack.name}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Collections ({packIds.length})</Label>
+              <div className="max-h-24 space-y-1 overflow-y-auto rounded-md border p-1">
+                {packs.length === 0 ? <span className="px-2 text-xs text-muted-foreground">Aucune collection</span> : packs.map((pack) => (
+                  <label key={pack.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted">
+                    <input
+                      type="checkbox"
+                      checked={packIds.includes(pack.id)}
+                      onChange={(event) => setPackIds((current) => event.target.checked ? [...current, pack.id] : current.filter((id) => id !== pack.id))}
+                    />
+                    <span><FontAwesomeIcon icon={faBoxOpen} className="mr-1 size-3 text-muted-foreground" aria-hidden="true" />{pack.language === "en" ? "🇬🇧" : "🇫🇷"} {pack.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Difficulté</Label>

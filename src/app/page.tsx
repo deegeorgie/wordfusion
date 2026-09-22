@@ -147,9 +147,11 @@ interface PuzzleSummary {
   isNew?: boolean;
   language: string;
   categoryId?: string | null;
+  categoryIds?: string[];
   categoryName?: string | null;
   categoryIcon?: string | null;
   packId?: string | null;
+  packIds?: string[];
   packName?: string | null;
   packIcon?: string | null;
   isPremium?: boolean;
@@ -591,10 +593,10 @@ export default function Home() {
       );
     }
     if (selectedCategory !== 'all') {
-      puzzles = puzzles.filter((p) => p.categoryId === selectedCategory);
+      puzzles = puzzles.filter((p) => (p.categoryIds ?? (p.categoryId ? [p.categoryId] : [])).includes(selectedCategory));
     }
     if (selectedPack !== 'all') {
-      puzzles = puzzles.filter((p) => p.packId === selectedPack);
+      puzzles = puzzles.filter((p) => (p.packIds ?? (p.packId ? [p.packId] : [])).includes(selectedPack));
     }
     return puzzles;
   }, [dailyPuzzles, effectiveTodayOnly, todayStr, selectedCategory, selectedPack]);
@@ -626,7 +628,7 @@ export default function Home() {
   const activeCategoryIds = useMemo(() => {
     const ids = new Set<string>();
     for (const p of dailyPuzzles) {
-      if (p.categoryId) ids.add(p.categoryId);
+      for (const categoryId of p.categoryIds ?? (p.categoryId ? [p.categoryId] : [])) ids.add(categoryId);
     }
     return ids;
   }, [dailyPuzzles]);

@@ -5,7 +5,13 @@ import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 
 /** Return a public puzzle, or a draft only to its creator/admin. */
 export async function getAccessiblePuzzle(id: string) {
-  const puzzle = await db.crosswordPuzzle.findUnique({ where: { id } });
+  const puzzle = await db.crosswordPuzzle.findUnique({
+    where: { id },
+    include: {
+      categoryMemberships: { select: { categoryId: true } },
+      collectionMemberships: { select: { packId: true } },
+    },
+  });
   if (!puzzle) return null;
 
   const session = await getServerSession(authOptions);

@@ -112,10 +112,14 @@ interface PuzzleSummary {
   difficulty: number;
   language: string;
   categoryId: string | null;
+  categoryIds?: string[];
+  categoryMemberships?: { name: string; icon: string }[];
   categoryName: string | null;
   categorySlug: string | null;
   categoryIcon?: string | null;
   packId?: string | null;
+  packIds?: string[];
+  collectionMemberships?: { name: string; icon: string }[];
   packName?: string | null;
   packIcon?: string | null;
   rows: number;
@@ -1269,10 +1273,10 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
     if (!data) return [];
     let filtered = data.puzzles;
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter((p) => p.categoryId === categoryFilter);
+      filtered = filtered.filter((p) => (p.categoryIds ?? (p.categoryId ? [p.categoryId] : [])).includes(categoryFilter));
     }
     if (packFilter !== 'all') {
-      filtered = filtered.filter((p) => p.packId === packFilter);
+      filtered = filtered.filter((p) => (p.packIds ?? (p.packId ? [p.packId] : [])).includes(packFilter));
     }
     if (languageFilter !== 'all') {
       filtered = filtered.filter((p) => p.language === languageFilter);
@@ -1534,22 +1538,30 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
                                 </TableCell>
 
                                 <TableCell>
-                                  {puzzle.categoryName ? (
-                                    <Badge variant="outline" className="text-xs gap-1">
-                                      <span>{puzzle.categoryIcon || '🏷️'}</span>
-                                      {puzzle.categoryName}
-                                    </Badge>
+                                  {(puzzle.categoryMemberships?.length ?? 0) > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {puzzle.categoryMemberships?.map((category) => (
+                                        <Badge key={category.name} variant="outline" className="text-xs gap-1">
+                                          <span>{category.icon || '🏷️'}</span>
+                                          {category.name}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">—</span>
                                   )}
                                 </TableCell>
 
                                 <TableCell>
-                                  {puzzle.packName ? (
-                                    <Badge variant="outline" className="text-xs gap-1">
-                                      <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
-                                      {puzzle.packName}
-                                    </Badge>
+                                  {(puzzle.collectionMemberships?.length ?? 0) > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {puzzle.collectionMemberships?.map((collection) => (
+                                        <Badge key={collection.name} variant="outline" className="text-xs gap-1">
+                                          <FontAwesomeIcon icon={faBoxOpen} className="size-3 text-muted-foreground" aria-hidden="true" />
+                                          {collection.name}
+                                        </Badge>
+                                      ))}
+                                    </div>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">—</span>
                                   )}

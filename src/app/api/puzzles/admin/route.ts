@@ -19,7 +19,9 @@ interface PuzzleBody {
   difficulty: number;
   language?: string;
   categoryId?: string | null;
+  categoryIds?: string[];
   packId?: string | null;
+  packIds?: string[];
   isPremium?: boolean;
   unlockCost?: number;
   rows: number;
@@ -63,6 +65,13 @@ function parsePublishDate(value: unknown): Date | null | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
+function getMembershipIds(body: PuzzleBody, pluralKey: 'categoryIds' | 'packIds', singularKey: 'categoryId' | 'packId'): string[] {
+  const plural = body[pluralKey];
+  if (Array.isArray(plural)) return [...new Set(plural.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const singular = body[singularKey];
+  return typeof singular === 'string' && singular ? [singular] : [];
+}
+
 // ── GET: List all puzzles + categories ──────────────────────────────────
 
 export async function GET() {
@@ -80,6 +89,8 @@ export async function GET() {
         language: true,
         categoryId: true,
         packId: true,
+        categoryMemberships: { select: { categoryId: true, category: { select: { name: true, icon: true } } } },
+        collectionMemberships: { select: { packId: true, pack: { select: { name: true, icon: true } } } },
         rows: true,
         cols: true,
         publishDate: true,
@@ -104,10 +115,14 @@ export async function GET() {
       difficulty: p.difficulty,
       language: p.language,
       categoryId: p.categoryId,
+      categoryIds: p.categoryMemberships.map((membership) => membership.categoryId),
+      categoryMemberships: p.categoryMemberships.map((membership) => membership.category),
       categoryName: p.category?.name ?? null,
       categorySlug: p.category?.slug ?? null,
       categoryIcon: p.category?.icon ?? null,
       packId: p.packId,
+      packIds: p.collectionMemberships.map((membership) => membership.packId),
+      collectionMemberships: p.collectionMemberships.map((membership) => membership.pack),
       packName: p.pack?.name ?? null,
       packIcon: p.pack?.icon ?? null,
       isPremium: p.isPremium,
@@ -172,8 +187,10 @@ export async function POST(request: NextRequest) {
     }
 
     const language = ['fr', 'en'].includes(body.language ?? '') ? body.language! : 'fr';
-    const categoryId = body.categoryId || null;
-    const packId = body.packId || null;
+    const categoryIds = getMembershipIds(body, 'categoryIds', 'categoryId');
+    const packIds = getMembershipIds(body, 'packIds', 'packId');
+    const categoryId = categoryIds[0] ?? null;
+    const packId = packIds[0] ?? null;
     const isPremium = body.isPremium === true;
     const requestedUnlockCost = body.unlockCost ?? 0;
     const unlockCost = isPremium && Number.isInteger(requestedUnlockCost) && requestedUnlockCost > 0
@@ -184,16 +201,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate categoryId if provided
-    if (categoryId) {
-      const cat = await db.category.findUnique({ where: { id: categoryId } });
-      if (!cat) {
+    if (categoryIds.length) {
+      const count = await db.category.count({ where: { id: { in: categoryIds } } });
+      if (count !== categoryIds.length) {
         return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
       }
     }
     // Validate packId if provided
-    if (packId) {
-      const pack = await db.pack.findUnique({ where: { id: packId } });
-      if (!pack) {
+    if (packIds.length) {
+      const count = await db.pack.count({ where: { id: { in: packIds } } });
+      if (count !== packIds.length) {
         return NextResponse.json({ error: 'Pack introuvable' }, { status: 400 });
       }
     }
@@ -241,6 +258,8 @@ export async function POST(request: NextRequest) {
         published,
         publishDate: requestedPublishDate,
         firstPublishedAt: published ? new Date() : null,
+        categoryMemberships: { create: categoryIds.map((id) => ({ categoryId: id })) },
+        collectionMemberships: { create: packIds.map((id) => ({ packId: id })) },
       }});
     });
 
@@ -299,8 +318,14 @@ export async function PUT(request: NextRequest) {
       });
 
       const language = ['fr', 'en'].includes(body.language ?? '') ? body.language! : existing.language;
-      const categoryId = body.categoryId !== undefined ? (body.categoryId || null) : existing.categoryId;
-      const packId = body.packId !== undefined ? (body.packId || null) : existing.packId;
+      const categoryIds = body.categoryIds !== undefined || body.categoryId !== undefined
+        ? getMembershipIds(body, 'categoryIds', 'categoryId')
+        : [existing.categoryId].filter((id): id is string => Boolean(id));
+      const packIds = body.packIds !== undefined || body.packId !== undefined
+        ? getMembershipIds(body, 'packIds', 'packId')
+        : [existing.packId].filter((id): id is string => Boolean(id));
+      const categoryId = categoryIds[0] ?? null;
+      const packId = packIds[0] ?? null;
       const isPremium = body.isPremium !== undefined ? body.isPremium === true : existing.isPremium;
       const requestedUnlockCost = body.unlockCost ?? 0;
       const unlockCost = isPremium
@@ -311,16 +336,16 @@ export async function PUT(request: NextRequest) {
       }
 
       // Validate categoryId if provided
-      if (categoryId) {
-        const cat = await db.category.findUnique({ where: { id: categoryId } });
-        if (!cat) {
+      if (categoryIds.length) {
+        const count = await db.category.count({ where: { id: { in: categoryIds } } });
+        if (count !== categoryIds.length) {
           return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
         }
       }
       // Validate packId if provided
-      if (packId) {
-        const pack = await db.pack.findUnique({ where: { id: packId } });
-        if (!pack) {
+      if (packIds.length) {
+        const count = await db.pack.count({ where: { id: { in: packIds } } });
+        if (count !== packIds.length) {
           return NextResponse.json({ error: 'Pack introuvable' }, { status: 400 });
         }
       }
@@ -343,6 +368,12 @@ export async function PUT(request: NextRequest) {
           magicWords: JSON.stringify(magicWords),
         },
       });
+      await db.$transaction([
+        db.puzzleCategory.deleteMany({ where: { puzzleId } }),
+        db.puzzleCollection.deleteMany({ where: { puzzleId } }),
+        ...(categoryIds.length ? [db.puzzleCategory.createMany({ data: categoryIds.map((categoryId) => ({ puzzleId, categoryId })) })] : []),
+        ...(packIds.length ? [db.puzzleCollection.createMany({ data: packIds.map((packId) => ({ puzzleId, packId })) })] : []),
+      ]);
     } else {
       // Only metadata update (description, difficulty, language, categoryId) — title is auto-managed
       const updateData: Record<string, unknown> = {};
@@ -354,25 +385,23 @@ export async function PUT(request: NextRequest) {
         updateData.difficulty = body.difficulty;
       }
       if (body.language && ['fr', 'en'].includes(body.language)) updateData.language = body.language;
-      if (body.categoryId !== undefined) {
-        if (body.categoryId) {
-          const cat = await db.category.findUnique({ where: { id: body.categoryId } });
-          if (!cat) {
+      if (body.categoryIds !== undefined || body.categoryId !== undefined) {
+        const categoryIds = getMembershipIds(body, 'categoryIds', 'categoryId');
+        if (categoryIds.length) {
+          const count = await db.category.count({ where: { id: { in: categoryIds } } });
+          if (count !== categoryIds.length) {
             return NextResponse.json({ error: 'Catégorie introuvable' }, { status: 400 });
           }
-          updateData.categoryId = body.categoryId;
-        } else {
-          updateData.categoryId = null;
         }
+        updateData.categoryId = categoryIds[0] ?? null;
       }
-      if (body.packId !== undefined) {
-        if (body.packId) {
-          const pack = await db.pack.findUnique({ where: { id: body.packId } });
-          if (!pack) return NextResponse.json({ error: 'Pack introuvable' }, { status: 400 });
-          updateData.packId = body.packId;
-        } else {
-          updateData.packId = null;
+      if (body.packIds !== undefined || body.packId !== undefined) {
+        const packIds = getMembershipIds(body, 'packIds', 'packId');
+        if (packIds.length) {
+          const count = await db.pack.count({ where: { id: { in: packIds } } });
+          if (count !== packIds.length) return NextResponse.json({ error: 'Pack introuvable' }, { status: 400 });
         }
+        updateData.packId = packIds[0] ?? null;
       }
       if (body.isPremium !== undefined || body.unlockCost !== undefined) {
         const isPremium = body.isPremium !== undefined ? body.isPremium === true : existing.isPremium;
@@ -395,6 +424,18 @@ export async function PUT(request: NextRequest) {
         where: { id: body.id },
         data: updateData,
       });
+      if (body.categoryIds !== undefined || body.categoryId !== undefined || body.packIds !== undefined || body.packId !== undefined) {
+        const categoryIds = body.categoryIds !== undefined || body.categoryId !== undefined
+          ? getMembershipIds(body, 'categoryIds', 'categoryId')
+          : undefined;
+        const packIds = body.packIds !== undefined || body.packId !== undefined
+          ? getMembershipIds(body, 'packIds', 'packId')
+          : undefined;
+        await db.$transaction([
+          ...(categoryIds ? [db.puzzleCategory.deleteMany({ where: { puzzleId: body.id } }), ...(categoryIds.length ? [db.puzzleCategory.createMany({ data: categoryIds.map((categoryId) => ({ puzzleId: body.id, categoryId })) })] : [])] : []),
+          ...(packIds ? [db.puzzleCollection.deleteMany({ where: { puzzleId: body.id } }), ...(packIds.length ? [db.puzzleCollection.createMany({ data: packIds.map((packId) => ({ puzzleId: body.id, packId })) })] : [])] : []),
+        ]);
+      }
     }
 
     return NextResponse.json({ success: true });

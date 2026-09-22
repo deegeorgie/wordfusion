@@ -48,7 +48,9 @@ export async function GET(
       puzzleId: puzzle.id,
       language: puzzle.language,
       categoryId: puzzle.categoryId,
+      categoryIds: puzzle.categoryMemberships.map((membership) => membership.categoryId),
       packId: puzzle.packId,
+      packIds: puzzle.collectionMemberships.map((membership) => membership.packId),
       isPremium: puzzle.isPremium,
       unlockCost: puzzle.unlockCost,
       progress: userProgress

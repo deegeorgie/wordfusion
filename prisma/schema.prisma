@@ -51,6 +51,7 @@ model Pack {
   updatedAt   DateTime @updatedAt
 
   puzzles     CrosswordPuzzle[]
+  memberships PuzzleCollection[]
 }
 
 model Category {
@@ -62,7 +63,8 @@ model Category {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  puzzles   CrosswordPuzzle[]
+  puzzles      CrosswordPuzzle[]
+  memberships  PuzzleCategory[]
 }
 
 model GlossaryEntry {
@@ -93,6 +95,8 @@ model CrosswordPuzzle {
   category         Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   packId           String?
   pack             Pack?     @relation(fields: [packId], references: [id], onDelete: SetNull)
+  categoryMemberships PuzzleCategory[]
+  collectionMemberships PuzzleCollection[]
   creatorId        String?
   creator          User?     @relation(fields: [creatorId], references: [id], onDelete: SetNull)
   unlocks          PuzzleUnlock[]
@@ -114,6 +118,28 @@ model CrosswordPuzzle {
   @@index([firstPublishedAt])
   @@index([published])
   @@index([isPremium])
+}
+
+model PuzzleCategory {
+  puzzleId   String
+  categoryId String
+
+  puzzle   CrosswordPuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  category Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([puzzleId, categoryId])
+  @@index([categoryId])
+}
+
+model PuzzleCollection {
+  puzzleId String
+  packId   String
+
+  puzzle CrosswordPuzzle @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  pack   Pack            @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@id([puzzleId, packId])
+  @@index([packId])
 }
 
 model PuzzleUnlock {
