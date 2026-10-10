@@ -68,6 +68,16 @@ export async function GET(request: NextRequest) {
           })).map((unlock) => unlock.puzzleId),
         )
       : new Set<string>();
+    const hasActiveSubscription = session?.user.id
+      ? Boolean(await db.userSubscription.findFirst({
+          where: {
+            userId: session.user.id,
+            status: 'ACTIVE',
+            currentPeriodEnd: { gt: now },
+          },
+          select: { id: true },
+        }))
+      : false;
     const progress = await db.userProgress.findMany({
       where: { userId: progressUser.userId, puzzleId: { in: puzzles.map((puzzle) => puzzle.id) } },
       select: { puzzleId: true, completed: true, timeSpent: true, updatedAt: true },
@@ -100,6 +110,7 @@ export async function GET(request: NextRequest) {
       isPremium: p.isPremium && !isBiteSized,
       unlockCost: isBiteSized ? 0 : p.unlockCost,
       isUnlocked: !p.isPremium || isBiteSized || unlockedPuzzleIds.has(p.id) ||
+        hasActiveSubscription ||
         session?.user.role === 'ADMIN' || p.creatorId === session?.user.id ||
         progressByPuzzleId.get(p.id)?.completed === true,
       categorySlug: p.category?.slug ?? null,

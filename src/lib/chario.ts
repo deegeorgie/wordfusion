@@ -77,6 +77,7 @@ export const CHARIO_PRODUCTS: Record<string, CharioProductDefinition> = {
     label: 'Starter bundle',
     amountMinor: 3000,
     currency: 'XOF',
+    coins: 150,
     puzzleIds: [],
   },
 };

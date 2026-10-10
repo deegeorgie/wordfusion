@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { addMonths, addYears } from 'date-fns';
 import { db } from '@/lib/db';
+import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 import {
   CHARIO_PRODUCTS,
   getCharioOrderId,
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
   const productId = getCharioProductId(payload);
   const product = productId ? getCharioProductById(productId) : null;
   if (!product) {
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ error: 'Unmapped Chariow product' }, { status: 422 });
   }
 
   const providerOrderId = getCharioOrderId(payload);
@@ -53,13 +55,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing customer email' }, { status: 400 });
   }
 
-  const user = await db.user.findUnique({
-    where: { email },
+  const user = await db.user.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
     select: { id: true, email: true },
   });
 
   if (!user) {
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ error: 'No WordFusion account matches the customer email' }, { status: 404 });
   }
 
   const existingDelivery = await db.chariowPulseDelivery.findUnique({
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
         productKey: product.key,
         coins: product.coins ?? 0,
         amountMinor: product.amountMinor ?? 0,
-        currency: product.currency ?? 'USD',
+        currency: product.currency ?? 'XOF',
         status: 'COMPLETED',
         completedAt: new Date(),
       },
@@ -111,14 +113,39 @@ export async function POST(request: Request) {
     }
 
     if (product.kind === 'subscription' && product.planKey) {
-      const subscriptionId = providerOrderId;
+      const now = new Date();
+      const subscriptionId = `chariow:${user.id}`;
+      const currentSubscription = await tx.userSubscription.findFirst({
+        where: {
+          userId: user.id,
+          provider: 'CHARIO',
+          status: 'ACTIVE',
+          currentPeriodEnd: { gt: now },
+        },
+        orderBy: { currentPeriodEnd: 'desc' },
+      });
+      const currentPeriodStart = currentSubscription?.currentPeriodEnd ?? now;
+      const currentPeriodEnd = product.planKey === 'premium_annual'
+        ? addYears(currentPeriodStart, 1)
+        : addMonths(currentPeriodStart, 1);
+
+      await tx.userSubscription.updateMany({
+        where: {
+          userId: user.id,
+          provider: 'CHARIO',
+          status: 'ACTIVE',
+          providerSubscriptionId: { not: subscriptionId },
+        },
+        data: { status: 'REPLACED' },
+      });
+
       await tx.userSubscription.upsert({
         where: { providerSubscriptionId: subscriptionId },
         update: {
           planKey: product.planKey,
           status: 'ACTIVE',
-          currentPeriodStart: new Date(),
-          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          currentPeriodStart: currentSubscription?.currentPeriodStart ?? now,
+          currentPeriodEnd,
           cancelAtPeriodEnd: false,
         },
         create: {
@@ -127,44 +154,51 @@ export async function POST(request: Request) {
           providerSubscriptionId: subscriptionId,
           planKey: product.planKey,
           status: 'ACTIVE',
-          currentPeriodStart: new Date(),
-          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          currentPeriodStart: now,
+          currentPeriodEnd,
           cancelAtPeriodEnd: false,
         },
       });
     }
 
-    if (product.kind === 'coin_bundle') {
+    if ((product.kind === 'coin_bundle' || product.kind === 'bundle') && (product.coins ?? 0) > 0) {
       const coinGrant = product.coins ?? 0;
-      if (coinGrant > 0) {
-        const wallet = await tx.userWallet.upsert({
-          where: { userId: user.id },
-          create: { userId: user.id, balance: 0 },
-          update: {},
-        });
+      const wallet = await tx.userWallet.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, balance: coinGrant },
+        update: { balance: { increment: coinGrant } },
+      });
 
-        const nextBalance = wallet.balance + coinGrant;
-        await tx.userWallet.update({
-          where: { userId: user.id },
-          data: { balance: nextBalance },
-        });
-
-        await tx.coinTransaction.create({
-          data: {
-            userId: user.id,
-            walletId: wallet.id,
-            amount: coinGrant,
-            reason: 'chario_coin_bundle',
-            referenceKey: `chario:${providerOrderId}:${product.key}`,
-            balanceAfter: nextBalance,
-          },
-        });
-      }
+      await tx.coinTransaction.create({
+        data: {
+          userId: user.id,
+          walletId: wallet.id,
+          amount: coinGrant,
+          reason: product.kind === 'bundle' ? 'chario_starter_bundle' : 'chario_coin_bundle',
+          referenceKey: `chario:${providerOrderId}:${product.key}`,
+          balanceAfter: wallet.balance,
+        },
+      });
     }
 
-    if (product.kind === 'bundle' && product.puzzleIds && product.puzzleIds.length > 0) {
+    if (product.kind === 'bundle') {
+      const puzzleCandidates = product.puzzleIds?.length
+        ? await tx.crosswordPuzzle.findMany({
+            where: { id: { in: product.puzzleIds }, published: true, isPremium: true },
+            select: { id: true, rows: true, cols: true },
+          })
+        : await tx.crosswordPuzzle.findMany({
+            where: { published: true, isPremium: true },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true, rows: true, cols: true },
+          });
+      const puzzlesToUnlock = puzzleCandidates.filter((puzzle) => !isBiteSizedPuzzle(puzzle)).slice(0, 3);
+      if (puzzlesToUnlock.length < 3) {
+        throw new Error('Starter bundle requires three published premium puzzles');
+      }
+
       await Promise.all(
-        product.puzzleIds.map(async (puzzleId) => {
+        puzzlesToUnlock.map(async ({ id: puzzleId }) => {
           await tx.puzzleUnlock.upsert({
             where: { userId_puzzleId: { userId: user.id, puzzleId } },
             create: { userId: user.id, puzzleId },

@@ -23,7 +23,7 @@ export async function getAccessiblePuzzle(id: string) {
   if (!puzzle.isPremium || isBiteSized || isAdmin || isOwner) return puzzle;
   if (!session?.user.id) return null;
 
-  const [unlock, completedProgress] = await Promise.all([
+  const [unlock, completedProgress, activeSubscription] = await Promise.all([
     db.puzzleUnlock.findUnique({
       where: {
         userId_puzzleId: {
@@ -41,7 +41,15 @@ export async function getAccessiblePuzzle(id: string) {
       },
       select: { completed: true },
     }),
+    db.userSubscription.findFirst({
+      where: {
+        userId: session.user.id,
+        status: 'ACTIVE',
+        currentPeriodEnd: { gt: new Date() },
+      },
+      select: { id: true },
+    }),
   ]);
 
-  return unlock || completedProgress?.completed ? puzzle : null;
+  return unlock || completedProgress?.completed || activeSubscription ? puzzle : null;
 }
