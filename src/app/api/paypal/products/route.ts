@@ -5,8 +5,8 @@ export async function GET() {
   return NextResponse.json({
     coinBundles: Object.values(COIN_PRODUCTS),
     subscriptions: [
-      { key: 'monthly', amountMinor: 249, currency: 'USD', paypalPlanConfigured: Boolean(process.env.PAYPAL_PLAN_MONTHLY) },
-      { key: 'annual', amountMinor: 1999, currency: 'USD', paypalPlanConfigured: Boolean(process.env.PAYPAL_PLAN_ANNUAL) },
+      { key: 'monthly', amountMinor: 2500, currency: 'XOF', paypalPlanConfigured: Boolean(process.env.PAYPAL_PLAN_MONTHLY) },
+      { key: 'annual', amountMinor: 20000, currency: 'XOF', paypalPlanConfigured: Boolean(process.env.PAYPAL_PLAN_ANNUAL) },
     ],
   });
 }

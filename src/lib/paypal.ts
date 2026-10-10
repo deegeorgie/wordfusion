@@ -1,10 +1,10 @@
 import { db } from '@/lib/db';
 
 export const COIN_PRODUCTS = {
-  starter: { key: 'starter', coins: 100, amountMinor: 99, currency: 'USD' },
-  standard: { key: 'standard', coins: 350, amountMinor: 299, currency: 'USD' },
-  value: { key: 'value', coins: 700, amountMinor: 499, currency: 'USD' },
-  large: { key: 'large', coins: 1600, amountMinor: 999, currency: 'USD' },
+  starter: { key: 'starter', coins: 100, amountMinor: 500, currency: 'XOF' },
+  standard: { key: 'standard', coins: 350, amountMinor: 1500, currency: 'XOF' },
+  value: { key: 'value', coins: 700, amountMinor: 2500, currency: 'XOF' },
+  large: { key: 'large', coins: 1600, amountMinor: 5000, currency: 'XOF' },
 } as const;
 
 export type CoinProductKey = keyof typeof COIN_PRODUCTS;

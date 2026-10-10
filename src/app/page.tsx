@@ -392,6 +392,126 @@ function ThemeToggle() {
   );
 }
 
+const pricingOffers = [
+  {
+    key: 'premium_annual',
+    title: 'Premium Annuel',
+    price: '20 000 XOF / an',
+    subtitle: 'Le meilleur rapport qualité-prix',
+    description: 'Profitez de l’accès premium toute l’année avec une remise exclusive.',
+    link: 'https://kqrkwyxw.mychariow.co/prd_2y5nqgri',
+    badge: 'Populaire',
+    features: ['Accès premium illimité pendant 12 mois', 'Économie sur le plan mensuel', 'Accès prioritaire aux nouveaux contenus'],
+  },
+  {
+    key: 'premium_monthly',
+    title: 'Premium Mensuel',
+    price: '2 500 XOF / mois',
+    subtitle: 'Accès complet à tous les puzzles premium',
+    description: 'Profitez de tous les puzzles premium, sans limite, et continuez à progresser chaque semaine.',
+    link: 'https://kqrkwyxw.mychariow.co/prd_qpawwt6c',
+    badge: 'Flexible',
+    features: ['Accès illimité aux puzzles premium', 'Débloquez les nouveautés dès leur sortie', 'Sans publicité'],
+  },
+  {
+    key: 'coin_500',
+    title: 'Pack 500 pièces',
+    price: '1 500 XOF',
+    subtitle: 'Recharge rapide et simple',
+    description: 'Ajoutez 500 pièces à votre portefeuille pour débloquer les meilleurs contenus.',
+    link: 'https://kqrkwyxw.mychariow.co/prd_vzaj7e83',
+    badge: 'Coins',
+    features: ['500 pièces instantanément', 'Débloquer des puzzles premium', 'Idéal pour compléter votre progression'],
+  },
+  {
+    key: 'bundle_starter',
+    title: 'Pack Découverte',
+    price: '3 000 XOF',
+    subtitle: '3 puzzles premium + 150 pièces bonus',
+    description: 'Une manière simple de tester le premium et de démarrer avec un bon avantage immédiat.',
+    link: 'https://kqrkwyxw.mychariow.co/prd_cmagmjxe',
+    badge: 'Offre',
+    features: ['3 puzzles premium débloqués', '150 pièces bonus', 'Accès instantané sans abonnement'],
+  },
+] as const;
+
+function PricingOffersModal({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={() => onOpenChange(false)}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">WordFusion</p>
+            <h2 className="text-xl font-bold text-foreground">Choisissez votre offre</h2>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} aria-label="Fermer la boutique">
+            Fermer
+          </Button>
+        </div>
+
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
+          {pricingOffers.map((offer) => (
+            <Card key={offer.key} className="flex h-full flex-col border border-border/80 bg-card/80 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-lg font-bold text-foreground">{offer.title}</CardTitle>
+                  <Badge className="bg-primary/10 text-primary">{offer.badge}</Badge>
+                </div>
+                <p className="text-2xl font-black text-foreground">{offer.price}</p>
+                <CardDescription className="text-sm text-muted-foreground">{offer.subtitle}</CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex flex-1 flex-col gap-4 pt-0 text-sm">
+                <p className="text-muted-foreground">{offer.description}</p>
+                <ul className="space-y-2 text-sm text-foreground/90">
+                  {offer.features.map((feature) => (
+                    <li key={feature} className="flex items-start gap-2">
+                      <span className="mt-1 flex size-4 items-center justify-center rounded-full bg-emerald-100 text-[10px] text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">✓</span>
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <a
+                  href={offer.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-auto"
+                  onClick={() => onOpenChange(false)}
+                >
+                  <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                    {offer.title === 'Premium Annuel' ? 'Choisir le plan annuel' :
+                     offer.title === 'Premium Mensuel' ? 'Choisir le plan mensuel' :
+                     offer.title === 'Pack 500 pièces' ? 'Acheter 500 pièces' :
+                     'Découvrir le pack'}
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ════════════════════════════════════════════════════════════════════════
@@ -409,6 +529,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<'selection' | 'playing'>('selection');
   const [statsOpen, setStatsOpen] = useState(false);
   const [badgesOpen, setBadgesOpen] = useState(false);
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [newBadge, setNewBadge] = useState<EarnedBadge | null>(null);
   const [earnedBadgeIds, setEarnedBadgeIds] = useState<Set<string>>(new Set());
@@ -1492,6 +1613,15 @@ export default function Home() {
                     <span className="text-sm font-bold">{coinBalance}</span>
                   </div>
                 )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="hidden gap-1.5 md:inline-flex"
+                  onClick={() => setPricingModalOpen(true)}
+                >
+                  <Coins className="size-3.5" />
+                  Boutique
+                </Button>
                 <div className="hidden items-center gap-1 md:flex">
                 {streakData.length > 0 && (
                   <>
@@ -1591,6 +1721,8 @@ export default function Home() {
             </div>
           </header>
 
+          <PricingOffersModal open={pricingModalOpen} onOpenChange={setPricingModalOpen} />
+
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetContent side="right" className="w-[min(88vw,22rem)]">
               <SheetHeader className="border-b px-5 pb-4">
@@ -1611,6 +1743,14 @@ export default function Home() {
                     </div>
                   </div>
                 )}
+                <Button
+                  variant="secondary"
+                  className="justify-start gap-3"
+                  onClick={() => { setMobileMenuOpen(false); setPricingModalOpen(true); }}
+                >
+                  <Coins className="size-3.5" />
+                  Boutique
+                </Button>
                 {streakData.length > 0 && (
                   <>
                     <Button

@@ -221,6 +221,14 @@ model PaymentPurchase {
   @@index([provider, status])
 }
 
+model ChariowPulseDelivery {
+  id         String   @id
+  saleId     String
+  receivedAt DateTime @default(now())
+
+  @@index([saleId])
+}
+
 model UserSubscription {
   id                    String   @id @default(cuid())
   userId                String
