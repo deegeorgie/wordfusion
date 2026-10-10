@@ -536,6 +536,15 @@ export default function Home() {
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
 
+  const handleOpenStore = () => {
+    if (status === 'loading') return;
+    if (!session?.user) {
+      setAuthOpen(true);
+      return;
+    }
+    setPricingModalOpen(true);
+  };
+
   // ── Language + Category + Pack + Date filter state ─────────────────
   const [selectedLanguage, setSelectedLanguage] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -1594,35 +1603,34 @@ export default function Home() {
 
           {/* ── Header ─────────────────────────────────────────── */}
           <header className="border-b border-foreground/10 bg-background/80 backdrop-blur-md">
-            <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-3 sm:px-5 lg:py-4">
-              <div className="flex items-center gap-3 sm:gap-4">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-3 sm:px-5 lg:py-4">
+              <div className="flex shrink-0 items-center gap-3 sm:gap-4">
                 <img
                   src="/logo_WF.png"
                   alt="WordFusion logo"
-                  className="h-10 w-10 object-contain sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+                  className="h-10 w-10 object-contain sm:h-12 sm:w-12 lg:h-20 lg:w-20"
                 />
-                <span className="font-sans text-lg font-bold tracking-[0.1em] text-[#123b66] sm:text-3xl sm:tracking-[0.16em] lg:text-4xl dark:text-blue-200">
+                <span className="font-sans text-lg font-bold tracking-[0.1em] text-[#123b66] sm:text-2xl sm:tracking-[0.12em] lg:text-3xl lg:tracking-[0.16em] dark:text-blue-200">
                   WORDFUSION
                 </span>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <ThemeToggle />
+              <div className="ml-auto flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="hidden gap-1.5 md:inline-flex"
+                  onClick={handleOpenStore}
+                >
+                  <Coins className="size-3.5" />
+                  Boutique
+                </Button>
                 {session?.user && (
                   <div className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-amber-700 shadow-sm dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
                     <FontAwesomeIcon icon={faCoins} className="size-3.5" aria-hidden="true" />
                     <span className="text-sm font-bold">{coinBalance}</span>
                   </div>
                 )}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="hidden gap-1.5 md:inline-flex"
-                  onClick={() => setPricingModalOpen(true)}
-                >
-                  <Coins className="size-3.5" />
-                  Boutique
-                </Button>
-                <div className="hidden items-center gap-1 md:flex">
+                <div className="hidden min-w-0 flex-wrap items-center justify-end gap-1 md:flex">
                 {streakData.length > 0 && (
                   <>
                     <Button
@@ -1650,8 +1658,9 @@ export default function Home() {
                     </Button>
                   </>
                 )}
+                <ThemeToggle />
                 {/* ── Auth / User area ──────────────────────────── */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
                   {session?.user ? (
                     <>
                       {/* Role badge + User menu */}
@@ -1707,16 +1716,18 @@ export default function Home() {
                   )}
                 </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden"
-                  onClick={() => setMobileMenuOpen(true)}
-                  aria-label="Ouvrir le menu"
-                  title="Menu"
-                >
-                  <FontAwesomeIcon icon={faBars} className="size-4" aria-hidden="true" />
-                </Button>
+                <div className="flex items-center gap-1 md:hidden">
+                  <ThemeToggle />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setMobileMenuOpen(true)}
+                    aria-label="Ouvrir le menu"
+                    title="Menu"
+                  >
+                    <FontAwesomeIcon icon={faBars} className="size-4" aria-hidden="true" />
+                  </Button>
+                </div>
               </div>
             </div>
           </header>
@@ -1741,12 +1752,16 @@ export default function Home() {
                         {isAdmin ? 'Administrateur' : isCreator ? 'Créateur' : 'Joueur'}
                       </p>
                     </div>
+                    <div className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1.5 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Votre solde de pièces">
+                      <FontAwesomeIcon icon={faCoins} className="size-3.5" aria-hidden="true" />
+                      <span className="text-sm font-bold">{coinBalance}</span>
+                    </div>
                   </div>
                 )}
                 <Button
                   variant="secondary"
                   className="justify-start gap-3"
-                  onClick={() => { setMobileMenuOpen(false); setPricingModalOpen(true); }}
+                  onClick={() => { setMobileMenuOpen(false); handleOpenStore(); }}
                 >
                   <Coins className="size-3.5" />
                   Boutique
