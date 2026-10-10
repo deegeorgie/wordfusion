@@ -27,6 +27,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
+  const testNote = typeof payload.note === 'string' &&
+    payload.note.toLowerCase().includes('test sale for pulse testing');
+  if (testNote) {
+    return NextResponse.json({ ok: true, test: true });
+  }
+
   const deliveryId = request.headers.get('x-pulse-delivery-id');
   if (!deliveryId) {
     if (request.headers.get('x-pulse-id') && request.headers.get('x-pulse-event')) {

@@ -446,17 +446,17 @@ function PricingOffersModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-2 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={() => onOpenChange(false)}
     >
       <motion.div
         initial={{ opacity: 0, y: 18, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="relative w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        className="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/30 px-4 py-3 sm:px-5 sm:py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">WordFusion</p>
             <h2 className="text-xl font-bold text-foreground">Choisissez votre offre</h2>
@@ -466,7 +466,8 @@ function PricingOffersModal({
           </Button>
         </div>
 
-        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-3 sm:p-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {pricingOffers.map((offer) => (
             <Card key={offer.key} className="flex h-full flex-col border border-border/80 bg-card/80 shadow-sm">
               <CardHeader className="pb-3">
@@ -506,6 +507,7 @@ function PricingOffersModal({
               </CardContent>
             </Card>
           ))}
+          </div>
         </div>
       </motion.div>
     </div>
