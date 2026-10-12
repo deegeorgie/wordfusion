@@ -16,9 +16,11 @@ import {
   Calendar,
   Building2,
   GraduationCap,
+  Gift,
   Loader2,
   X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import {
   Table,
@@ -159,6 +161,13 @@ export default function UserManager() {
   const [roleTarget, setRoleTarget] = useState<UserData | null>(null);
   const [newRole, setNewRole] = useState<string>('');
 
+  // Privilege grant dialog
+  const [grantDialogOpen, setGrantDialogOpen] = useState(false);
+  const [grantTarget, setGrantTarget] = useState<UserData | null>(null);
+  const [grantType, setGrantType] = useState<'coins' | 'subscription'>('coins');
+  const [grantAmount, setGrantAmount] = useState('100');
+  const [grantDays, setGrantDays] = useState('30');
+
   // Delete confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserData | null>(null);
@@ -213,6 +222,54 @@ export default function UserManager() {
   function openDeleteDialog(user: UserData) {
     setDeleteTarget(user);
     setDeleteDialogOpen(true);
+  }
+
+  function openGrantDialog(user: UserData) {
+    setGrantTarget(user);
+    setGrantType('coins');
+    setGrantAmount('100');
+    setGrantDays('30');
+    setGrantDialogOpen(true);
+  }
+
+  async function handleGrantPrivileges() {
+    if (!grantTarget) return;
+
+    const amount = Number(grantAmount);
+    const days = Number(grantDays);
+    if (grantType === 'coins' && (!Number.isInteger(amount) || amount < 1 || amount > 1_000_000)) {
+      toast.error('Le montant doit être compris entre 1 et 1 000 000 pièces');
+      return;
+    }
+    if (grantType === 'subscription' && (!Number.isInteger(days) || days < 1 || days > 3650)) {
+      toast.error('La durée doit être comprise entre 1 et 3 650 jours');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: grantType === 'coins' ? 'grantCoins' : 'grantSubscription',
+          userId: grantTarget.id,
+          ...(grantType === 'coins' ? { amount } : { days }),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Impossible d’accorder cet avantage');
+      toast.success(
+        grantType === 'coins'
+          ? `${amount} pièces accordées à ${grantTarget.name ?? 'l’utilisateur'}`
+          : `Accès Premium accordé pour ${days} jours à ${grantTarget.name ?? 'l’utilisateur'}`,
+      );
+      setGrantDialogOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Impossible d’accorder cet avantage');
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   async function handleRoleChange() {
@@ -408,6 +465,21 @@ export default function UserManager() {
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Voir les détails</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openGrantDialog(user)}
+                              aria-label="Accorder des avantages"
+                            >
+                              <Gift className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Accorder des avantages</TooltipContent>
                         </Tooltip>
 
                         <Tooltip>
@@ -643,6 +715,83 @@ export default function UserManager() {
               >
                 {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Enregistrer
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ---- Privilege Grant Dialog ---- */}
+        <Dialog open={grantDialogOpen} onOpenChange={setGrantDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Gift className="h-5 w-5" />
+                Accorder des avantages
+              </DialogTitle>
+              <DialogDescription>
+                Pour {grantTarget?.name ?? grantTarget?.email ?? 'cet utilisateur'}. Les accès Premium déjà actifs seront prolongés.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div>
+                <label className="mb-2 block text-sm font-medium">Avantage à accorder</label>
+                <Select
+                  value={grantType}
+                  onValueChange={(value) => setGrantType(value === 'subscription' ? 'subscription' : 'coins')}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="coins">Pièces</SelectItem>
+                    <SelectItem value="subscription">Accès Premium</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {grantType === 'coins' ? (
+                <div>
+                  <label htmlFor="grant-coin-amount" className="mb-2 block text-sm font-medium">Nombre de pièces</label>
+                  <Input
+                    id="grant-coin-amount"
+                    type="number"
+                    min={1}
+                    max={1_000_000}
+                    step={1}
+                    value={grantAmount}
+                    onChange={(event) => setGrantAmount(event.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Entre 1 et 1 000 000 pièces.</p>
+                </div>
+              ) : (
+                <div>
+                  <label htmlFor="grant-subscription-days" className="mb-2 block text-sm font-medium">Durée en jours</label>
+                  <Input
+                    id="grant-subscription-days"
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    value={grantDays}
+                    onChange={(event) => setGrantDays(event.target.value)}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Entre 1 et 3 650 jours.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setGrantDialogOpen(false)}
+                disabled={actionLoading}
+              >
+                Annuler
+              </Button>
+              <Button onClick={handleGrantPrivileges} disabled={actionLoading}>
+                {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Accorder
               </Button>
             </div>
           </DialogContent>
