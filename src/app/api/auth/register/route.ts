@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
+import { issueEmailVerification } from '@/lib/email-verification';
 import { isRateLimited, requestClientKey } from '@/lib/rate-limit';
+import { normalizeEmail } from '@/lib/verification-token';
 
 interface RegisterBody {
   name: string;
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(normalizedEmail)) {
       return NextResponse.json(
@@ -63,6 +65,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    let emailVerificationSent = false;
+    try {
+      const delivery = await issueEmailVerification(user, 'signup');
+      emailVerificationSent = delivery.sent;
+    } catch (error) {
+      console.error('Failed to send verification email:', error);
+    }
+
     return NextResponse.json(
       {
         user: {
@@ -71,6 +81,7 @@ export async function POST(request: NextRequest) {
           email: user.email,
           role: user.role,
         },
+        emailVerificationSent,
       },
       { status: 201 },
     );

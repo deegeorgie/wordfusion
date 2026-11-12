@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getAccessiblePuzzle } from '@/lib/puzzle-access';
+import { parseRevealedCells } from '@/lib/crossword/server-puzzle';
 import type { CrosswordCell } from '@/lib/crossword/types';
 
 interface RevealRequestBody {
@@ -76,6 +77,22 @@ export async function POST(request: NextRequest) {
           referenceKey: `letter-reveal:${session.user.id}:${crypto.randomUUID()}`,
           balanceAfter: wallet.balance,
         },
+      });
+
+      const existingProgress = await tx.userProgress.findUnique({
+        where: { puzzleId_userId: { puzzleId, userId: session.user.id } },
+        select: { revealedCells: true },
+      });
+      const revealedKeys = parseRevealedCells(existingProgress?.revealedCells);
+      for (const cell of selectedCells) revealedKeys.add(`${cell.row},${cell.col}`);
+      await tx.userProgress.upsert({
+        where: { puzzleId_userId: { puzzleId, userId: session.user.id } },
+        create: {
+          puzzleId,
+          userId: session.user.id,
+          revealedCells: JSON.stringify([...revealedKeys]),
+        },
+        update: { revealedCells: JSON.stringify([...revealedKeys]) },
       });
 
       return wallet;

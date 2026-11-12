@@ -21,6 +21,7 @@ model User {
   role             String   @default("USER") // "USER" | "CREATOR" | "ADMIN"
   provider         String?  // "credentials" | "google" | "github"
   providerAccountId String?  // unique ID from the OAuth provider
+  emailVerified    DateTime? // set when the owner proves control of the email
   // Demographic fields (all optional — collected at registration)
   phone            String?
   dateOfBirth      String?  // YYYY-MM-DD
@@ -39,6 +40,22 @@ model User {
   puzzleUnlocks    PuzzleUnlock[]
   paymentPurchases PaymentPurchase[]
   subscriptions   UserSubscription[]
+  emailVerificationTokens EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  purpose   String   // "signup" | "purchase_claim"
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
 }
 
 model Pack {

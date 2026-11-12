@@ -97,7 +97,9 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
         toast.error(data.error || 'Erreur lors de l\'inscription');
         return;
       }
-      toast.success('Compte créé ! Connexion en cours…');
+      toast.success(data.emailVerificationSent
+        ? 'Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse.'
+        : 'Compte créé ! Connexion en cours…');
       // Auto-login
       const result = await signIn('credentials', {
         email: regEmail.trim().toLowerCase(),

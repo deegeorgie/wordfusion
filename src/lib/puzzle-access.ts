@@ -1,7 +1,12 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
+import { isBiteSizedPuzzle, isPuzzleReleased } from '@/lib/puzzle-rules';
+
+/** Prisma filter for puzzles whose scheduled publication date has passed. */
+export function releasedPuzzleFilter(now: Date = new Date()) {
+  return { OR: [{ publishDate: null }, { publishDate: { lte: now } }] };
+}
 
 /** Return a public puzzle, or a draft only to its creator/admin. */
 export async function getAccessiblePuzzle(id: string) {
@@ -20,6 +25,8 @@ export async function getAccessiblePuzzle(id: string) {
   const isBiteSized = isBiteSizedPuzzle(puzzle);
 
   if (!puzzle.published) return isAdmin || isOwner ? puzzle : null;
+  // Scheduled puzzles stay hidden from players until their publication date.
+  if (!isAdmin && !isOwner && !isPuzzleReleased(puzzle)) return null;
   if (!puzzle.isPremium || isBiteSized || isAdmin || isOwner) return puzzle;
   if (!session?.user.id) return null;
 

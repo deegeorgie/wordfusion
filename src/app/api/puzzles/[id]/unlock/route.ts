@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
+import { isBiteSizedPuzzle, isPuzzleReleased } from '@/lib/puzzle-rules';
 
 export async function POST(
   _request: Request,
@@ -21,6 +21,7 @@ export async function POST(
         id: true,
         creatorId: true,
         published: true,
+        publishDate: true,
         isPremium: true,
         unlockCost: true,
         rows: true,
@@ -32,6 +33,11 @@ export async function POST(
       return NextResponse.json({ error: 'Ce puzzle est déjà gratuit' }, { status: 400 });
     }
     if (!puzzle.published) {
+      return NextResponse.json({ error: 'Ce puzzle n’est pas encore disponible' }, { status: 400 });
+    }
+    if (session.user.role !== 'ADMIN'
+      && puzzle.creatorId !== session.user.id
+      && !isPuzzleReleased(puzzle)) {
       return NextResponse.json({ error: 'Ce puzzle n’est pas encore disponible' }, { status: 400 });
     }
     if (session.user.role === 'ADMIN' || puzzle.creatorId === session.user.id) {

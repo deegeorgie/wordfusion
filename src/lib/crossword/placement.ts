@@ -1,10 +1,14 @@
 // ════════════════════════════════════════════════════════════════════════
 // Crossword Placement Algorithm
-// Takes a list of words + clues and arranges them into a crossword grid.
+// Places words into a bounded grid using deterministic multi-start search.
+// Every returned layout is guaranteed to fit `rows × cols`, to intersect
+// every word, and to contain no unclued letter runs (see validatePlacement).
 // ════════════════════════════════════════════════════════════════════════
 
+import { hashString, mulberry32 } from './random';
+
 export interface RawWord {
-  word: string;  // uppercase A-Z only, no accents
+  word: string;  // answer text; sanitized to A-Z by placeWords
   clue: string;
 }
 
@@ -16,6 +20,15 @@ export interface PlacedWord {
   clue: string;
 }
 
+export interface PlacementOptions {
+  rows: number;
+  cols: number;
+  /** Deterministic search budget. Defaults to a word-count-scaled value (max 64). */
+  maxAttempts?: number;
+  /** Overrides the layout seed derived from the word list. */
+  seed?: number;
+}
+
 export interface PlacementResult {
   success: boolean;
   words: PlacedWord[];
@@ -23,308 +36,504 @@ export interface PlacementResult {
   cols: number;
   placedCount: number;
   totalWords: number;
+  uniqueWords: number;
+  attempts: number;
 }
 
-// Internal representation during construction
 interface CellEntry {
   letter: string;
-  wordIndices: number[]; // which placed words occupy this cell
+  wordIndices: number[];
 }
 
-function createCell(letter = ''): CellEntry {
-  return { letter, wordIndices: [] };
+interface Extent {
+  minR: number;
+  maxR: number;
+  minC: number;
+  maxC: number;
+}
+
+interface Candidate {
+  direction: 'across' | 'down';
+  row: number;
+  col: number;
+  area: number;
+  crossings: number;
+}
+
+function failResult(totalWords: number, uniqueWords: number, attempts: number): PlacementResult {
+  return {
+    success: false,
+    words: [],
+    rows: 0,
+    cols: 0,
+    placedCount: 0,
+    totalWords,
+    uniqueWords,
+    attempts,
+  };
+}
+
+function cellKey(row: number, col: number): string {
+  return `${row},${col}`;
+}
+
+function hasLetter(grid: Map<string, CellEntry>, row: number, col: number): boolean {
+  return Boolean(grid.get(cellKey(row, col))?.letter);
+}
+
+function sanitizeWord(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '');
+}
+
+function hashSeed(words: RawWord[]): number {
+  return hashString(words.map((word) => word.word).join('|'));
 }
 
 /**
- * Find all positions where `newWord` can be placed perpendicular to an
- * already-placed word, sharing exactly one common letter.
+ * Validate a placement independently of the algorithm that produced it.
+ * Returns human-readable issues; an empty array means the layout is sound.
  */
-function findIntersections(
-  newWord: string,
-  placed: PlacedWord[],
-  grid: Map<string, CellEntry>,
-  gridSize: { minR: number; minC: number; maxR: number; maxC: number },
-  targetSize: number,
-): { row: number; col: number; direction: 'across' | 'down'; intersectingWordIdx: number }[] {
-  const candidates: { row: number; col: number; direction: 'across' | 'down'; intersectingWordIdx: number; bboxSize: number }[] = [];
+export function validatePlacement(layout: { words: PlacedWord[]; rows: number; cols: number }): string[] {
+  const issues: string[] = [];
+  const { words, rows, cols } = layout;
 
-  for (let pi = 0; pi < placed.length; pi++) {
-    const pw = placed[pi];
-    const perpDir: 'across' | 'down' = pw.direction === 'across' ? 'down' : 'across';
+  if (words.length === 0) return ['empty layout'];
+  if (!Number.isInteger(rows) || rows < 1 || !Number.isInteger(cols) || cols < 1) {
+    issues.push(`invalid dimensions ${rows}×${cols}`);
+  }
 
-    // Walk along the placed word's cells
-    for (let i = 0; i < pw.word.length; i++) {
-      const cellR = pw.direction === 'across' ? pw.row : pw.row + i;
-      const cellC = pw.direction === 'across' ? pw.col + i : pw.col;
-      const placedLetter = pw.word[i];
+  const grid = new Map<string, string>();
+  const cellWords = new Map<string, Set<number>>();
+  const seenAnswers = new Set<string>();
 
-      // Find matching letters in the new word
-      for (let j = 0; j < newWord.length; j++) {
-        if (newWord[j] !== placedLetter) continue;
+  words.forEach((placedWord, index) => {
+    if (!/^[A-Z]{2,}$/.test(placedWord.word)) {
+      issues.push(`${placedWord.word}: invalid letters`);
+    }
+    if (seenAnswers.has(placedWord.word)) {
+      issues.push(`${placedWord.word}: duplicate answer`);
+    }
+    seenAnswers.add(placedWord.word);
+    if (!placedWord.clue.trim()) {
+      issues.push(`${placedWord.word}: missing clue`);
+    }
 
-        // Place newWord perpendicular through this cell
-        let startR: number, startC: number;
-        if (perpDir === 'across') {
-          startR = cellR;
-          startC = cellC - j;
-        } else {
-          startR = cellR - j;
-          startC = cellC;
-        }
-
-        // Check if this placement is valid
-        const valid = checkPlacement(
-          newWord, perpDir, startR, startC, grid, placed, pi, j, targetSize
-        );
-
-        if (valid.ok) {
- candidates.push({
-            row: startR,
-            col: startC,
-            direction: perpDir,
-            intersectingWordIdx: pi,
-            bboxSize: valid.bboxSize,
-          });
-        }
+    for (let i = 0; i < placedWord.word.length; i += 1) {
+      const row = placedWord.direction === 'across' ? placedWord.row : placedWord.row + i;
+      const col = placedWord.direction === 'across' ? placedWord.col + i : placedWord.col;
+      if (row < 0 || col < 0 || row >= rows || col >= cols) {
+        issues.push(`${placedWord.word}: out of bounds at ${row},${col}`);
+        return;
       }
+      const key = cellKey(row, col);
+      const letter = placedWord.word[i];
+      const existing = grid.get(key);
+      if (existing && existing !== letter) {
+        issues.push(`${placedWord.word}: letter conflict at ${row},${col}`);
+      } else {
+        grid.set(key, letter);
+      }
+      const owners = cellWords.get(key) ?? new Set<number>();
+      owners.add(index);
+      cellWords.set(key, owners);
+    }
+  });
+
+  const spans = new Set(words.map((word) => `${word.direction}:${word.row}:${word.col}:${word.word.length}`));
+
+  const checkRun = (direction: 'across' | 'down', fixed: number, start: number, length: number) => {
+    // A single-cell run is normal: it is covered by a perpendicular word.
+    if (length < 2) return;
+    const row = direction === 'across' ? fixed : start;
+    const col = direction === 'across' ? start : fixed;
+    if (!spans.has(`${direction}:${row}:${col}:${length}`)) {
+      issues.push(`unclued ${direction} run at ${row},${col} (length ${length})`);
+    }
+  };
+
+  for (let row = 0; row < rows; row += 1) {
+    let col = 0;
+    while (col < cols) {
+      if (!grid.has(cellKey(row, col))) {
+        col += 1;
+        continue;
+      }
+      const start = col;
+      while (col < cols && grid.has(cellKey(row, col))) col += 1;
+      checkRun('across', row, start, col - start);
     }
   }
 
-  // Sort by bounding box size (prefer compact placements)
-  candidates.sort((a, b) => a.bboxSize - b.bboxSize);
-  return candidates.map(({ bboxSize: _, ...rest }) => rest);
+  for (let col = 0; col < cols; col += 1) {
+    let row = 0;
+    while (row < rows) {
+      if (!grid.has(cellKey(row, col))) {
+        row += 1;
+        continue;
+      }
+      const start = row;
+      while (row < rows && grid.has(cellKey(row, col))) row += 1;
+      checkRun('down', col, start, row - start);
+    }
+  }
+
+  if (words.length > 1) {
+    words.forEach((placedWord) => {
+      let crossings = 0;
+      for (let i = 0; i < placedWord.word.length; i += 1) {
+        const row = placedWord.direction === 'across' ? placedWord.row : placedWord.row + i;
+        const col = placedWord.direction === 'across' ? placedWord.col + i : placedWord.col;
+        if ((cellWords.get(cellKey(row, col))?.size ?? 0) > 1) crossings += 1;
+      }
+      if (crossings === 0) issues.push(`${placedWord.word}: no crossings`);
+    });
+  }
+
+  return issues;
 }
 
-interface CheckResult {
-  ok: boolean;
-  bboxSize: number;
-}
-
-/**
- * Check whether placing `word` at (startR, startC) in `direction` is valid.
- * `excludedWordIdx` is the word we're intersecting with (at intersection position `excludedPos`).
- */
-function checkPlacement(
+function evaluatePlacement(
   word: string,
   direction: 'across' | 'down',
   startR: number,
   startC: number,
   grid: Map<string, CellEntry>,
   placed: PlacedWord[],
-  excludedWordIdx: number,
-  excludedPos: number,
-  targetSize: number,
-): CheckResult {
-  let maxR = startR;
-  let maxC = startC;
-  let minR = startR;
-  let minC = startC;
-  let hasIntersection = false;
+  extent: Extent,
+  rows: number,
+  cols: number,
+): { area: number; crossings: number } | null {
+  const endR = direction === 'down' ? startR + word.length - 1 : startR;
+  const endC = direction === 'across' ? startC + word.length - 1 : startC;
 
-  for (let i = 0; i < word.length; i++) {
-    const r = direction === 'across' ? startR : startR + i;
-    const c = direction === 'across' ? startC + i : startC;
+  const minR = Math.min(extent.minR, startR);
+  const maxR = Math.max(extent.maxR, endR);
+  const minC = Math.min(extent.minC, startC);
+  const maxC = Math.max(extent.maxC, endC);
+  if (maxR - minR + 1 > rows || maxC - minC + 1 > cols) return null;
 
-    const key = `${r},${c}`;
-    const cell = grid.get(key);
+  const beforeR = direction === 'across' ? startR : startR - 1;
+  const beforeC = direction === 'across' ? startC - 1 : startC;
+  const afterR = direction === 'across' ? endR : endR + 1;
+  const afterC = direction === 'across' ? endC + 1 : endC;
+  if (hasLetter(grid, beforeR, beforeC) || hasLetter(grid, afterR, afterC)) return null;
 
-    // Check bounds
-    if (r < -50 || c < -50 || r > targetSize + 50 || c > targetSize + 50) {
-      return { ok: false, bboxSize: Infinity };
+  let crossings = 0;
+  for (let i = 0; i < word.length; i += 1) {
+    const row = direction === 'across' ? startR : startR + i;
+    const col = direction === 'across' ? startC + i : startC;
+    const cell = grid.get(cellKey(row, col));
+
+    if (cell?.letter) {
+      if (cell.letter !== word[i]) return null;
+      if (cell.wordIndices.length === 0) return null;
+      // Crossing words must all run perpendicular to this one.
+      if (!cell.wordIndices.every((index) => placed[index].direction !== direction)) return null;
+      crossings += 1;
+      continue;
     }
 
-    if (r < minR) minR = r;
-    if (r > maxR) maxR = r;
-    if (c < minC) minC = c;
-    if (c > maxC) maxC = c;
+    // Empty cell: a perpendicular neighbour would form an unclued two-letter run.
+    const side1R = direction === 'across' ? row - 1 : row;
+    const side1C = direction === 'across' ? col : col - 1;
+    const side2R = direction === 'across' ? row + 1 : row;
+    const side2C = direction === 'across' ? col : col + 1;
+    if (hasLetter(grid, side1R, side1C) || hasLetter(grid, side2R, side2C)) return null;
+  }
 
-    if (cell && cell.letter) {
-      // Cell is already occupied
-      if (cell.letter !== word[i]) {
-        // Letter conflict
-        return { ok: false, bboxSize: Infinity };
-      }
-      // Same letter — this is an intersection
-      if (i === excludedPos && cell.wordIndices.includes(excludedWordIdx)) {
-        hasIntersection = true;
-      } else if (cell.wordIndices.length > 0) {
-        // Check: all words passing through this cell must be perpendicular
-        const allPerp = cell.wordIndices.every((wi) => placed[wi].direction !== direction);
-        if (!allPerp) {
-          return { ok: false, bboxSize: Infinity };
-        }
-        hasIntersection = true;
-      }
-    } else {
-      // Empty cell — check for parallel adjacency
-      // The cell before the start of the word (in its direction) must be empty
-      if (i === 0) {
-        const beforeR = direction === 'across' ? r : r - 1;
-        const beforeC = direction === 'across' ? c - 1 : c;
-        const beforeKey = `${beforeR},${beforeC}`;
-        const beforeCell = grid.get(beforeKey);
-        if (beforeCell && beforeCell.letter) {
-          return { ok: false, bboxSize: Infinity };
-        }
-      }
-      // The cell after the end of the word must be empty
-      if (i === word.length - 1) {
-        const afterR = direction === 'across' ? r : r + 1;
-        const afterC = direction === 'across' ? c + 1 : c;
-        const afterKey = `${afterR},${afterC}`;
-        const afterCell = grid.get(afterKey);
-        if (afterCell && afterCell.letter) {
-          return { ok: false, bboxSize: Infinity };
-        }
-      }
+  if (crossings === 0) return null;
+  return { area: (maxR - minR + 1) * (maxC - minC + 1), crossings };
+}
 
-      // Check perpendicular adjacency: cells to the sides must not create
-      // unintended word extensions
-      if (i > 0 && i < word.length - 1) {
-        // Check both perpendicular sides
-        const side1R = direction === 'across' ? r - 1 : r;
-        const side1C = direction === 'across' ? c : c - 1;
-        const side2R = direction === 'across' ? r + 1 : r;
-        const side2C = direction === 'across' ? c : c + 1;
-        const side1 = grid.get(`${side1R},${side1C}`);
-        const side2 = grid.get(`${side2R},${side2C}`);
+function collectCandidates(
+  word: string,
+  placed: PlacedWord[],
+  grid: Map<string, CellEntry>,
+  extent: Extent,
+  rows: number,
+  cols: number,
+): Candidate[] {
+  const byPosition = new Map<string, Candidate>();
 
-        if (side1 && side1.letter) {
-          // A letter adjacent perpendicular — make sure it's from a word
-          // that also passes through this new cell (i.e., an intersection)
-          // If not, it means we'd be creating an unintended adjacency
-          return { ok: false, bboxSize: Infinity };
-        }
-        if (side2 && side2.letter) {
-          return { ok: false, bboxSize: Infinity };
+  for (let wordIndex = 0; wordIndex < placed.length; wordIndex += 1) {
+    const placedWord = placed[wordIndex];
+    const direction: 'across' | 'down' = placedWord.direction === 'across' ? 'down' : 'across';
+
+    for (let i = 0; i < placedWord.word.length; i += 1) {
+      const cellR = placedWord.direction === 'across' ? placedWord.row : placedWord.row + i;
+      const cellC = placedWord.direction === 'across' ? placedWord.col + i : placedWord.col;
+      const letter = placedWord.word[i];
+
+      for (let j = 0; j < word.length; j += 1) {
+        if (word[j] !== letter) continue;
+
+        const startR = direction === 'down' ? cellR - j : cellR;
+        const startC = direction === 'across' ? cellC - j : cellC;
+        const evaluation = evaluatePlacement(word, direction, startR, startC, grid, placed, extent, rows, cols);
+        if (!evaluation) continue;
+
+        const key = `${direction}:${startR}:${startC}`;
+        const existing = byPosition.get(key);
+        if (
+          !existing ||
+          evaluation.area < existing.area ||
+          (evaluation.area === existing.area && evaluation.crossings > existing.crossings)
+        ) {
+          byPosition.set(key, {
+            direction,
+            row: startR,
+            col: startC,
+            area: evaluation.area,
+            crossings: evaluation.crossings,
+          });
         }
       }
     }
   }
 
-  if (!hasIntersection) {
-    return { ok: false, bboxSize: Infinity };
-  }
+  return [...byPosition.values()].sort(
+    (a, b) =>
+      a.area - b.area ||
+      b.crossings - a.crossings ||
+      a.row - b.row ||
+      a.col - b.col ||
+      (a.direction === b.direction ? 0 : a.direction === 'across' ? -1 : 1),
+  );
+}
 
-  const bboxSize = (maxR - minR + 1) * (maxC - minC + 1);
-  return { ok: true, bboxSize };
+function pickCandidate<T>(candidates: T[], rand: (() => number) | null): T {
+  if (!rand || candidates.length === 1) return candidates[0];
+  const roll = rand();
+  if (roll < 0.6) return candidates[0];
+  if (roll < 0.9) return candidates[Math.min(1, candidates.length - 1)];
+  return candidates[Math.min(2, candidates.length - 1)];
+}
+
+function addWord(
+  placed: PlacedWord[],
+  grid: Map<string, CellEntry>,
+  extent: Extent,
+  word: RawWord,
+  direction: 'across' | 'down',
+  row: number,
+  col: number,
+): void {
+  const index = placed.length;
+  placed.push({ word: word.word, direction, row, col, clue: word.clue });
+
+  for (let i = 0; i < word.word.length; i += 1) {
+    const r = direction === 'across' ? row : row + i;
+    const c = direction === 'across' ? col + i : col;
+    const key = cellKey(r, c);
+    let cell = grid.get(key);
+    if (!cell) {
+      cell = { letter: word.word[i], wordIndices: [] };
+      grid.set(key, cell);
+    }
+    cell.letter = word.word[i];
+    if (!cell.wordIndices.includes(index)) cell.wordIndices.push(index);
+    if (r < extent.minR) extent.minR = r;
+    if (r > extent.maxR) extent.maxR = r;
+    if (c < extent.minC) extent.minC = c;
+    if (c > extent.maxC) extent.maxC = c;
+  }
+}
+
+interface Option {
+  word: RawWord;
+  candidate: Candidate;
 }
 
 /**
- * Main function: place words into a crossword grid.
+ * At every step, consider every remaining word and place the most
+ * connectable option rather than committing to a fixed word order.
+ * A fixed order lets one early word block several longer ones.
  */
-export function placeWords(rawWords: RawWord[], targetSize = 20): PlacementResult {
-  const totalWords = rawWords.length;
-
-  if (totalWords === 0) {
-    return { success: false, words: [], rows: 0, cols: 0, placedCount: 0, totalWords: 0 };
-  }
-
-  // Sort by length descending
-  const sorted = [...rawWords].sort((a, b) => b.word.length - a.word.length);
-
-  // Remove duplicates
-  const seen = new Set<string>();
-  const unique: RawWord[] = [];
-  for (const w of sorted) {
-    const key = w.word.toUpperCase();
-    if (!seen.has(key) && key.length >= 2) {
-      seen.add(key);
-      unique.push({ ...w, word: key });
-    }
-  }
-
-  if (unique.length < 3) {
-    return { success: false, words: [], rows: 0, cols: 0, placedCount: 0, totalWords };
-  }
+function runAttempt(
+  words: RawWord[],
+  seedIndex: number,
+  rows: number,
+  cols: number,
+  rand: (() => number) | null,
+  seedDirection: 'across' | 'down',
+): PlacedWord[] {
+  const seed = words[seedIndex];
+  if (seed.word.length > (seedDirection === 'across' ? cols : rows)) return [];
 
   const grid = new Map<string, CellEntry>();
   const placed: PlacedWord[] = [];
+  const extent: Extent = { minR: 0, maxR: 0, minC: 0, maxC: 0 };
 
-  function addToGrid(pw: PlacedWord, wordIndex: number) {
-    for (let i = 0; i < pw.word.length; i++) {
-      const r = pw.direction === 'across' ? pw.row : pw.row + i;
-      const c = pw.direction === 'across' ? pw.col + i : pw.col;
-      const key = `${r},${c}`;
-      let cell = grid.get(key);
-      if (!cell) {
-        cell = createCell(pw.word[i]);
-        grid.set(key, cell);
-      }
-      cell.letter = pw.word[i];
-      if (!cell.wordIndices.includes(wordIndex)) {
-        cell.wordIndices.push(wordIndex);
+  addWord(placed, grid, extent, seed, seedDirection, 0, 0);
+
+  let remaining = words.filter((_, index) => index !== seedIndex);
+
+  while (remaining.length > 0) {
+    const options: Option[] = [];
+
+    for (const word of remaining) {
+      for (const candidate of collectCandidates(word.word, placed, grid, extent, rows, cols)) {
+        options.push({ word, candidate });
       }
     }
+
+    if (options.length === 0) break;
+
+    const tieBreak = new Map<RawWord, number>();
+    for (const word of remaining) tieBreak.set(word, rand ? rand() : 0.5);
+
+    options.sort(
+      (a, b) =>
+        b.candidate.crossings - a.candidate.crossings ||
+        a.candidate.area - b.candidate.area ||
+        b.word.word.length - a.word.word.length ||
+        (tieBreak.get(a.word) ?? 0.5) - (tieBreak.get(b.word) ?? 0.5),
+    );
+
+    const choice = pickCandidate(options, rand);
+    addWord(placed, grid, extent, choice.word, choice.candidate.direction, choice.candidate.row, choice.candidate.col);
+    remaining = remaining.filter((word) => word !== choice.word);
   }
 
-  // Place the first word horizontally at (0, 0)
-  const first: PlacedWord = {
-    word: unique[0].word,
-    direction: 'across',
-    row: 0,
-    col: 0,
-    clue: unique[0].clue,
-  };
-  placed.push(first);
-  addToGrid(first, 0);
+  return placed;
+}
 
-  // Try to place each remaining word
-  for (let wi = 1; wi < unique.length; wi++) {
-    const candidate = unique[wi];
-    const intersections = findIntersections(candidate.word, placed, grid, { minR: 0, minC: 0, maxR: 0, maxC: 0 }, targetSize);
+/** Shift to 0-based coordinates and crop to the occupied bounding box. */
+function normalizeLayout(placed: PlacedWord[]): { words: PlacedWord[]; rows: number; cols: number } {
+  let minR = Infinity;
+  let minC = Infinity;
+  let maxR = -Infinity;
+  let maxC = -Infinity;
 
-    if (intersections.length > 0) {
-      const best = intersections[0];
-      const pw: PlacedWord = {
-        word: candidate.word,
-        direction: best.direction,
-        row: best.row,
-        col: best.col,
-        clue: candidate.clue,
-      };
-      placed.push(pw);
-      addToGrid(pw, placed.length - 1);
-    }
-    // If no intersection found, skip this word
-  }
-
-  if (placed.length < 3) {
-    return { success: false, words: [], rows: 0, cols: 0, placedCount: placed.length, totalWords };
-  }
-
-  // Normalize coordinates: shift so min row and min col become 1
-  let minR = Infinity, minC = Infinity, maxR = -Infinity, maxC = -Infinity;
-  for (const pw of placed) {
-    for (let i = 0; i < pw.word.length; i++) {
-      const r = pw.direction === 'across' ? pw.row : pw.row + i;
-      const c = pw.direction === 'across' ? pw.col + i : pw.col;
-      if (r < minR) minR = r;
-      if (c < minC) minC = c;
-      if (r > maxR) maxR = r;
-      if (c > maxC) maxC = c;
+  for (const word of placed) {
+    for (let i = 0; i < word.word.length; i += 1) {
+      const row = word.direction === 'across' ? word.row : word.row + i;
+      const col = word.direction === 'across' ? word.col + i : word.col;
+      minR = Math.min(minR, row);
+      minC = Math.min(minC, col);
+      maxR = Math.max(maxR, row);
+      maxC = Math.max(maxC, col);
     }
   }
 
-  // Shift so there's 1 cell padding on all sides
-  const shiftR = 1 - minR;
-  const shiftC = 1 - minC;
-
-  const normalized: PlacedWord[] = placed.map((pw) => ({
-    ...pw,
-    row: pw.row + shiftR,
-    col: pw.col + shiftC,
+  const words = placed.map((word) => ({
+    ...word,
+    row: word.row - minR,
+    col: word.col - minC,
   }));
 
-  const rows = maxR + shiftR + 1;
-  const cols = maxC + shiftC + 1;
+  return { words, rows: maxR - minR + 1, cols: maxC - minC + 1 };
+}
+
+function isBetter(candidate: { words: PlacedWord[]; rows: number; cols: number }, best: typeof candidate | null): boolean {
+  if (!best) return true;
+  if (candidate.words.length !== best.words.length) return candidate.words.length > best.words.length;
+  const candidateArea = candidate.rows * candidate.cols;
+  const bestArea = best.rows * best.cols;
+  if (candidateArea !== bestArea) return candidateArea < bestArea;
+  return Math.max(candidate.rows, candidate.cols) < Math.max(best.rows, best.cols);
+}
+
+export function placeWords(rawWords: RawWord[], options: PlacementOptions): PlacementResult {
+  const totalWords = rawWords.length;
+  const rows = Math.floor(options.rows);
+  const cols = Math.floor(options.cols);
+
+  const normalized = rawWords
+    .map((word) => ({ word: sanitizeWord(word.word ?? ''), clue: (word.clue ?? '').trim() }))
+    .filter((word) => word.word.length >= 3)
+    .sort((a, b) => b.word.length - a.word.length);
+
+  const seen = new Set<string>();
+  const unique: RawWord[] = [];
+  for (const word of normalized) {
+    if (seen.has(word.word)) continue;
+    seen.add(word.word);
+    unique.push(word);
+  }
+
+  if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 3 || cols < 3) {
+    return failResult(totalWords, unique.length, 0);
+  }
+
+  // Words longer than both dimensions can never be placed; keeping them
+  // would make the fill ratio unreachable for grids of this size.
+  const feasible = unique.filter((word) => word.word.length <= Math.max(rows, cols));
+  if (feasible.length < 3) {
+    return failResult(totalWords, feasible.length, 0);
+  }
+
+  const fittingSeeds = feasible
+    .map((word, index) => ({ word, index }))
+    .slice(0, 8);
+
+  // Restarts get expensive with many words, so scale the budget down as the
+  // word list grows instead of always spending the maximum.
+  const defaultAttempts = feasible.length <= 6 ? 32 : Math.max(16, Math.round(768 / feasible.length));
+  const attempts = Math.max(1, Math.min(options.maxAttempts ?? defaultAttempts, 64));
+  const stallLimit = Math.max(8, Math.ceil(attempts / 2));
+  const rand = mulberry32((options.seed ?? hashSeed(feasible)) >>> 0);
+
+  let best: { words: PlacedWord[]; rows: number; cols: number } | null = null;
+  let bestCount = 0;
+  let completedAttempts = 0;
+  let stalledAttempts = 0;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const deterministic = attempt === 0;
+    const seedIndex = deterministic
+      ? fittingSeeds[0].index
+      : fittingSeeds[Math.floor(rand() * fittingSeeds.length)].index;
+    const seedWord = feasible[seedIndex];
+
+    let seedDirection: 'across' | 'down';
+    if (seedWord.word.length > cols) {
+      seedDirection = 'down';
+    } else if (seedWord.word.length > rows) {
+      seedDirection = 'across';
+    } else {
+      seedDirection = deterministic ? 'across' : rand() < 0.5 ? 'across' : 'down';
+    }
+
+    const placed = runAttempt(feasible, seedIndex, rows, cols, deterministic ? null : rand, seedDirection);
+    if (placed.length === 0) {
+      stalledAttempts += 1;
+      if (stalledAttempts >= stallLimit) break;
+      continue;
+    }
+
+    const layout = normalizeLayout(placed);
+    if (isBetter(layout, best)) best = layout;
+    completedAttempts += 1;
+
+    if (layout.words.length > bestCount) {
+      bestCount = layout.words.length;
+      stalledAttempts = 0;
+    } else {
+      stalledAttempts += 1;
+    }
+
+    // Cannot do better than placing every usable word.
+    if (best && best.words.length === feasible.length) break;
+    if (stalledAttempts >= stallLimit) break;
+  }
+
+  if (!best) {
+    return failResult(totalWords, feasible.length, completedAttempts);
+  }
 
   return {
-    success: true,
-    words: normalized,
-    rows,
-    cols,
-    placedCount: normalized.length,
+    success: best.words.length >= 3,
+    words: best.words,
+    rows: best.rows,
+    cols: best.cols,
+    placedCount: best.words.length,
     totalWords,
+    uniqueWords: feasible.length,
+    attempts: completedAttempts,
   };
 }

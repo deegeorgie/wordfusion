@@ -12,14 +12,17 @@ declare module 'next-auth' {
       name: string;
       email: string;
       role: UserRole;
+      emailVerified: string | null;
     };
   }
   interface User {
     role: UserRole;
+    emailVerified: string | null;
   }
   interface JWT {
     id: string;
     role: UserRole;
+    emailVerified: string | null;
   }
 }
 
@@ -34,7 +37,8 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await db.user.findUnique({ where: { email: credentials.email } });
+        const email = credentials.email.trim().toLowerCase();
+        const user = await db.user.findUnique({ where: { email } });
         if (!user) return null;
 
         if (!user.password) return null;
@@ -46,6 +50,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           email: user.email,
           role: user.role as UserRole,
+          emailVerified: user.emailVerified?.toISOString() ?? null,
         };
       },
     }),
@@ -54,10 +59,23 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.emailVerified = user.emailVerified ?? null;
+      }
+      // Sessions are stateless: refresh the flags worth trusting from the DB
+      // when the client calls useSession().update().
+      if (trigger === 'update' && token.id) {
+        const fresh = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, emailVerified: true },
+        });
+        if (fresh) {
+          token.role = fresh.role as UserRole;
+          token.emailVerified = fresh.emailVerified?.toISOString() ?? null;
+        }
       }
       return token;
     },
@@ -65,6 +83,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user && token) {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
+        session.user.emailVerified = (token.emailVerified as string | null) ?? null;
       }
       return session;
     },

@@ -3,8 +3,12 @@ import { getServerSession } from 'next-auth';
 import { db } from '@/lib/db';
 import { authOptions } from '@/lib/auth';
 import { CrosswordCell } from '@/lib/crossword/types';
+import { isValidLetterMatrix } from '@/lib/crossword/server-puzzle';
 import { getAccessiblePuzzle } from '@/lib/puzzle-access';
+import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
 import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
+
+const MAX_TIME_SPENT = 7 * 24 * 60 * 60;
 
 interface CheckRequestBody {
   puzzleId: string;
@@ -31,6 +35,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Puzzle not found' },
         { status: 404 }
+      );
+    }
+
+    if (!isValidLetterMatrix(userInputs, puzzle.rows, puzzle.cols)) {
+      return NextResponse.json(
+        { error: 'Invalid grid payload' },
+        { status: 400 }
       );
     }
 
@@ -113,7 +124,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (triggeredMagicWords.length > 0) {
-        const revealCount = puzzle.rows === 5 && puzzle.cols === 5 ? 3 : 10;
+        const revealCount = isBiteSizedPuzzle(puzzle) ? 3 : 10;
         const availableCells: { row: number; col: number; letter: string }[] = [];
         for (let row = 0; row < grid.length; row++) {
           for (let col = 0; col < grid[row].length; col++) {
@@ -130,7 +141,9 @@ export async function POST(request: NextRequest) {
         completed: allCorrect,
         completedAt: allCorrect ? new Date() : undefined,
         progress: JSON.stringify(userInputs),
-        timeSpent: Number.isInteger(timeSpent) && timeSpent >= 0 ? timeSpent : 0,
+        timeSpent: Number.isInteger(timeSpent) && timeSpent >= 0 && timeSpent <= MAX_TIME_SPENT
+          ? timeSpent
+          : 0,
         magicWordsClaimed: JSON.stringify([...claimedMagicWords]),
         revealedCells: JSON.stringify([...revealedKeys]),
       };
@@ -157,7 +170,7 @@ export async function POST(request: NextRequest) {
 
       if (!allCorrect || !session?.user.id || previousProgress?.completed) return 0;
 
-      const amount = puzzle.rows === 5 && puzzle.cols === 5 ? 1 : 2;
+      const amount = isBiteSizedPuzzle(puzzle) ? 1 : 2;
       const wallet = await tx.userWallet.upsert({
         where: { userId: session.user.id },
         create: { userId: session.user.id, balance: 0 },
@@ -172,16 +185,23 @@ export async function POST(request: NextRequest) {
           amount,
           reason: 'puzzle_completion',
           referenceKey,
-          balanceAfter: wallet.balance + amount,
+          balanceAfter: wallet.balance,
         },
         skipDuplicates: true,
       });
 
       if (claimed.count === 0) return 0;
 
-      await tx.userWallet.update({
+      // Read the balance from the increment itself so concurrent completions
+      // cannot report a stale value.
+      const updatedWallet = await tx.userWallet.update({
         where: { userId: session.user.id },
         data: { balance: { increment: amount } },
+        select: { balance: true },
+      });
+      await tx.coinTransaction.updateMany({
+        where: { referenceKey },
+        data: { balanceAfter: updatedWallet.balance },
       });
 
       return amount;

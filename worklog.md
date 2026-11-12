@@ -693,3 +693,52 @@ Stage Summary:
 - Root causes: (1) JWS vs JWE encryption mismatch, (2) NEXTAUTH_SECRET not in .env, (3) schema reverted during context reset
 - Key fix: use next-auth/jwt encode() instead of manual jose encryption
 - All restored: schema, login endpoint, UserManager component, admin users API
+
+---
+Task ID: block-c-word-bank
+Agent: Main Coordinator
+Task: Add curated word-bank fallback so generation works without Z.ai credentials
+
+Work Log:
+- Extracted the shared deterministic helpers into `src/lib/crossword/random.ts` (mulberry32 + FNV-1a) and imported them in `placement.ts`
+- Created `src/lib/crossword/word-bank.ts`: 12 keyword-matched themes (wildlife, African capitals, world capitals, inventions, cuisine, sports, ancient history, French history, astronomy, classical music, literature, generic) with French/English clues and English spelling variants (CAIRE/CAIRO, LISBONNE/LISBON, ...)
+- Selection: difficulty length ranges (3-7, 4-10, 5-14), relaxes the range when short, filters by grid maxLength, dedupes, then tops up from the generic pool; deterministic seed from theme|language|wordCount
+- `/api/puzzles/generate`: stops retrying as soon as the SDK reports the missing `.z-ai-config`, falls back when fewer than 5 LLM words arrive, and returns `source: 'llm' | 'word-bank'`
+- AdminPanel success toast now appends "(banque de mots locale)" when the fallback was used
+- Added `tests/word-bank.test.ts` (27 tests): theme matching, data integrity (clues never contain their answer), counts, determinism, maxLength, relaxation, generic top-up, English variants
+- Verified: 91/91 tests, `tsc` clean, lint only the 4 baseline errors, `next build` OK, deployed to production via `vercel --prod`
+- End-to-end check on https://wordfusion-ten.vercel.app/admin as CREATOR: theme "Villes africaines", 10x10, 11 words → puzzle #126, 9/11 placed (gate met); clues and answers match the curated bank (HARARE, RABAT, LUANDA, ABIDJAN, CONAKRY, DAKAR, ACCRA, JUBA, DODOMA)
+
+Stage Summary:
+- Automatic generation now works in production with no external AI credentials
+- The LLM path is still used first whenever a valid `.z-ai-config` is present
+- Fallback is visible to creators in the toast, and the response carries `source`
+
+
+---
+Task ID: block-b-puzzle-gate
+Agent: Main Coordinator
+Task: Add a shared validateGeneratedPuzzle gate before save, publish, cron and generation
+
+Work Log:
+- Created `src/lib/crossword/validate-generated.ts`:
+  - `validateGeneratedPuzzle(input, { requirePublishable })` always checks dimensions (2–25), grid shape, cell shape, black cells without letters, A-Z answers, bounds, black-cell traversal, clue numbers, clue shapes/duplicates and word/clue key coverage; `requirePublishable` adds full solution, non-empty clues, no orphan white cells, every word crossing another, duplicate answers and duplicate clue keys.
+  - `validatePuzzleRecord(record, options)` parses `gridData`/`wordsData`/`cluesData` safely first.
+  - `formatPuzzleIssues(issues, limit = 5)` and `normalizeAnswer()` (NFD strip + uppercase) are exported; helpers re-exported from `src/lib/crossword/index.ts`.
+  - Draft mode deliberately tolerates empty word lists, empty clues and the editor's compacted letter runs (gaps make answer offsets unreliable), so autosave still works mid-edit.
+- Wired the gate into every write path:
+  - `POST /api/puzzles/admin`: structural rules always; publish rules when an admin creates a puzzle with `published: true`; 400 `Puzzle invalide : ...`.
+  - `PUT /api/puzzles/admin`: structural rules always; publish rules when the edited puzzle is already published.
+  - `POST /api/puzzles/admin/publish`: `validatePuzzleRecord(existing, { requirePublishable: true })` only when publishing; unpublishing always allowed; 400 `Publication refusée : ...`.
+  - `GET /api/cron/publish-puzzles`: validates each due puzzle, publishes only valid ones up to `puzzlesPerDay` (bounded lookahead window `max(5 × perDay, 20)`), logs skipped puzzles and returns a `skipped` count.
+  - `POST /api/puzzles/generate`: runs `validatePlacement` and strict `validateGeneratedPuzzle` on the built puzzle before persisting; returns 500 with the issues instead of storing corrupt data.
+  - AdminPanel `handleTogglePublish` / `handleSaveDate` now parse `data.error` so gate reasons are visible instead of a generic toast.
+- Added `tests/validate-generated.test.ts` (24 tests): structural corruption, draft-vs-publish rules, accent normalization (ÉTÉ), duplicate answers/clues, crossings, orphan cells, malformed stored JSON and `formatPuzzleIssues` truncation.
+- Verified: 115/115 tests, `tsc --noEmit` clean, lint only the 4 baseline errors, `next build` OK, deployed via `vercel --prod`.
+- Audited all 126 production puzzles (temporary script, deleted afterwards): 3 structural failures (#020, #022, #023 — legacy missing clue numbers) and 24 publish-rule failures (21 already-published legacy puzzles with empty clues, plus #117 incomplete/conflicting). Pre-existing data, not auto-fixed.
+- Production checks: invalid save as CREATOR → 400 `Puzzle invalide : Case noire (0,0) contient une lettre` (no row created); generation "Capitales du monde" 10×10 → #127, 9×10, 9/11 words, strict gate passed; cron endpoint → `{"published":0,"skipped":0}` (no due puzzles, no state change).
+
+Stage Summary:
+- Invalid puzzles can no longer be saved into a publishable state, published by an admin, or auto-published by cron; generation validates its own output.
+- The publish refusal UI path was not exercised live because the available browser session is CREATOR and publishing is ADMIN-only; it shares the tested helper and build.
+- Legacy published puzzles with empty clues remain live and will be skipped by cron until fixed; they need one manual cleanup pass if desired.

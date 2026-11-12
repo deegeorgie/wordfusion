@@ -818,7 +818,10 @@ function PuzzleGenerator({ categories, packs, onGenerated }: {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur lors de la génération');
       setResult(data.puzzle);
-      toast.success(`Puzzle « ${data.puzzle.title} » généré avec succès !`);
+      toast.success(
+        `Puzzle « ${data.puzzle.title} » généré avec succès !`
+          + (data.source === 'word-bank' ? ' (banque de mots locale)' : ''),
+      );
       onGenerated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erreur inconnue');
@@ -1184,7 +1187,10 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ puzzleId, published: newPublished }),
       });
-      if (!res.ok) throw new Error('Erreur lors de la modification');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Erreur lors de la modification');
+      }
       toast.success(newPublished ? 'Puzzle publié avec succès' : 'Puzzle dépublié avec succès');
       await fetchData();
     } catch (err) {
@@ -1228,7 +1234,10 @@ export default function AdminPanel({ open, onOpenChange, isAdmin = false, isCrea
           publishDate: selectedDate.toISOString(),
         }),
       });
-      if (!res.ok) throw new Error('Erreur lors de la mise à jour de la date');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Erreur lors de la mise à jour de la date');
+      }
       toast.success('Date de publication mise à jour');
       setDatePickerPuzzleId(null);
       setSelectedDate(undefined);

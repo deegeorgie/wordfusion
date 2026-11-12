@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
+import { releasedPuzzleFilter } from '@/lib/puzzle-access';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,14 +13,20 @@ export async function GET(request: NextRequest) {
     const languageParam = searchParams.get('language');
 
     const now = new Date();
+    const session = await getServerSession(authOptions);
+    const isAdmin = session?.user.role === 'ADMIN';
 
     // Scheduled publication is handled by /api/cron/publish-puzzles.
     // This endpoint is read-only so a visitor cannot mutate publication state.
 
-    // ── Build where clause: all published puzzles ──
+    // ── Published puzzles that are already released ──
     const where: Record<string, unknown> = {
       published: true,
     };
+
+    if (!isAdmin) {
+      Object.assign(where, releasedPuzzleFilter(now));
+    }
 
     if (languageParam && ['fr', 'en'].includes(languageParam)) {
       where.language = languageParam;
@@ -59,7 +66,6 @@ export async function GET(request: NextRequest) {
     });
 
     const progressUser = await getProgressUser(request);
-    const session = await getServerSession(authOptions);
     const unlockedPuzzleIds = session?.user.id
       ? new Set(
           (await db.puzzleUnlock.findMany({
@@ -87,6 +93,10 @@ export async function GET(request: NextRequest) {
     const newPuzzleCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const summaries = puzzles.map((p) => {
       const isBiteSized = isBiteSizedPuzzle(p);
+      // A future-dated puzzle published ahead of time is only "new" once released.
+      const releasedAt = p.publishDate && (!p.firstPublishedAt || p.publishDate > p.firstPublishedAt)
+        ? p.publishDate
+        : p.firstPublishedAt;
       return {
       id: p.id,
       puzzleNumber: p.puzzleNumber,
@@ -98,7 +108,7 @@ export async function GET(request: NextRequest) {
       cols: p.cols,
       publishDate: p.publishDate?.toISOString() ?? '',
       firstPublishedAt: p.firstPublishedAt?.toISOString() ?? null,
-      isNew: p.firstPublishedAt ? p.firstPublishedAt >= newPuzzleCutoff : false,
+      isNew: releasedAt ? releasedAt >= newPuzzleCutoff : false,
       categoryId: p.categoryId,
       categoryIds: p.categoryMemberships.map((membership) => membership.categoryId),
       categoryName: p.category?.name ?? null,

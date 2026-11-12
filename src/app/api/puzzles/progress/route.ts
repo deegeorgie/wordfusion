@@ -1,35 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getAccessiblePuzzle } from '@/lib/puzzle-access';
+import { isValidLetterMatrix } from '@/lib/crossword/server-puzzle';
 import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 
 interface ProgressBody {
   puzzleId: string;
   userInputs: (string | null)[][];
   timeSpent: number;
-  revealedCells?: string[];
   reset?: boolean;
 }
+
+const MAX_TIME_SPENT = 7 * 24 * 60 * 60;
 
 /** Persist in-progress work without revealing or checking any answers. */
 export async function POST(request: NextRequest) {
   try {
-    const { puzzleId, userInputs, timeSpent, revealedCells, reset = false } = await request.json() as ProgressBody;
-    if (!puzzleId || (!reset && (!Array.isArray(userInputs) || !Number.isInteger(timeSpent) || timeSpent < 0))) {
+    const { puzzleId, userInputs, timeSpent, reset = false } = await request.json() as ProgressBody;
+    if (!puzzleId || (!reset && (!Array.isArray(userInputs)
+      || !Number.isInteger(timeSpent)
+      || timeSpent < 0
+      || timeSpent > MAX_TIME_SPENT))) {
       return NextResponse.json({ error: 'Invalid progress payload' }, { status: 400 });
-    }
-    if (!reset && revealedCells !== undefined && !Array.isArray(revealedCells)) {
-      return NextResponse.json({ error: 'Invalid revealed cells payload' }, { status: 400 });
     }
 
     const puzzle = await getAccessiblePuzzle(puzzleId);
     if (!puzzle) return NextResponse.json({ error: 'Puzzle not found' }, { status: 404 });
+    if (!reset && !isValidLetterMatrix(userInputs, puzzle.rows, puzzle.cols)) {
+      return NextResponse.json({ error: 'Invalid progress payload' }, { status: 400 });
+    }
 
     const progressUser = await getProgressUser(request);
+    // Revealed cells are owned by the hint/reveal/check endpoints; accepting
+    // them here would let a client mark the whole grid as paid-for.
     const progressUpdate = {
       progress: JSON.stringify(userInputs),
       timeSpent,
-      ...(revealedCells ? { revealedCells: JSON.stringify(revealedCells) } : {}),
     };
 
     await db.userProgress.upsert({

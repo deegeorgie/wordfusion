@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { createPuzzle, puzzleToDbFormat } from '@/lib/crossword/utils';
-import { placeWords, type RawWord } from '@/lib/crossword/placement';
+import { placeWords, validatePlacement, type RawWord } from '@/lib/crossword/placement';
+import { getFallbackWords } from '@/lib/crossword/word-bank';
+import { formatPuzzleIssues, validateGeneratedPuzzle } from '@/lib/crossword/validate-generated';
 import ZAI from 'z-ai-web-dev-sdk';
 import { requireRole } from '@/lib/auth-guard';
 import { createWithNextPuzzleNumber } from '@/lib/puzzle-number';
@@ -49,10 +51,6 @@ function getWordLengthHint(gridSize: { rows: number; cols: number }, difficulty:
   if (maxDim <= 10) return difficulty === 1 ? '4-7 lettres' : difficulty === 2 ? '5-9 lettres' : '6-11 lettres';
   if (maxDim <= 13) return difficulty === 1 ? '5-8 lettres' : difficulty === 2 ? '5-10 lettres' : '6-12 lettres';
   return difficulty === 1 ? '5-10 lettres' : difficulty === 2 ? '6-11 lettres' : '7-14 lettres';
-}
-
-function getTargetSizeFromGrid(gridSize: { rows: number; cols: number }): number {
-  return Math.max(gridSize.rows, gridSize.cols);
 }
 
 async function generateWordsWithLLM(
@@ -217,6 +215,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Generate words with LLM (with retry)
+    const maxDimension = gridSize
+      ? Math.max(gridSize.rows, gridSize.cols)
+      : sizeTargetSizes[size || 'medium'];
+
     let rawWords: { word: string; clue: string }[] = [];
     let lastError = '';
 
@@ -227,39 +229,93 @@ export async function POST(request: NextRequest) {
         lastError = `Only ${rawWords.length} valid words generated`;
       } catch (err) {
         lastError = err instanceof Error ? err.message : 'LLM generation failed';
+        if (lastError.includes('Configuration file not found') || lastError.includes('.z-ai-config')) {
+          console.warn(`[puzzle-generation] LLM unavailable: ${lastError}`);
+          break;
+        }
       }
+    }
+
+    // Step 1b: Fall back to the curated word bank when the LLM is unavailable
+    let source: 'llm' | 'word-bank' = 'llm';
+
+    if (rawWords.length < 5) {
+      console.warn(
+        `[puzzle-generation] Using the curated word bank for theme "${theme}" (${lastError || `only ${rawWords.length} valid words`}).`,
+      );
+      rawWords = getFallbackWords({ theme, language, difficulty, wordCount, maxLength: maxDimension });
+      source = 'word-bank';
     }
 
     if (rawWords.length < 5) {
       return NextResponse.json(
-        { error: `Génération échouée: ${lastError}. Réessayez.` },
+        {
+          error: source === 'word-bank'
+            ? 'Génération échouée: pas assez de mots disponibles pour ce thème et cette taille de grille. Réessayez.'
+            : `Génération échouée: ${lastError}. Réessayez.`,
+        },
         { status: 500 },
       );
     }
 
-    // Step 2: Place words into crossword grid
-    let targetSize: number;
-    if (gridSize) {
-      targetSize = getTargetSizeFromGrid(gridSize);
-    } else {
-      targetSize = sizeTargetSizes[size || 'medium'];
-    }
-    const placement = placeWords(rawWords as RawWord[], targetSize);
+    // Step 2: Place words into a grid bounded by the requested size
+    const bounds = gridSize
+      ? { rows: gridSize.rows, cols: gridSize.cols }
+      : { rows: sizeTargetSizes[size || 'medium'], cols: sizeTargetSizes[size || 'medium'] };
+    const placement = placeWords(rawWords as RawWord[], bounds);
+    const requiredWords = Math.max(3, Math.ceil(placement.uniqueWords * 0.8));
 
-    if (!placement.success) {
+    if (!placement.success || placement.placedCount < requiredWords) {
       return NextResponse.json(
-        { error: `Impossible de placer les mots en grille (${placement.placedCount}/${placement.totalWords} mots placés). Réessayez avec un autre thème.` },
+        {
+          error: `Impossible de placer assez de mots dans une grille ${bounds.rows}×${bounds.cols} `
+            + `(${placement.placedCount}/${placement.uniqueWords} mots placés, ${requiredWords} requis). `
+            + 'Réessayez avec un autre thème ou une grille plus grande.',
+        },
         { status: 500 },
       );
     }
 
-    // Step 3: Create the puzzle with auto-numbered title
+    const placementIssues = validatePlacement({
+      words: placement.words,
+      rows: placement.rows,
+      cols: placement.cols,
+    });
+    if (placementIssues.length) {
+      console.error(`[puzzle-generation] Invalid placement: ${formatPuzzleIssues(placementIssues)}`);
+      return NextResponse.json(
+        { error: `Grille générée invalide : ${formatPuzzleIssues(placementIssues)}` },
+        { status: 500 },
+      );
+    }
+
+    // Step 3: Build and validate the puzzle before persisting it
+    const rawWordsForPuzzle = placement.words.map((w) => ({
+      word: w.word, direction: w.direction, row: w.row, col: w.col, clue: w.clue,
+    }));
+    const puzzleData = createPuzzle('', difficulty, placement.rows, placement.cols, rawWordsForPuzzle);
+    const puzzleIssues = validateGeneratedPuzzle(
+      {
+        rows: placement.rows,
+        cols: placement.cols,
+        grid: puzzleData.grid,
+        words: puzzleData.words,
+        clues: puzzleData.clues,
+      },
+      { requirePublishable: true },
+    );
+    if (puzzleIssues.length) {
+      console.error(`[puzzle-generation] Invalid puzzle: ${formatPuzzleIssues(puzzleIssues)}`);
+      return NextResponse.json(
+        { error: `Grille générée invalide : ${formatPuzzleIssues(puzzleIssues)}` },
+        { status: 500 },
+      );
+    }
+    const dbFormat = puzzleToDbFormat(puzzleData);
+
+    // Step 4: Persist with an auto-numbered title
     const puzzle = await createWithNextPuzzleNumber((tx, puzzleNumber) => {
       const autoTitle = `#${String(puzzleNumber).padStart(3, '0')}`;
-      const rawWordsForPuzzle = placement.words.map((w) => ({
-        word: w.word, direction: w.direction, row: w.row, col: w.col, clue: w.clue,
-      }));
-      const dbFormat = puzzleToDbFormat(createPuzzle(autoTitle, difficulty, placement.rows, placement.cols, rawWordsForPuzzle));
       const publishedAt = autoPublish ? new Date() : null;
       return tx.crosswordPuzzle.create({ data: {
         puzzleNumber,
@@ -285,6 +341,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      source,
       puzzle: {
         id: puzzle.id,
         puzzleNumber: puzzle.puzzleNumber,
@@ -292,7 +349,7 @@ export async function POST(request: NextRequest) {
         rows: placement.rows,
         cols: placement.cols,
         wordsPlaced: placement.placedCount,
-        wordsTotal: rawWords.length,
+        wordsTotal: placement.uniqueWords,
       },
     });
   } catch (error) {

@@ -70,6 +70,7 @@ import {
   PenTool,
   User as UserIcon,
   Menu,
+  Mail,
 } from 'lucide-react';
 
 import CrosswordGrid from '@/components/crossword/CrosswordGrid';
@@ -107,7 +108,6 @@ import { StatsPanel } from '@/components/crossword/StatsPanel';
 import { BadgePanel } from '@/components/crossword/BadgePanel';
 import { BadgeNotification } from '@/components/crossword/BadgeNotification';
 import { AuthModal } from '@/components/crossword/AuthModal';
-import { exportPuzzleToPdf } from '@/lib/crossword/pdf-export';
 import { evaluateBadges, getNewBadges, type EarnedBadge } from '@/lib/crossword/badges';
 import {
   deleteOfflineDraft,
@@ -181,7 +181,7 @@ interface StreakCompletion {
 }
 
 interface PuzzleResponse {
-  puzzle: CrosswordPuzzleData & { magicWords?: string[] };
+  puzzle: CrosswordPuzzleData;
   language?: string;
   progress?: {
     progress?: (string | null)[][];
@@ -521,7 +521,7 @@ function PricingOffersModal({
 export default function Home() {
   const router = useRouter();
   // ── Auth ───────────────────────────────────────────────────────────
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [authOpen, setAuthOpen] = useState(false);
   const userRole = (session?.user?.role as string) || null;
   const isCreator = userRole === 'CREATOR' || userRole === 'ADMIN';
@@ -537,6 +537,8 @@ export default function Home() {
   const [earnedBadgeIds, setEarnedBadgeIds] = useState<Set<string>>(new Set());
   const [dailyPuzzles, setDailyPuzzles] = useState<PuzzleSummary[]>([]);
   const [isLoadingPuzzles, setIsLoadingPuzzles] = useState(true);
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
 
   const handleOpenStore = () => {
     if (status === 'loading') return;
@@ -545,6 +547,29 @@ export default function Home() {
       return;
     }
     setPricingModalOpen(true);
+  };
+
+  const handleResendVerification = async () => {
+    if (isResendingVerification) return;
+    setIsResendingVerification(true);
+    try {
+      const res = await fetch('/api/auth/resend-verification', { method: 'POST' });
+      const data = await res.json().catch(() => null) as { error?: string; alreadyVerified?: boolean } | null;
+      if (!res.ok) {
+        toast.error(data?.error || "Impossible d'envoyer l'email de vérification");
+        return;
+      }
+      if (data?.alreadyVerified) {
+        toast.success('Votre adresse email est déjà confirmée.');
+        void update();
+      } else {
+        toast.success('Email de vérification envoyé. Consultez votre boîte mail.');
+      }
+    } catch {
+      toast.error("Impossible d'envoyer l'email de vérification");
+    } finally {
+      setIsResendingVerification(false);
+    }
   };
 
   // ── Language + Category + Pack + Date filter state ─────────────────
@@ -570,6 +595,8 @@ export default function Home() {
   const [magicRevealedCells, setMagicRevealedCells] = useState<Set<string>>(new Set());
   const [correctCellsManual, setCorrectCellsManual] = useState<Set<string>>(new Set());
   const [incorrectCellsManual, setIncorrectCellsManual] = useState<Set<string>>(new Set());
+  const [autoCorrectCells, setAutoCorrectCells] = useState<Set<string>>(new Set());
+  const [autoIncorrectCells, setAutoIncorrectCells] = useState<Set<string>>(new Set());
   const [completedClues, setCompletedClues] = useState<Set<string>>(new Set());
   const [autoCheck, setAutoCheck] = useState(true); // Real-time letter validation
 
@@ -681,6 +708,68 @@ export default function Home() {
     } catch {}
   }, [session?.user?.id, status]);
 
+  // ── Claim anonymous progress once the visitor signs in ─────────────
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user?.id) return;
+    let cancelled = false;
+    fetch('/api/progress/claim', { method: 'POST' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { claimed?: number } | null) => {
+        if (cancelled || !data || !(Number(data.claimed) > 0)) return;
+        setCatalogVersion((version) => version + 1);
+        toast.success('Votre progression a été transférée sur votre compte');
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [status, session?.user?.id]);
+
+  // ── Email verification return link (?emailVerified=...) ────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('emailVerified');
+    if (!result) return;
+    if (result === 'signin_required' && status === 'loading') return;
+
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('emailVerified');
+    window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+
+    if (result === 'signin_required') {
+      if (status === 'authenticated') {
+        toast.error('Ce lien de vérification appartient à un autre compte.');
+      } else {
+        toast.message(
+          'Connectez-vous au compte WordFusion lié à cette adresse email, puis rouvrez le lien reçu par email.',
+          { duration: 10000 },
+        );
+      }
+      return;
+    }
+    if (result === '1') {
+      toast.success('Adresse email confirmée. Vos achats en attente ont été crédités.');
+      queueMicrotask(() => setCatalogVersion((version) => version + 1));
+      void update();
+      fetch('/api/coins')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { balance?: number } | null) => {
+          if (data) setCoinBalance(data.balance ?? 0);
+        })
+        .catch(() => {});
+      return;
+    }
+    if (result === 'already_used') {
+      toast.success('Cette adresse email est déjà confirmée.');
+      void update();
+      return;
+    }
+    if (result === 'expired') {
+      toast.error('Ce lien de vérification a expiré. Demandez-en un nouveau.');
+      return;
+    }
+    toast.error('Lien de vérification invalide.');
+  }, [update, status]);
+
   // ── Load daily puzzles on mount / filter change ────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -701,7 +790,7 @@ export default function Home() {
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedLanguage]);
+  }, [selectedLanguage, catalogVersion]);
 
   // ── Today's date string (server-agnostic) ─────────────────────────
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -921,7 +1010,10 @@ export default function Home() {
       for (const key of persistedReveals) {
         const [row, col] = key.split(',').map(Number);
         if (Number.isInteger(row) && Number.isInteger(col) && puzzle.grid[row]?.[col] && !puzzle.grid[row][col].isBlack) {
-          inputs[row][col] = puzzle.grid[row][col].letter;
+          // The server only sends letters for revealed cells; keep local
+          // draft input for anything it has not revealed yet.
+          const revealedLetter = puzzle.grid[row][col].letter;
+          if (revealedLetter) inputs[row][col] = revealedLetter;
         }
       }
 
@@ -937,6 +1029,8 @@ export default function Home() {
       setMagicRevealedCells(new Set());
       setCorrectCellsManual(new Set());
       setIncorrectCellsManual(new Set());
+      setAutoCorrectCells(new Set());
+      setAutoIncorrectCells(new Set());
       setCompletedClues(new Set());
       setTimer(startFresh ? 0 : restoreLocalDraft && localDraft
         ? localDraft.timeSpent
@@ -996,7 +1090,6 @@ export default function Home() {
             puzzleId: draft.puzzleId,
             userInputs: draft.userInputs,
             timeSpent: draft.timeSpent,
-            revealedCells: draft.revealedCells,
           }),
         });
         if (response.ok) await markOfflineDraftSynced(draft.key, draft.updatedAt);
@@ -1038,7 +1131,6 @@ export default function Home() {
           puzzleId,
           userInputs,
           timeSpent: saveTick * 15,
-          revealedCells: Array.from(revealedCells),
         }),
       }).then((response) => {
         if (response.ok) return markOfflineDraftSynced(draft.key, draft.updatedAt);
@@ -1116,10 +1208,8 @@ export default function Home() {
       const cellKey = toCellKey(row, col);
       if (isCompleted || revealedCells.has(cellKey)) return;
       const currentInput = userInputs[row]?.[col];
-      const answer = selectedPuzzle?.grid[row]?.[col]?.letter;
-      const isConfirmedCorrect = correctCellsManual.has(cellKey) || (
-        autoCheck && !!currentInput && !!answer && currentInput.toUpperCase() === answer.toUpperCase()
-      );
+      const isConfirmedCorrect = correctCellsManual.has(cellKey)
+        || (autoCheck && autoCorrectCells.has(cellKey));
       if (isConfirmedCorrect && value !== currentInput) {
         toast.info('Cette lettre correcte est verrouillée');
         return;
@@ -1131,13 +1221,11 @@ export default function Home() {
       });
       if (soundEnabled && value) playPuzzleSound('letter', value);
       if (!isTimerRunning && value) setIsTimerRunning(true);
-      // Only clear manual check highlights on new input (auto-check handles its own)
-      if (!autoCheck) {
-        setCorrectCellsManual(new Set());
-        setIncorrectCellsManual(new Set());
-      }
+      // The server owns correctness; drop stale manual errors on new input.
+      setIncorrectCellsManual(new Set());
+      if (!autoCheck) setCorrectCellsManual(new Set());
     },
-    [isCompleted, isTimerRunning, autoCheck, revealedCells, soundEnabled, userInputs, selectedPuzzle, correctCellsManual],
+    [isCompleted, isTimerRunning, autoCheck, revealedCells, soundEnabled, userInputs, correctCellsManual, autoCorrectCells],
   );
 
   const handleSelectCell = useCallback(
@@ -1281,6 +1369,52 @@ export default function Home() {
     return () => window.clearTimeout(timeout);
   }, [autoCheck, puzzleId, selectedPuzzle, userInputs, isCompleted, isChecking, handleCheck]);
 
+  // Live feedback is computed on the server: the client never receives the
+  // solution, only the coordinates of correct/incorrect entries.
+  useEffect(() => {
+    if (!autoCheck || !puzzleId || !selectedPuzzle || isCompleted || isChecking) return;
+    if (!userInputs.some((row) => row.some(Boolean))) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/puzzles/${puzzleId}/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userInputs }),
+            signal: controller.signal,
+          });
+          if (!res.ok || controller.signal.aborted) return;
+          const data = await res.json() as {
+            correctCells?: { row: number; col: number }[];
+            incorrectCells?: { row: number; col: number }[];
+            completedClues?: { number: number; direction: 'across' | 'down' }[];
+          };
+          if (controller.signal.aborted) return;
+          setAutoCorrectCells(new Set(
+            (data.correctCells ?? []).map((cell) => toCellKey(cell.row, cell.col)),
+          ));
+          setAutoIncorrectCells(new Set(
+            (data.incorrectCells ?? []).map((cell) => toCellKey(cell.row, cell.col)),
+          ));
+          if (data.completedClues?.length) {
+            setCompletedClues((previous) => new Set([
+              ...previous,
+              ...data.completedClues!.map((clue) => clueKey(clue.number, clue.direction)),
+            ]));
+          }
+        } catch {
+          // Offline or aborted: keep the last known server state.
+        }
+      })();
+    }, 300);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [autoCheck, puzzleId, selectedPuzzle, userInputs, isCompleted, isChecking]);
+
   const handleHint = useCallback(async () => {
     if (!puzzleId || !selectedCell || !selectedPuzzle || isCompleted) return;
     try {
@@ -1355,18 +1489,20 @@ export default function Home() {
 
   const handleClear = useCallback(() => {
     if (!selectedPuzzle || isCompleted) return;
-    setUserInputs(
-      Array.from({ length: selectedPuzzle.rows }, () =>
-        Array.from<null>({ length: selectedPuzzle.cols }).fill(null),
-      ),
-    );
+    // Revealed letters were paid for or hinted; keep them (the server keeps
+    // them too), and clear only the player's own entries.
+    setUserInputs((previous) => previous.map((row, rowIndex) =>
+      row.map((value, colIndex) => (
+        revealedCells.has(toCellKey(rowIndex, colIndex)) ? value : null
+      )),
+    ));
     setCorrectCellsManual(new Set());
     setIncorrectCellsManual(new Set());
-    setRevealedCells(new Set());
-    setMagicRevealedCells(new Set());
+    setAutoCorrectCells(new Set());
+    setAutoIncorrectCells(new Set());
     setCompletedClues(new Set());
     toast.info('Grille effacée');
-  }, [selectedPuzzle, isCompleted]);
+  }, [selectedPuzzle, isCompleted, revealedCells]);
 
   const handleBack = useCallback(() => {
     setIsTimerRunning(false);
@@ -1416,19 +1552,32 @@ export default function Home() {
     const cost = withAnswers ? 15 : 5;
     setIsDownloadingPdf(true);
     try {
-      const res = await fetch(`/api/puzzles/${puzzleId}/pdf-access`, {
+      const res = await fetch(`/api/puzzles/${puzzleId}/pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kind: withAnswers ? 'answers' : 'puzzle' }),
       });
-      const data = await res.json();
       if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
         toast.error(data.error || `Il vous faut ${cost} pièces`);
         return;
       }
 
-      if (typeof data.balance === 'number') setCoinBalance(data.balance);
-      exportPuzzleToPdf(selectedPuzzle, { withAnswers });
+      const nextBalance = Number(res.headers.get('x-coin-balance'));
+      if (Number.isFinite(nextBalance)) setCoinBalance(nextBalance);
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') ?? '';
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? 'mots-croises.pdf';
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
       toast.success(withAnswers ? 'PDF avec réponses téléchargé !' : 'PDF téléchargé !');
     } catch {
       toast.error('Impossible de préparer le téléchargement');
@@ -1439,38 +1588,7 @@ export default function Home() {
 
   // ── Derived values ───────────────────────────────────────────────────
 
-  // Real-time auto-validation: compare each filled cell against the answer
-  const autoCorrectCells = useMemo(() => {
-    const s = new Set<string>();
-    if (!selectedPuzzle || !autoCheck) return s;
-    for (let r = 0; r < selectedPuzzle.rows; r++) {
-      for (let c = 0; c < selectedPuzzle.cols; c++) {
-        const answer = selectedPuzzle.grid[r]?.[c]?.letter;
-        const input = userInputs[r]?.[c];
-        if (answer && input && input.toUpperCase() === answer.toUpperCase()) {
-          s.add(toCellKey(r, c));
-        }
-      }
-    }
-    return s;
-  }, [selectedPuzzle, userInputs, autoCheck]);
-
-  const autoIncorrectCells = useMemo(() => {
-    const s = new Set<string>();
-    if (!selectedPuzzle || !autoCheck) return s;
-    for (let r = 0; r < selectedPuzzle.rows; r++) {
-      for (let c = 0; c < selectedPuzzle.cols; c++) {
-        const answer = selectedPuzzle.grid[r]?.[c]?.letter;
-        const input = userInputs[r]?.[c];
-        if (answer && input && input.toUpperCase() !== answer.toUpperCase()) {
-          s.add(toCellKey(r, c));
-        }
-      }
-    }
-    return s;
-  }, [selectedPuzzle, userInputs, autoCheck]);
-
-  // Merge auto-check + manual check sets (manual takes priority if conflicting)
+  // Merge server auto-check + manual check sets.
   const correctCells = useMemo(() => {
     if (!autoCheck) return correctCellsManual;
     return new Set([...autoCorrectCells, ...correctCellsManual]);
@@ -1733,6 +1851,27 @@ export default function Home() {
               </div>
             </div>
           </header>
+
+          {session?.user && !session.user.emailVerified && (
+            <div className="border-b border-amber-300/70 bg-amber-50/90 dark:border-amber-900/50 dark:bg-amber-950/40">
+              <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 sm:px-5 sm:text-sm">
+                <span className="flex items-center gap-2">
+                  <Mail className="size-4 shrink-0" />
+                  Confirmez votre adresse email : les achats Chariow restent en attente jusqu’à la confirmation.
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 border-amber-400 bg-white/70 text-xs hover:bg-white dark:bg-transparent"
+                  onClick={() => void handleResendVerification()}
+                  disabled={isResendingVerification}
+                >
+                  {isResendingVerification ? 'Envoi…' : 'Renvoyer le lien'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           <PricingOffersModal open={pricingModalOpen} onOpenChange={setPricingModalOpen} />
 

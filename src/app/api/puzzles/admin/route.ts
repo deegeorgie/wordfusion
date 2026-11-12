@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { puzzleToDbFormat } from '@/lib/crossword/utils';
+import { formatPuzzleIssues, validateGeneratedPuzzle } from '@/lib/crossword/validate-generated';
 import type { CrosswordPuzzleData } from '@/lib/crossword/types';
 import { requireRole } from '@/lib/auth-guard';
 import { createWithNextPuzzleNumber } from '@/lib/puzzle-number';
@@ -224,6 +225,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Seul un administrateur peut publier ou programmer un puzzle' }, { status: 403 });
     }
 
+    const issues = validateGeneratedPuzzle(
+      { rows: body.rows, cols: body.cols, grid: body.grid, words: body.words, clues: body.clues },
+      { requirePublishable: isAdmin && body.published === true },
+    );
+    if (issues.length) {
+      return NextResponse.json(
+        { error: `Puzzle invalide : ${formatPuzzleIssues(issues)}` },
+        { status: 400 }
+      );
+    }
+
     const dbFormat = puzzleToDbFormat({
       title: '',
       description: body.description,
@@ -304,6 +316,17 @@ export async function PUT(request: NextRequest) {
       const magicWords = getMagicWords(body);
       if (!magicWords) {
         return NextResponse.json({ error: 'Chaque mot magique doit correspondre à un mot de la grille' }, { status: 400 });
+      }
+
+      const issues = validateGeneratedPuzzle(
+        { rows: body.rows, cols: body.cols, grid: body.grid, words: body.words, clues: body.clues },
+        { requirePublishable: existing.published },
+      );
+      if (issues.length) {
+        return NextResponse.json(
+          { error: `Puzzle invalide : ${formatPuzzleIssues(issues)}` },
+          { status: 400 }
+        );
       }
 
       const dbFormat = puzzleToDbFormat({

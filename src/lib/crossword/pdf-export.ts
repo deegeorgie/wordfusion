@@ -2,25 +2,29 @@ import jsPDF from 'jspdf';
 import type { CrosswordPuzzleData } from './types';
 
 /**
- * Export a crossword puzzle as a professional A4 PDF.
+ * Build a crossword puzzle as a professional A4 PDF on the server.
+ * Returns the raw document bytes; callers decide how to deliver them.
  *
  * @param puzzle  - The full puzzle data (grid, clues, metadata)
  * @param options.withAnswers  - If true, fill in the answer letters (default: false)
  * @param options.title       - Override the puzzle title
  * @param options.showNumbers - Show clue numbers inside the grid (default: true)
+ * @param options.language    - Locale label shown in the header
  */
-export function exportPuzzleToPdf(
+export function buildPuzzlePdf(
   puzzle: CrosswordPuzzleData,
   options?: {
     withAnswers?: boolean;
     title?: string;
     showNumbers?: boolean;
+    language?: 'fr' | 'en';
   },
-): void {
+): ArrayBuffer {
   const {
     withAnswers = false,
     title: titleOverride,
     showNumbers = true,
+    language = 'fr',
   } = options ?? {};
 
   // ── Document setup ──────────────────────────────────────────────────
@@ -79,7 +83,7 @@ export function exportPuzzleToPdf(
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
-  doc.text(`${difficultyText}  🇫🇷`, PAGE_W - RIGHT, TOP + 2, { align: 'right' });
+  doc.text(`${difficultyText}  ${language.toUpperCase()}`, PAGE_W - RIGHT, TOP + 2, { align: 'right' });
   doc.setTextColor(0, 0, 0);
 
   // Thin separator line
@@ -300,7 +304,6 @@ export function exportPuzzleToPdf(
     });
   }
 
-  // Reset colour & save
   doc.setTextColor(0, 0, 0);
-  doc.save('mots-croises.pdf');
+  return doc.output('arraybuffer');
 }

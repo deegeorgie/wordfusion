@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { formatPuzzleIssues, validatePuzzleRecord } from '@/lib/crossword/validate-generated';
 export const dynamic = 'force-dynamic';
 
 /**
@@ -28,6 +29,8 @@ export async function GET(request: NextRequest) {
     }
 
     const puzzlesPerDay = schedule?.puzzlesPerDay ?? 1;
+    // Read a bounded window so invalid drafts can be skipped without starving
+    // the day's quota; the window is only a lookahead, not a publish list.
     const duePuzzles = await db.crosswordPuzzle.findMany({
       where: {
         publishDate: { lte: now },
@@ -35,19 +38,34 @@ export async function GET(request: NextRequest) {
         firstPublishedAt: null,
       },
       orderBy: { publishDate: 'asc' },
-      take: puzzlesPerDay,
-      select: { id: true },
+      take: Math.max(puzzlesPerDay * 5, 20),
+      select: { id: true, rows: true, cols: true, gridData: true, wordsData: true, cluesData: true },
     });
-    const result = duePuzzles.length === 0 ? { count: 0 } : await db.crosswordPuzzle.updateMany({
-      where: { id: { in: duePuzzles.map((puzzle) => puzzle.id) }, published: false, firstPublishedAt: null },
+
+    const publishableIds: string[] = [];
+    let skipped = 0;
+    for (const puzzle of duePuzzles) {
+      if (publishableIds.length >= puzzlesPerDay) break;
+      const issues = validatePuzzleRecord(puzzle, { requirePublishable: true });
+      if (issues.length) {
+        skipped++;
+        console.warn(`[cron] Skipping puzzle ${puzzle.id}: ${formatPuzzleIssues(issues)}`);
+        continue;
+      }
+      publishableIds.push(puzzle.id);
+    }
+
+    const result = publishableIds.length === 0 ? { count: 0 } : await db.crosswordPuzzle.updateMany({
+      where: { id: { in: publishableIds }, published: false, firstPublishedAt: null },
       data: { published: true, firstPublishedAt: now },
     });
 
-    console.log(`[cron] Published ${result.count} puzzle(s)`);
+    console.log(`[cron] Published ${result.count} puzzle(s), skipped ${skipped} invalid`);
 
     return NextResponse.json({
       ok: true,
       published: result.count,
+      skipped,
       ranAt: now.toISOString(),
     });
   } catch (error) {

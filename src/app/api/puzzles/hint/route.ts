@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { CrosswordCell, Clue } from '@/lib/crossword/types';
+import { parseRevealedCells } from '@/lib/crossword/server-puzzle';
 import { getAccessiblePuzzle } from '@/lib/puzzle-access';
 import { getProgressUser, setProgressCookie } from '@/lib/progress-user';
 
@@ -54,25 +55,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Increment hint counter on user progress
-    await db.userProgress.upsert({
-      where: {
-        puzzleId_userId: {
+    // Record the reveal server-side. The client can no longer submit its own
+    // revealed cells, so this is what makes the hint visible on reload.
+    const existingProgress = await db.userProgress.findUnique({
+      where: { puzzleId_userId: { puzzleId, userId: progressUser.userId } },
+      select: { revealedCells: true },
+    });
+    const revealedKeys = parseRevealedCells(existingProgress?.revealedCells);
+    const cellKey = `${row},${col}`;
+    if (!revealedKeys.has(cellKey)) {
+      revealedKeys.add(cellKey);
+      await db.userProgress.upsert({
+        where: {
+          puzzleId_userId: {
+            puzzleId,
+            userId: progressUser.userId,
+          },
+        },
+        create: {
           puzzleId,
           userId: progressUser.userId,
+          hintsUsed: 1,
+          revealedCells: JSON.stringify([...revealedKeys]),
         },
-      },
-      create: {
-        puzzleId,
-        userId: progressUser.userId,
-        hintsUsed: 1,
-      },
-      update: {
-        hintsUsed: {
-          increment: 1,
+        update: {
+          hintsUsed: { increment: 1 },
+          revealedCells: JSON.stringify([...revealedKeys]),
         },
-      },
-    });
+      });
+    }
 
     // Find relevant clues for this cell
     const relevantClues = clues.filter((clue) => {

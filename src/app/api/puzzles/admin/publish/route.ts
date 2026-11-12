@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { requireRole } from '@/lib/auth-guard';
+import { formatPuzzleIssues, validatePuzzleRecord } from '@/lib/crossword/validate-generated';
 
 interface PublishRequestBody {
   puzzleId: string;
@@ -33,6 +34,18 @@ export async function POST(request: NextRequest) {
         { error: 'Puzzle not found' },
         { status: 404 }
       );
+    }
+
+    // A puzzle can only reach players once it is complete and solvable.
+    // Unpublishing stays available so a broken puzzle can always be pulled.
+    if (published) {
+      const issues = validatePuzzleRecord(existing, { requirePublishable: true });
+      if (issues.length) {
+        return NextResponse.json(
+          { error: `Publication refusée : ${formatPuzzleIssues(issues)}` },
+          { status: 400 }
+        );
+      }
     }
 
     // Build update data

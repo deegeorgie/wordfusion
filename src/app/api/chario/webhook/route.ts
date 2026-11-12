@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { addMonths, addYears } from 'date-fns';
 import { db } from '@/lib/db';
-import { isBiteSizedPuzzle } from '@/lib/puzzle-rules';
+import { grantChariowEntitlements } from '@/lib/chariow-grants';
+import { issueEmailVerification } from '@/lib/email-verification';
+import { normalizeEmail } from '@/lib/verification-token';
 import {
   CHARIO_PRODUCTS,
   getCharioOrderId,
@@ -56,14 +57,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing sale ID' }, { status: 400 });
   }
 
-  const email = getCharioUserEmail(payload);
-  if (!email) {
+  const rawEmail = getCharioUserEmail(payload);
+  if (!rawEmail) {
     return NextResponse.json({ error: 'Missing customer email' }, { status: 400 });
   }
+  const email = normalizeEmail(rawEmail);
 
   const user = await db.user.findFirst({
     where: { email: { equals: email, mode: 'insensitive' } },
-    select: { id: true, email: true },
+    select: { id: true, name: true, email: true, emailVerified: true },
   });
 
   if (!user) {
@@ -78,6 +80,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  let purchaseId: string | null = null;
+  let purchaseAlreadyCompleted = false;
+  let requiresVerification = !user.emailVerified;
+
   await db.$transaction(async (tx) => {
     await tx.chariowPulseDelivery.create({
       data: { id: deliveryId, saleId: providerOrderId },
@@ -86,134 +92,69 @@ export async function POST(request: Request) {
     const existingPurchase = await tx.paymentPurchase.findFirst({
       where: { provider: 'CHARIO', providerOrderId },
     });
-    if (existingPurchase?.status === 'COMPLETED') return;
+    if (existingPurchase?.status === 'COMPLETED') {
+      purchaseAlreadyCompleted = true;
+      return;
+    }
 
-    const purchase = existingPurchase ?? (await tx.paymentPurchase.create({
-      data: {
+    // Re-read inside the transaction so a verification that landed a moment
+    // ago is not overwritten by a purchase held for verification.
+    const freshUser = await tx.user.findUnique({
+      where: { id: user.id },
+      select: { emailVerified: true },
+    });
+    requiresVerification = !freshUser?.emailVerified;
+
+    const purchase = existingPurchase
+      ? await tx.paymentPurchase.update({
+          where: { id: existingPurchase.id },
+          data: {
+            productType: product.kind.toUpperCase(),
+            productKey: product.key,
+            coins: product.coins ?? existingPurchase.coins,
+            amountMinor: product.amountMinor ?? existingPurchase.amountMinor,
+            currency: product.currency ?? existingPurchase.currency,
+            status: requiresVerification ? 'PENDING_VERIFICATION' : 'PENDING',
+            completedAt: null,
+          },
+        })
+      : await tx.paymentPurchase.create({
+          data: {
+            userId: user.id,
+            provider: 'CHARIO',
+            providerOrderId,
+            productType: product.kind.toUpperCase(),
+            productKey: product.key,
+            coins: product.coins ?? 0,
+            amountMinor: product.amountMinor ?? 0,
+            currency: product.currency ?? 'XOF',
+            status: requiresVerification ? 'PENDING_VERIFICATION' : 'PENDING',
+          },
+        });
+
+    purchaseId = purchase.id;
+
+    if (!requiresVerification) {
+      await grantChariowEntitlements(tx, {
         userId: user.id,
-        provider: 'CHARIO',
+        purchaseId: purchase.id,
+        product,
         providerOrderId,
-        productType: product.kind.toUpperCase(),
-        productKey: product.key,
-        coins: product.coins ?? 0,
-        amountMinor: product.amountMinor ?? 0,
-        currency: product.currency ?? 'XOF',
-        status: 'COMPLETED',
-        completedAt: new Date(),
-      },
-    }));
-
-    if (existingPurchase) {
-      await tx.paymentPurchase.update({
-        where: { id: purchase.id },
-        data: {
-          status: 'COMPLETED',
-          completedAt: new Date(),
-          productType: product.kind.toUpperCase(),
-          productKey: product.key,
-          coins: product.coins ?? purchase.coins,
-          amountMinor: product.amountMinor ?? purchase.amountMinor,
-          currency: product.currency ?? purchase.currency,
-        },
       });
-    }
-
-    if (product.kind === 'subscription' && product.planKey) {
-      const now = new Date();
-      const subscriptionId = `chariow:${user.id}`;
-      const currentSubscription = await tx.userSubscription.findFirst({
-        where: {
-          userId: user.id,
-          provider: 'CHARIO',
-          status: 'ACTIVE',
-          currentPeriodEnd: { gt: now },
-        },
-        orderBy: { currentPeriodEnd: 'desc' },
-      });
-      const currentPeriodStart = currentSubscription?.currentPeriodEnd ?? now;
-      const currentPeriodEnd = product.planKey === 'premium_annual'
-        ? addYears(currentPeriodStart, 1)
-        : addMonths(currentPeriodStart, 1);
-
-      await tx.userSubscription.updateMany({
-        where: {
-          userId: user.id,
-          provider: 'CHARIO',
-          status: 'ACTIVE',
-          providerSubscriptionId: { not: subscriptionId },
-        },
-        data: { status: 'REPLACED' },
-      });
-
-      await tx.userSubscription.upsert({
-        where: { providerSubscriptionId: subscriptionId },
-        update: {
-          planKey: product.planKey,
-          status: 'ACTIVE',
-          currentPeriodStart: currentSubscription?.currentPeriodStart ?? now,
-          currentPeriodEnd,
-          cancelAtPeriodEnd: false,
-        },
-        create: {
-          userId: user.id,
-          provider: 'CHARIO',
-          providerSubscriptionId: subscriptionId,
-          planKey: product.planKey,
-          status: 'ACTIVE',
-          currentPeriodStart: now,
-          currentPeriodEnd,
-          cancelAtPeriodEnd: false,
-        },
-      });
-    }
-
-    if ((product.kind === 'coin_bundle' || product.kind === 'bundle') && (product.coins ?? 0) > 0) {
-      const coinGrant = product.coins ?? 0;
-      const wallet = await tx.userWallet.upsert({
-        where: { userId: user.id },
-        create: { userId: user.id, balance: coinGrant },
-        update: { balance: { increment: coinGrant } },
-      });
-
-      await tx.coinTransaction.create({
-        data: {
-          userId: user.id,
-          walletId: wallet.id,
-          amount: coinGrant,
-          reason: product.kind === 'bundle' ? 'chario_starter_bundle' : 'chario_coin_bundle',
-          referenceKey: `chario:${providerOrderId}:${product.key}`,
-          balanceAfter: wallet.balance,
-        },
-      });
-    }
-
-    if (product.kind === 'bundle') {
-      const puzzleCandidates = product.puzzleIds?.length
-        ? await tx.crosswordPuzzle.findMany({
-            where: { id: { in: product.puzzleIds }, published: true, isPremium: true },
-            select: { id: true, rows: true, cols: true },
-          })
-        : await tx.crosswordPuzzle.findMany({
-            where: { published: true, isPremium: true },
-            orderBy: { createdAt: 'asc' },
-            select: { id: true, rows: true, cols: true },
-          });
-      const puzzlesToUnlock = puzzleCandidates.filter((puzzle) => !isBiteSizedPuzzle(puzzle)).slice(0, 3);
-      if (puzzlesToUnlock.length < 3) {
-        throw new Error('Starter bundle requires three published premium puzzles');
-      }
-
-      await Promise.all(
-        puzzlesToUnlock.map(async ({ id: puzzleId }) => {
-          await tx.puzzleUnlock.upsert({
-            where: { userId_puzzleId: { userId: user.id, puzzleId } },
-            create: { userId: user.id, puzzleId },
-            update: {},
-          });
-        }),
-      );
     }
   });
+
+  if (purchaseAlreadyCompleted || !purchaseId) {
+    return NextResponse.json({ ok: true });
+  }
+
+  if (requiresVerification) {
+    const { sent } = await issueEmailVerification(user, 'purchase_claim');
+    console.warn(
+      `[chario] Purchase ${providerOrderId} for ${user.email} is held until email verification; message ${sent ? 'sent' : 'not sent'}`,
+    );
+    return NextResponse.json({ ok: true, pendingVerification: true });
+  }
 
   return NextResponse.json({ ok: true });
 }
