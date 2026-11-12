@@ -742,3 +742,17 @@ Stage Summary:
 - Invalid puzzles can no longer be saved into a publishable state, published by an admin, or auto-published by cron; generation validates its own output.
 - The publish refusal UI path was not exercised live because the available browser session is CREATOR and publishing is ADMIN-only; it shares the tested helper and build.
 - Legacy published puzzles with empty clues remain live and will be skipped by cron until fixed; they need one manual cleanup pass if desired.
+
+---
+Task ID: next-security-upgrade
+Agent: Main Coordinator
+Task: Fix the critical Dependabot alert #15 (Next.js next/og ImageResponse RCE)
+
+Work Log:
+- `next` 16.3.3 → 16.4.6 and `eslint-config-next` 16.1.x → 16.4.6 (both `^16.4.6` in package.json), clearing GHSA-vcvr-r3jv-pc5j (vulnerable `>=16.2.0, <16.3.6`) and the other Next advisories whose patched floors are 16.3.8 / 16.4.1.
+- Installation was blocked by repeated ECONNRESET while unpacking large tarballs; worked around by curling the `next`, `eslint-config-next` and `@next/swc-win32-x64-msvc` 16.4.6 tarballs, seeding the npm cacache with their request-cache keys, then installing with `--prefer-online` (immutable tarballs from cache, stale packuments revalidated).
+- `npm audit` critical count for `next` is gone; the only remaining critical entry is `dompurify`, which has no open critical Dependabot alert on the repo today.
+- Verified: 115/115 tests, `tsc --noEmit` clean, lint only the 4 baseline errors, `next build` OK on 16.4.6 with no new warnings.
+
+Stage Summary:
+- The reported critical alert is patched in the dependency tree; remaining audit findings (high/moderate) are untouched and out of scope for this block.
